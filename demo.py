@@ -10,7 +10,7 @@ tutorial_asset_dir = os.path.join(os.path.dirname(__file__), 'readme_assets', 't
 assert os.path.exists(tutorial_asset_dir), f"未找到例程素材文件夹{os.path.abspath(tutorial_asset_dir)}"
 
 # 创建剪映草稿
-script = draft_folder.create_draft("demo", 1920, 1080)  # 1920x1080分辨率
+script = draft_folder.create_draft("demo", 1920, 1080, allow_replace=True)  # 1920x1080分辨率
 
 # 添加音频、视频和文本轨道
 script.add_track(draft.TrackType.audio).add_track(draft.TrackType.video).add_track(draft.TrackType.text)
@@ -42,7 +42,7 @@ script.add_segment(audio_segment).add_segment(video_segment).add_segment(gif_seg
 text_segment = draft.TextSegment(
     "据说pyJianYingDraft效果还不错?", video_segment.target_timerange,  # 文本片段的首尾与上方视频片段一致
     font=draft.FontType.文轩体,                                       # 设置字体为文轩体
-    style=draft.TextStyle(color=(1.0, 1.0, 0.0)),                    # 字体颜色为黄色
+    style=draft.TextStyle(color=(1.0, 1.0, 0.0)),                    # 字体颜色为黄色（实际上被花字覆盖）
     clip_settings=draft.ClipSettings(transform_y=-0.8)               # 位置在屏幕下方
 )
 text_segment.add_animation(draft.TextOutro.故障闪动, duration=tim("1s"))  # 添加出场动画“故障闪动”, 设置时长为1s
