@@ -306,6 +306,9 @@ class ScriptFile:
             # 出入场等动画
             if (segment.animations_instance is not None) and (segment.animations_instance not in self.materials):
                 self.materials.animations.append(segment.animations_instance)
+            # 淡入淡出
+            if (segment.fade is not None) and (segment.fade not in self.materials):
+                self.materials.audio_fades.append(segment.fade)
             # 特效
             for effect in segment.effects:
                 if effect not in self.materials:

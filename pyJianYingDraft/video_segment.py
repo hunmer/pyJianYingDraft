@@ -10,7 +10,7 @@ from typing import Optional, Literal, Union
 from typing import Dict, List, Tuple, Any
 
 from .time_util import tim, Timerange
-from .segment import VisualSegment, ClipSettings
+from .segment import VisualSegment, ClipSettings, AudioFade
 from .local_materials import VideoMaterial
 from .animation import SegmentAnimations, VideoAnimation
 
@@ -278,6 +278,12 @@ class VideoSegment(VisualSegment):
     material_size: Tuple[int, int]
     """素材尺寸"""
 
+    fade: Optional[AudioFade]
+    """音频淡入淡出效果, 可能为空
+
+    在放入轨道时自动添加到素材列表中
+    """
+
     effects: List[VideoEffect]
     """特效列表
 
@@ -345,6 +351,7 @@ class VideoSegment(VisualSegment):
         self.transition = None
         self.mask = None
         self.background_filling = None
+        self.fade = None
 
     def add_animation(self, animation_type: Union[IntroType, OutroType, GroupAnimationType],
                       duration: Optional[Union[int, str]] = None) -> "VideoSegment":
@@ -395,6 +402,27 @@ class VideoSegment(VisualSegment):
         effect_inst = VideoEffect(effect_type, params)
         self.effects.append(effect_inst)
         self.extra_material_refs.append(effect_inst.global_id)
+
+        return self
+
+    def add_fade(self, in_duration: Union[str, int], out_duration: Union[str, int]) -> "VideoSegment":
+        """为视频片段添加音频淡入淡出效果, 仅对有音轨的视频片段有效
+
+        Args:
+            in_duration (`int` or `str`): 音频淡入时长, 单位为微秒, 若为字符串则会调用`tim()`函数进行解析
+            out_duration (`int` or `str`): 音频淡出时长, 单位为微秒, 若为字符串则会调用`tim()`函数进行解析
+
+        Raises:
+            `ValueError`: 当前片段已存在淡入淡出效果
+        """
+        if self.fade is not None:
+            raise ValueError("当前片段已存在淡入淡出效果")
+
+        if isinstance(in_duration, str): in_duration = tim(in_duration)
+        if isinstance(out_duration, str): out_duration = tim(out_duration)
+
+        self.fade = AudioFade(in_duration, out_duration)
+        self.extra_material_refs.append(self.fade.fade_id)
 
         return self
 
