@@ -35,6 +35,7 @@
 > ℹ 以下草稿生成功能（音视频、贴纸、文本、特效等）**支持剪映5及以上的所有版本**
 
 - ☑️ 添加本地视频/图片素材，并[自定义片段的时间、持续时长或播放速度](#素材截取与整体变速)
+- ☑️ 视频片段的音频淡入淡出效果
 - ☑️ [视频整体调节](#视频整体调节)（旋转、缩放、亮度等）以及[关键帧生成](#关键帧)
 - ☑️ 视频片段的[入场/出场/组合动画](#添加片段动画)
 - ☑️ 添加[蒙版](#蒙版)、[片段特效](#添加片段特效)和[滤镜](#添加片段滤镜)
@@ -67,11 +68,11 @@ pyJianYingDraft现已支持pip安装（不含demo），推荐使用开发时测�
 pip install pyJianYingDraft
 ```
 
+> ℹ 关于剪映5.9版本的自动升级问题，可参见[相关issue](https://github.com/GuanYixuan/pyJianYingDraft/issues/115)
+
 ### 跨平台兼容性
 - **Windows**：支持包括草稿生成、模板模式和自动导出在内的所有功能（具体可能受到剪映版本限制）
 - **Linux/MacOS**：支持草稿生成和模板模式，但**不支持自动导出**，且注意**生成的草稿仍然需要在Windows版剪映下导出**。
-
-> ℹ 如遇安装后import失败, 可能与uiautomation的兼容性问题有关，参见[相关issue](https://github.com/GuanYixuan/pyJianYingDraft/issues/12)
 
 # 快速上手
 例程`demo.py`将创建包含音视频素材和一行文本的剪映草稿文件，并且添加了音频淡入、视频入场动画、转场效果和文本气泡/花字。
@@ -567,10 +568,10 @@ seg1 = draft.TextSegment("Subtitle", trange("0s", "10s"),
 
 ```python
 # 启用自动换行，设置最大行宽为屏幕宽度的70%
-seg2 = draft.TextSegment("这是一段很长的文本内容，当超过设定的最大行宽时会自动换行显示", 
+seg2 = draft.TextSegment("这是一段很长的文本内容，当超过设定的最大行宽时会自动换行显示",
                           trange("0s", "10s"),
                           font=FontType.文轩体,
-                          style=TextStyle(size=5.0, 
+                          style=TextStyle(size=5.0,
                                           auto_wrapping=True,      # 启用自动换行
                                           max_line_width=0.7))     # 最大行宽占屏幕70%
 ```
