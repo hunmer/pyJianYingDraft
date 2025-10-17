@@ -23,7 +23,7 @@ import {
   Info,
 } from '@mui/icons-material';
 import TimelineEditor from '@/components/Timeline';
-import { draftApi, tracksApi, materialsApi } from '@/lib/api';
+import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/lib/api';
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
 
 /**
@@ -38,7 +38,7 @@ export default function EditorPage() {
   // 草稿数据
   const [draftInfo, setDraftInfo] = useState<DraftInfo | null>(null);
   const [tracks, setTracks] = useState<TrackInfo[]>([]);
-  const [materials, setMaterials] = useState<any>({});
+  const [materials, setMaterials] = useState<MaterialInfo[]>([]);
 
   /**
    * 加载草稿文件
@@ -68,10 +68,14 @@ export default function EditorPage() {
       try {
         const mats = await materialsApi.getAll(draftPath);
         console.log('获取素材信息成功:', mats)
-        setMaterials(mats);
+
+        // 将对象格式转换为数组格式: { videos: {items: []}, audios: {items: []} } => MaterialInfo[]
+        const flatMaterials: MaterialInfo[] = Object.values(mats)
+          .flatMap((category) => category?.items || []);
+        setMaterials(flatMaterials);
       } catch (err) {
         console.warn('获取素材信息失败:', err);
-        setMaterials({});
+        setMaterials([]);
       }
 
       console.log('草稿加载成功:', info);
@@ -108,7 +112,6 @@ export default function EditorPage() {
                 onChange={(e) => setDraftPath(e.target.value)}
                 onKeyPress={handleKeyPress}
                 disabled={loading}
-                helperText="请输入 draft_content.json 文件的绝对路径"
                 variant="outlined"
               />
             </Grid>
@@ -200,12 +203,12 @@ export default function EditorPage() {
                       <Typography variant="h6">素材</Typography>
                     </Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {Object.values(materials).reduce((sum: number, cat: any) => sum + (cat?.count || 0), 0)}
+                      {Array.isArray(materials) ? materials.length : 0}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {materials.videos?.count || 0} 视频 / {' '}
-                      {materials.audios?.count || 0} 音频 / {' '}
-                      {materials.texts?.count || 0} 文本
+                      {Array.isArray(materials) ? materials.filter(m => m.type === 'video').length : 0} 视频 / {' '}
+                      {Array.isArray(materials) ? materials.filter(m => m.type === 'audio').length : 0} 音频 / {' '}
+                      {Array.isArray(materials) ? materials.filter(m => m.type === 'text').length : 0} 文本
                     </Typography>
                   </CardContent>
                 </Card>
