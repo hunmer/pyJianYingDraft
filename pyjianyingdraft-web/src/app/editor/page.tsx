@@ -67,6 +67,7 @@ export default function EditorPage() {
       // 3. 获取素材信息(可选,用于显示详情)
       try {
         const mats = await materialsApi.getAll(draftPath);
+        console.log('获取素材信息成功:', mats)
         setMaterials(mats);
       } catch (err) {
         console.warn('获取素材信息失败:', err);
