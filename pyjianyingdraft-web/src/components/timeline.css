@@ -1,0 +1,41 @@
+/* Timeline 编辑器样式 */
+.timeline-editor {
+  width: 100% !important;
+}
+
+/* Timeline 容器样式 */
+.timeline-editor-container {
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+
+/* 确保内部 timeline 组件也占满宽度 */
+.timeline-editor .react-timeline-editor {
+  width: 100%;
+  min-width: 100%;
+}
+
+/* 隐藏左侧轨道列表的水平滚动条 */
+.timeline-editor-container::-webkit-scrollbar-x {
+  display: none;
+}
+
+/* 自定义滚动条样式 */
+.timeline-editor-container::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.timeline-editor-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+.timeline-editor-container::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.timeline-editor-container::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}

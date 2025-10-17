@@ -93,18 +93,8 @@ export default function EditorPage() {
   };
 
   return (
-    <Container maxWidth="xl">
+    <Container maxWidth={false} disableGutters sx={{ px: 2 }}>
       <Box sx={{ py: 4 }}>
-        {/* 页面标题 */}
-        <Box sx={{ mb: 4 }}>
-          <Typography variant="h3" component="h1" gutterBottom sx={{ fontWeight: 700 }}>
-            剪映草稿编辑器
-          </Typography>
-          <Typography variant="body1" color="text.secondary">
-            输入草稿文件路径,可视化查看和编辑剪映时间轴
-          </Typography>
-        </Box>
-
         {/* 输入区域 */}
         <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
           <Grid container spacing={2} alignItems="center">
@@ -209,11 +199,11 @@ export default function EditorPage() {
                       <Typography variant="h6">素材</Typography>
                     </Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {materials.length}
+                      {Array.isArray(materials) ? materials.length : 0}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {materials.filter(m => m.type === 'video').length} 视频 / {' '}
-                      {materials.filter(m => m.type === 'audio').length} 音频
+                      {Array.isArray(materials) ? materials.filter(m => m.type === 'video').length : 0} 视频 / {' '}
+                      {Array.isArray(materials) ? materials.filter(m => m.type === 'audio').length : 0} 音频
                     </Typography>
                   </CardContent>
                 </Card>
@@ -274,26 +264,6 @@ export default function EditorPage() {
             </Box>
           </Paper>
         )}
-
-        {/* 使用说明 */}
-        <Divider sx={{ my: 4 }} />
-        <Box sx={{ mt: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            使用说明
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            1. 确保 FastAPI 服务端已启动 (默认端口 8000)
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            2. 输入完整的 draft_content.json 文件路径
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            3. 点击&ldquo;加载草稿&rdquo;查看时间轴可视化
-          </Typography>
-          <Typography variant="body2" color="text.secondary" paragraph>
-            4. 当前为只读模式,后续版本将支持编辑功能
-          </Typography>
-        </Box>
       </Box>
     </Container>
   );
