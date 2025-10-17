@@ -186,15 +186,13 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   }, [tracks]);
 
   // 创建素材效果映射(用于显示素材名称等)
-  const effects: Record<string, TimelineEffect> = Array.isArray(materials)
-    ? materials.reduce((acc, material) => {
-        acc[material.id] = {
-          id: material.id,
-          name: material.name || `素材 ${material.id.slice(0, 8)}`,
-        };
-        return acc;
-      }, {} as Record<string, TimelineEffect>)
-    : {};
+  const effects: Record<string, TimelineEffect> = materials.reduce((acc, material) => {
+    acc[material.id] = {
+      id: material.id,
+      name: material.name || `素材 ${material.id.slice(0, 8)}`,
+    };
+    return acc;
+  }, {} as Record<string, TimelineEffect>);
 
   // 处理鼠标滚轮缩放
   const handleWheel = (e: React.WheelEvent) => {
@@ -472,17 +470,8 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                   const actionData = (selectedAction as any).data;
                   const rowData = (selectedRow as any).data;
 
-                  // 处理materials数据结构:可能是数组或对象
-                  let material: MaterialInfo | undefined;
-                  if (Array.isArray(materials)) {
-                    // 数组格式: MaterialInfo[]
-                    material = materials.find(m => m.id === selectedAction.effectId);
-                  } else if (materials && typeof materials === 'object') {
-                    // 对象格式: { video: { items: [] }, audio: { items: [] }, ... }
-                    material = Object.values(materials as any)
-                      .flatMap((category: any) => category.items || [])
-                      .find((m: MaterialInfo) => m.id === selectedAction.effectId);
-                  }
+                  // 查找素材信息
+                  const material = materials.find(m => m.id === selectedAction.effectId);
 
                   return (
                     <>
@@ -635,7 +624,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               <Divider />
 
               {/* 规则列表 */}
-              <RuleGroupList ruleGroup={selectedRuleGroup} />
+              <RuleGroupList
+                ruleGroup={selectedRuleGroup}
+                materials={Array.isArray(materials) ? materials : []}
+              />
             </Box>
           </TabPanel>
         </Box>
@@ -667,7 +659,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         onTest={handleTestData}
         ruleGroupId={selectedRuleGroup?.id}
         ruleGroup={selectedRuleGroup}
-        materials={materials}
+        materials={Array.isArray(materials) ? materials : []}
       />
 
       {/* 添加到预设组对话框 */}
@@ -685,9 +677,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
             }
           });
           if (!selectedAction) return null;
-          return Array.isArray(materials)
-            ? materials.find(m => m.id === selectedAction.effectId) || null
-            : null;
+          return materials.find(m => m.id === selectedAction.effectId) || null;
         })()}
         ruleGroup={selectedRuleGroup}
         onSuccess={(updatedRuleGroup) => {

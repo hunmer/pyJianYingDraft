@@ -119,17 +119,42 @@ export const subdraftsApi = {
 };
 
 /**
+ * 素材分类信息
+ */
+export interface MaterialCategory {
+  count: number;
+  items: MaterialInfo[];
+}
+
+/**
+ * 所有素材的返回格式（按分类）
+ */
+export interface AllMaterialsResponse {
+  videos?: MaterialCategory;
+  audios?: MaterialCategory;
+  texts?: MaterialCategory;
+  images?: MaterialCategory;
+  effects?: MaterialCategory;
+  filters?: MaterialCategory;
+  transitions?: MaterialCategory;
+  stickers?: MaterialCategory;
+  ai_translates?: MaterialCategory;
+  audio_balances?: MaterialCategory;
+  [key: string]: MaterialCategory | undefined;
+}
+
+/**
  * Materials API - 素材管理
  */
 export const materialsApi = {
   /**
-   * 获取所有素材信息
+   * 获取所有素材信息（按分类返回）
    * @param filePath - draft_content.json 的绝对路径
    */
-  async getAll(filePath: string): Promise<MaterialInfo[]> {
+  async getAll(filePath: string): Promise<AllMaterialsResponse> {
     const url = buildUrl('/api/materials/all', { file_path: filePath });
     const response = await fetch(url);
-    return handleResponse<MaterialInfo[]>(response);
+    return handleResponse<AllMaterialsResponse>(response);
   },
 
   /**

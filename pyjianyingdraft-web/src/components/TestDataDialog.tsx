@@ -353,7 +353,7 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
               p: 2,
             }}
           >
-            <RuleGroupList ruleGroup={ruleGroup} showTitle={true} />
+            <RuleGroupList ruleGroup={ruleGroup} showTitle={true} materials={materials} />
           </Box>
 
           {/* 右侧内容区域 */}
