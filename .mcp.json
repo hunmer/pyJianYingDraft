@@ -1,0 +1,13 @@
+{
+    "mcpServers": {
+        "mui-mcp-server": {
+            "type": "stdio",
+            "command": "cmd",
+            "args": {
+                "path": "cmd",
+                "args": ["/c","npx","-y", "@mui/mcp@latest"],
+                "env": {}
+            }
+        }
+    }
+}

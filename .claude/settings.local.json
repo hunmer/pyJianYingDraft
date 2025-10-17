@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__mui-mcp-server__useMuiDocs"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
