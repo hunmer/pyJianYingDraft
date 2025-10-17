@@ -126,3 +126,23 @@ export interface TestData {
   /** 素材项列表 */
   items: TestItem[];
 }
+
+/**
+ * 测试数据集 - 用于保存和管理测试数据
+ */
+export interface TestDataset {
+  /** 数据集ID */
+  id: string;
+  /** 数据集名称 */
+  name: string;
+  /** 关联的规则组ID */
+  ruleGroupId: string;
+  /** 测试数据内容 */
+  data: TestData;
+  /** 数据集描述 */
+  description?: string;
+  /** 创建时间 */
+  createdAt: string;
+  /** 最后修改时间 */
+  updatedAt: string;
+}
