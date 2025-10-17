@@ -774,6 +774,87 @@ class ScriptFile:
             if effect["type"] == "text_effect":
                 print("\tResource id: %s '%s'" % (effect["resource_id"], effect.get("name", "")))
 
+    def read_subdrafts(self) -> List[Dict[str, Any]]:
+        """读取草稿中的复合片段(subdrafts)信息
+
+        复合片段是剪映中的一个高级功能，允许将多个片段组合成一个可复用的单元。
+        subdrafts存储在materials.drafts中，每个元素包含一个完整的嵌套draft对象。
+
+        Returns:
+            `List[Dict[str, Any]]`: 复合片段信息列表，每个字典包含以下主要字段:
+                - id (str): 复合片段的唯一标识符
+                - name (str): 复合片段名称
+                - type (str): 复合片段类型
+                - combination_id (str): 组合ID
+                - draft (Dict): 嵌套的完整草稿数据，包含canvas_config、tracks、materials等
+                - draft_file_path (str): 草稿文件路径
+                - draft_cover_path (str): 草稿封面路径
+
+        Examples:
+            >>> script = ScriptFile.load_template("draft_content.json")
+            >>> subdrafts = script.read_subdrafts()
+            >>> for subdraft in subdrafts:
+            ...     print(f"复合片段: {subdraft['name']}")
+            ...     print(f"  ID: {subdraft['id']}")
+            ...     print(f"  时长: {subdraft['draft']['duration']} 微秒")
+            ...     print(f"  轨道数: {len(subdraft['draft']['tracks'])}")
+        """
+        if "drafts" not in self.imported_materials:
+            return []
+
+        return self.imported_materials["drafts"]
+
+    def print_subdrafts_info(self) -> None:
+        """打印草稿中所有复合片段的详细信息
+
+        此方法输出每个复合片段的关键信息，包括名称、ID、时长、分辨率、
+        帧率、轨道数量等，便于快速了解复合片段的结构。
+        """
+        subdrafts = self.read_subdrafts()
+
+        if not subdrafts:
+            print("草稿中没有复合片段")
+            return
+
+        print(f"共找到 {len(subdrafts)} 个复合片段:\n")
+
+        for idx, subdraft in enumerate(subdrafts, 1):
+            draft_data = subdraft.get("draft", {})
+            canvas = draft_data.get("canvas_config", {})
+
+            print(f"复合片段 {idx}:")
+            print(f"  名称: {subdraft.get('name', 'N/A')}")
+            print(f"  ID: {subdraft.get('id', 'N/A')}")
+            print(f"  类型: {subdraft.get('type', 'N/A')}")
+            print(f"  组合ID: {subdraft.get('combination_id', 'N/A')}")
+            print(f"  组合类型: {subdraft.get('combination_type', 'N/A')}")
+
+            if draft_data:
+                print(f"\n  嵌套草稿信息:")
+                print(f"    分辨率: {canvas.get('width', 0)}x{canvas.get('height', 0)}")
+                print(f"    帧率: {draft_data.get('fps', 0)} fps")
+                print(f"    时长: {draft_data.get('duration', 0) / 1000000:.2f} 秒")
+                print(f"    轨道数: {len(draft_data.get('tracks', []))}")
+
+                # 统计各类型轨道数量
+                track_types = {}
+                for track in draft_data.get("tracks", []):
+                    track_type = track.get("type", "unknown")
+                    track_types[track_type] = track_types.get(track_type, 0) + 1
+
+                if track_types:
+                    print(f"    轨道类型分布: {', '.join(f'{t}: {c}' for t, c in track_types.items())}")
+
+                # 统计素材数量
+                materials = draft_data.get("materials", {})
+                video_count = len(materials.get("videos", []))
+                audio_count = len(materials.get("audios", []))
+                text_count = len(materials.get("texts", []))
+
+                print(f"    素材统计: 视频 {video_count}, 音频 {audio_count}, 文本 {text_count}")
+
+            print()
+
     def dumps(self) -> str:
         """将草稿文件内容导出为JSON字符串"""
         self.content["fps"] = self.fps
