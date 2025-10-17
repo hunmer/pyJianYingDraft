@@ -53,6 +53,14 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
   const [inputs, setInputs] = useState<{ key: string; type: string; desc: string; value?: string }[]>([]);
   const [error, setError] = useState('');
 
+  // 调试日志
+  useEffect(() => {
+    console.log('[AddToRuleGroupDialog] Props 更新:');
+    console.log('[AddToRuleGroupDialog] open:', open);
+    console.log('[AddToRuleGroupDialog] material:', material);
+    console.log('[AddToRuleGroupDialog] ruleGroup:', ruleGroup);
+  }, [open, material, ruleGroup]);
+
   // 重置表单
   const resetForm = () => {
     setRuleType('');
@@ -207,9 +215,13 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
           )}
 
           {/* 规则组信息 */}
-          {ruleGroup && (
+          {ruleGroup ? (
             <Alert severity="info">
               将添加到规则组: <strong>{ruleGroup.title}</strong>
+            </Alert>
+          ) : (
+            <Alert severity="warning">
+              请先在"预设组"标签页中选择一个规则组
             </Alert>
           )}
 
@@ -349,8 +361,12 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
 
       <DialogActions>
         <Button onClick={onClose}>取消</Button>
-        <Button onClick={handleSubmit} variant="contained" disabled={!material || !ruleGroup}>
-          添加规则
+        <Button
+          onClick={handleSubmit}
+          variant="contained"
+          disabled={!material || !ruleGroup}
+        >
+          添加规则 {!material && '(无素材)'} {!ruleGroup && '(无规则组)'}
         </Button>
       </DialogActions>
     </Dialog>

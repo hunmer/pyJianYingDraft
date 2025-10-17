@@ -8,6 +8,7 @@ import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListIte
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import { RuleGroupSelector } from './RuleGroupSelector';
+import { RuleGroupList } from './RuleGroupList';
 import { TestDataDialog } from './TestDataDialog';
 import { MaterialPreview } from './MaterialPreview';
 import { AddToRuleGroupDialog } from './AddToRuleGroupDialog';
@@ -634,38 +635,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               <Divider />
 
               {/* 规则列表 */}
-              {selectedRuleGroup && (
-                <>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-                    当前规则组: {selectedRuleGroup.title}
-                  </Typography>
-
-                  {selectedRuleGroup.rules.length > 0 ? (
-                    <List dense sx={{ bgcolor: 'grey.50', borderRadius: 1 }}>
-                      {selectedRuleGroup.rules.map((rule, index) => (
-                        <ListItem key={index} divider={index < selectedRuleGroup.rules.length - 1}>
-                          <ListItemText
-                            primary={rule.title}
-                            secondary={
-                              <>
-                                类型: {rule.type} | 输入字段: {Object.keys(rule.inputs).join(', ')} | 素材数: {rule.material_ids.length}
-                              </>
-                            }
-                            primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
-                            secondaryTypographyProps={{ variant: 'caption' }}
-                          />
-                        </ListItem>
-                      ))}
-                    </List>
-                  ) : (
-                    <Box sx={{ textAlign: 'center', py: 4, bgcolor: 'grey.50', borderRadius: 1 }}>
-                      <Typography variant="body2" color="text.secondary">
-                        当前规则组没有规则
-                      </Typography>
-                    </Box>
-                  )}
-                </>
-              )}
+              <RuleGroupList ruleGroup={selectedRuleGroup} />
             </Box>
           </TabPanel>
         </Box>
@@ -695,6 +665,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         open={testDialogOpen}
         onClose={() => setTestDialogOpen(false)}
         onTest={handleTestData}
+        ruleGroupId={selectedRuleGroup?.id}
+        ruleGroup={selectedRuleGroup}
+        materials={materials}
       />
 
       {/* 添加到预设组对话框 */}

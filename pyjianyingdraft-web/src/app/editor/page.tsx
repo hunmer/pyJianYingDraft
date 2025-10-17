@@ -38,7 +38,7 @@ export default function EditorPage() {
   // 草稿数据
   const [draftInfo, setDraftInfo] = useState<DraftInfo | null>(null);
   const [tracks, setTracks] = useState<TrackInfo[]>([]);
-  const [materials, setMaterials] = useState<MaterialInfo[]>([]);
+  const [materials, setMaterials] = useState<any>({});
 
   /**
    * 加载草稿文件
@@ -71,7 +71,7 @@ export default function EditorPage() {
         setMaterials(mats);
       } catch (err) {
         console.warn('获取素材信息失败:', err);
-        setMaterials([]);
+        setMaterials({});
       }
 
       console.log('草稿加载成功:', info);
@@ -200,11 +200,12 @@ export default function EditorPage() {
                       <Typography variant="h6">素材</Typography>
                     </Box>
                     <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {Array.isArray(materials) ? materials.length : 0}
+                      {Object.values(materials).reduce((sum: number, cat: any) => sum + (cat?.count || 0), 0)}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {Array.isArray(materials) ? materials.filter(m => m.type === 'video').length : 0} 视频 / {' '}
-                      {Array.isArray(materials) ? materials.filter(m => m.type === 'audio').length : 0} 音频
+                      {materials.videos?.count || 0} 视频 / {' '}
+                      {materials.audios?.count || 0} 音频 / {' '}
+                      {materials.texts?.count || 0} 文本
                     </Typography>
                   </CardContent>
                 </Card>
