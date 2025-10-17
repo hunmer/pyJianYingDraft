@@ -3,7 +3,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/react-timeline-editor';
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
-import { Box, Paper, Typography, Chip, Tabs, Tab } from '@mui/material';
+import type { RuleGroup, TestData } from '@/types/rule';
+import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText } from '@mui/material';
+import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+import AddBoxIcon from '@mui/icons-material/AddBox';
+import { RuleGroupSelector } from './RuleGroupSelector';
+import { TestDataDialog } from './TestDataDialog';
+import { MaterialPreview } from './MaterialPreview';
+import { AddToRuleGroupDialog } from './AddToRuleGroupDialog';
 import './timeline.css';
 
 /**
@@ -73,7 +80,7 @@ function segmentToAction(segment: SegmentInfo, trackType: string): TimelineActio
     effectId: segment.material_id,
     // 自定义数据
     data: {
-      name: segment.name || `片段 ${segment.id.slice(0, 8)}`,
+      name: segment.name || `片段`,
       type: trackType,
       speed: segment.speed,
       volume: segment.volume,
@@ -165,6 +172,12 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const timelineRef = useRef<any>(null);
   const trackListRef = useRef<HTMLDivElement>(null); // 左侧轨道列表引用
 
+  // 规则组相关状态
+  const [selectedRuleGroup, setSelectedRuleGroup] = useState<RuleGroup | null>(null);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [testResult, setTestResult] = useState<string>('');
+  const [addToRuleGroupDialogOpen, setAddToRuleGroupDialogOpen] = useState(false);
+
   // 将轨道数据转换为Timeline格式
   useEffect(() => {
     const rows = tracks.map(trackToRow);
@@ -208,6 +221,55 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       };
     }
   }, []);
+
+  // 处理测试数据
+  const handleTestData = (testData: TestData) => {
+    if (!selectedRuleGroup) {
+      setTestResult('请先选择规则组');
+      return;
+    }
+
+    console.log('测试数据:', testData);
+    console.log('当前规则组:', selectedRuleGroup);
+
+    // 验证测试数据中的规则类型是否都存在于规则组中
+    const missingRules: string[] = [];
+    testData.items.forEach((item) => {
+      const ruleExists = selectedRuleGroup.rules.some((rule) => rule.type === item.type);
+      if (!ruleExists && !missingRules.includes(item.type)) {
+        missingRules.push(item.type);
+      }
+    });
+
+    if (missingRules.length > 0) {
+      setTestResult(`以下规则类型在当前规则组中不存在: ${missingRules.join(', ')}`);
+      return;
+    }
+
+    // 验证数据字段是否匹配规则定义
+    const errors: string[] = [];
+    testData.items.forEach((item, index) => {
+      const rule = selectedRuleGroup.rules.find((r) => r.type === item.type);
+      if (!rule) return;
+
+      // 检查必需字段
+      Object.keys(rule.inputs).forEach((inputKey) => {
+        if (!(inputKey in item.data)) {
+          errors.push(`素材项 ${index} (${item.type}): 缺少必需字段 "${inputKey}"`);
+        }
+      });
+    });
+
+    if (errors.length > 0) {
+      setTestResult(`数据验证失败:\n${errors.join('\n')}`);
+      return;
+    }
+
+    // 测试通过
+    setTestResult(`测试通过! 共验证了 ${testData.items.length} 个素材项, ${testData.tracks.length} 个轨道`);
+
+    // TODO: 这里可以进一步处理测试数据,例如生成草稿预览等
+  };
 
   return (
     <Paper elevation={2} sx={{ width: '100%', overflow: 'hidden' }}>
@@ -386,7 +448,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
           <TabPanel value={activeTab} index={0}>
             {selectedActionId ? (
-              <Box>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
                   素材详情
                 </Typography>
@@ -408,57 +470,122 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
                   const actionData = (selectedAction as any).data;
                   const rowData = (selectedRow as any).data;
-                  const material = materials.find(m => m.id === selectedAction.effectId);
+
+                  // 处理materials数据结构:可能是数组或对象
+                  let material: MaterialInfo | undefined;
+                  if (Array.isArray(materials)) {
+                    // 数组格式: MaterialInfo[]
+                    material = materials.find(m => m.id === selectedAction.effectId);
+                  } else if (materials && typeof materials === 'object') {
+                    // 对象格式: { video: { items: [] }, audio: { items: [] }, ... }
+                    material = Object.values(materials as any)
+                      .flatMap((category: any) => category.items || [])
+                      .find((m: MaterialInfo) => m.id === selectedAction.effectId);
+                  }
 
                   return (
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">名称</Typography>
-                        <Typography variant="body2">{actionData?.name || '未命名'}</Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">轨道类型</Typography>
-                        <Typography variant="body2">{rowData?.type || '未知'}</Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">时间范围</Typography>
-                        <Typography variant="body2">
-                          {selectedAction.start.toFixed(2)}s - {selectedAction.end.toFixed(2)}s
-                        </Typography>
-                      </Box>
-                      <Box>
-                        <Typography variant="caption" color="text.secondary">持续时长</Typography>
-                        <Typography variant="body2">
-                          {(selectedAction.end - selectedAction.start).toFixed(2)}s
-                        </Typography>
-                      </Box>
-                      {actionData?.speed && (
+                    <>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
                         <Box>
-                          <Typography variant="caption" color="text.secondary">播放速度</Typography>
-                          <Typography variant="body2">{actionData.speed}x</Typography>
+                          <Typography variant="caption" color="text.secondary">名称</Typography>
+                          <Typography variant="body2">{actionData?.name || '未命名'}</Typography>
                         </Box>
-                      )}
-                      {actionData?.volume !== undefined && (
                         <Box>
-                          <Typography variant="caption" color="text.secondary">音量</Typography>
-                          <Typography variant="body2">{Math.round(actionData.volume * 100)}%</Typography>
+                          <Typography variant="caption" color="text.secondary">轨道类型</Typography>
+                          <Typography variant="body2">{rowData?.type || '未知'}</Typography>
                         </Box>
-                      )}
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">时间范围</Typography>
+                          <Typography variant="body2">
+                            {selectedAction.start.toFixed(2)}s - {selectedAction.end.toFixed(2)}s
+                          </Typography>
+                        </Box>
+                        <Box>
+                          <Typography variant="caption" color="text.secondary">持续时长</Typography>
+                          <Typography variant="body2">
+                            {(selectedAction.end - selectedAction.start).toFixed(2)}s
+                          </Typography>
+                        </Box>
+                        {actionData?.speed && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">播放速度</Typography>
+                            <Typography variant="body2">{actionData.speed}x</Typography>
+                          </Box>
+                        )}
+                        {actionData?.volume !== undefined && (
+                          <Box>
+                            <Typography variant="caption" color="text.secondary">音量</Typography>
+                            <Typography variant="body2">{Math.round(actionData.volume * 100)}%</Typography>
+                          </Box>
+                        )}
+                        {material && (
+                          <>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">素材ID</Typography>
+                              <Typography variant="body2" sx={{ wordBreak: 'break-all', fontSize: '11px' }}>
+                                {material.id}
+                              </Typography>
+                            </Box>
+                            <Box>
+                              <Typography variant="caption" color="text.secondary">素材类型</Typography>
+                              <Typography variant="body2">{material.type}</Typography>
+                            </Box>
+                            {material.path && (
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">文件路径</Typography>
+                                <Typography variant="body2" sx={{ wordBreak: 'break-all', fontSize: '11px' }}>
+                                  {material.path}
+                                </Typography>
+                              </Box>
+                            )}
+                            {material.width && material.height && (
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">分辨率</Typography>
+                                <Typography variant="body2">
+                                  {material.width} × {material.height}
+                                </Typography>
+                              </Box>
+                            )}
+                            {material.duration_seconds && (
+                              <Box>
+                                <Typography variant="caption" color="text.secondary">素材时长</Typography>
+                                <Typography variant="body2">
+                                  {material.duration_seconds.toFixed(2)}s
+                                </Typography>
+                              </Box>
+                            )}
+                          </>
+                        )}
+                      </Box>
+
+                      {/* 素材预览 */}
                       {material && (
                         <>
+                          <Divider />
                           <Box>
-                            <Typography variant="caption" color="text.secondary">素材ID</Typography>
-                            <Typography variant="body2" sx={{ wordBreak: 'break-all', fontSize: '11px' }}>
-                              {material.id}
+                            <Typography variant="subtitle2" gutterBottom>
+                              素材预览
                             </Typography>
-                          </Box>
-                          <Box>
-                            <Typography variant="caption" color="text.secondary">素材类型</Typography>
-                            <Typography variant="body2">{material.type}</Typography>
+                            <MaterialPreview material={material} />
                           </Box>
                         </>
                       )}
-                    </Box>
+
+                      {/* 添加到预设组按钮 */}
+                      {material && (
+                        <>
+                          <Divider />
+                          <Button
+                            variant="outlined"
+                            startIcon={<AddBoxIcon />}
+                            onClick={() => setAddToRuleGroupDialogOpen(true)}
+                            fullWidth
+                          >
+                            添加到预设组
+                          </Button>
+                        </>
+                      )}
+                    </>
                   );
                 })()}
               </Box>
@@ -472,10 +599,73 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           </TabPanel>
 
           <TabPanel value={activeTab} index={1}>
-            <Box sx={{ textAlign: 'center', py: 4 }}>
-              <Typography variant="body2" color="text.secondary">
-                预设组功能开发中...
-              </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              {/* 规则组选择器 */}
+              <RuleGroupSelector value={selectedRuleGroup} onChange={setSelectedRuleGroup} />
+
+              <Divider />
+
+              {/* 测试按钮 */}
+              <Button
+                variant="contained"
+                startIcon={<PlayArrowIcon />}
+                onClick={() => setTestDialogOpen(true)}
+                fullWidth
+              >
+                测试规则数据
+              </Button>
+
+              {/* 测试结果显示 */}
+              {testResult && (
+                <Paper
+                  elevation={0}
+                  sx={{
+                    p: 2,
+                    bgcolor: testResult.includes('失败') || testResult.includes('不存在') ? 'error.light' : 'success.light',
+                    color: testResult.includes('失败') || testResult.includes('不存在') ? 'error.dark' : 'success.dark'
+                  }}
+                >
+                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                    {testResult}
+                  </Typography>
+                </Paper>
+              )}
+
+              <Divider />
+
+              {/* 规则列表 */}
+              {selectedRuleGroup && (
+                <>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+                    当前规则组: {selectedRuleGroup.title}
+                  </Typography>
+
+                  {selectedRuleGroup.rules.length > 0 ? (
+                    <List dense sx={{ bgcolor: 'grey.50', borderRadius: 1 }}>
+                      {selectedRuleGroup.rules.map((rule, index) => (
+                        <ListItem key={index} divider={index < selectedRuleGroup.rules.length - 1}>
+                          <ListItemText
+                            primary={rule.title}
+                            secondary={
+                              <>
+                                类型: {rule.type} | 输入字段: {Object.keys(rule.inputs).join(', ')} | 素材数: {rule.material_ids.length}
+                              </>
+                            }
+                            primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
+                            secondaryTypographyProps={{ variant: 'caption' }}
+                          />
+                        </ListItem>
+                      ))}
+                    </List>
+                  ) : (
+                    <Box sx={{ textAlign: 'center', py: 4, bgcolor: 'grey.50', borderRadius: 1 }}>
+                      <Typography variant="body2" color="text.secondary">
+                        当前规则组没有规则
+                      </Typography>
+                    </Box>
+                  )}
+                </>
+              )}
             </Box>
           </TabPanel>
         </Box>
@@ -499,6 +689,43 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           />
         ))}
       </Box>
+
+      {/* 测试数据对话框 */}
+      <TestDataDialog
+        open={testDialogOpen}
+        onClose={() => setTestDialogOpen(false)}
+        onTest={handleTestData}
+      />
+
+      {/* 添加到预设组对话框 */}
+      <AddToRuleGroupDialog
+        open={addToRuleGroupDialogOpen}
+        onClose={() => setAddToRuleGroupDialogOpen(false)}
+        material={(() => {
+          // 查找当前选中片段的素材
+          if (!selectedActionId) return null;
+          let selectedAction: TimelineAction | null = null;
+          data.forEach(row => {
+            const action = row.actions.find(a => a.id === selectedActionId);
+            if (action) {
+              selectedAction = action;
+            }
+          });
+          if (!selectedAction) return null;
+          return Array.isArray(materials)
+            ? materials.find(m => m.id === selectedAction.effectId) || null
+            : null;
+        })()}
+        ruleGroup={selectedRuleGroup}
+        onSuccess={(updatedRuleGroup) => {
+          // 更新规则组
+          setSelectedRuleGroup(updatedRuleGroup);
+          // 显示成功消息
+          setTestResult(`规则添加成功! 规则组"${updatedRuleGroup.title}"现在有 ${updatedRuleGroup.rules.length} 条规则`);
+          // 切换到预设组Tab
+          setActiveTab(1);
+        }}
+      />
     </Paper>
   );
 };

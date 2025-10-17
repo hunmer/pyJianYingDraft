@@ -65,7 +65,7 @@ export interface TrackInfo {
 /**
  * 素材类型
  */
-export type MaterialType = 'video' | 'audio' | 'text' | 'image' | 'effect' | 'filter' | 'transition' | 'sticker';
+export type MaterialType = 'video' | 'audio' | 'text' | 'image' | 'effect' | 'filter' | 'transition' | 'sticker' | 'extract_music' | 'subtitle' | 'photo';
 
 /**
  * 素材信息

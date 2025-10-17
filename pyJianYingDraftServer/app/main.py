@@ -13,7 +13,7 @@ if str(parent_dir) not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import draft, subdrafts, materials, tracks
+from app.routers import draft, subdrafts, materials, tracks, files
 
 app = FastAPI(
     title="pyJianYingDraft API",
@@ -35,6 +35,7 @@ app.include_router(draft.router, prefix="/api/draft", tags=["草稿基础"])
 app.include_router(subdrafts.router, prefix="/api/subdrafts", tags=["复合片段"])
 app.include_router(materials.router, prefix="/api/materials", tags=["素材管理"])
 app.include_router(tracks.router, prefix="/api/tracks", tags=["轨道管理"])
+app.include_router(files.router, prefix="/api/files", tags=["文件服务"])
 
 
 @app.get("/")
