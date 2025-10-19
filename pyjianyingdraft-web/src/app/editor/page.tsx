@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Container,
   Box,
@@ -32,6 +32,14 @@ import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
 export default function EditorPage() {
   // 状态管理
   const [draftPath, setDraftPath] = useState<string>('');
+
+  // 组件加载时读取上次保存的草稿路径
+  useEffect(() => {
+    const lastDraftPath = localStorage.getItem('lastDraftPath');
+    if (lastDraftPath) {
+      setDraftPath(lastDraftPath);
+    }
+  }, []);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,6 +71,9 @@ export default function EditorPage() {
       const info = await draftApi.getInfo(draftPath);
       setDraftInfo(info);
       setTracks(info.tracks || []);
+
+      // 保存草稿路径到localStorage
+      localStorage.setItem('lastDraftPath', draftPath);
 
       // 3. 获取素材信息(可选,用于显示详情)
       try {

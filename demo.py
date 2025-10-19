@@ -4,7 +4,8 @@ import pyJianYingDraft as draft
 from pyJianYingDraft import IntroType, TransitionType, trange, tim
 
 # 设置草稿文件夹
-draft_folder = draft.DraftFolder(r"I:\\jianyin_drafts_1\\JianyingPro Drafts")
+# draft_folder = draft.DraftFolder(r"I:\\jianyin_drafts_1\\JianyingPro Drafts")
+draft_folder = draft.DraftFolder(r"/Users/Zhuanz/Movies/JianyingPro/User Data/Projects/com.lveditor.draft")
 
 tutorial_asset_dir = os.path.join(os.path.dirname(__file__), 'readme_assets', 'tutorial')
 assert os.path.exists(tutorial_asset_dir), f"未找到例程素材文件夹{os.path.abspath(tutorial_asset_dir)}"

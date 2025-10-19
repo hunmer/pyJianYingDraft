@@ -157,7 +157,7 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
   }
 
   // subtitle类型特殊处理:从content字段获取文本
-  if (material.type === 'subtitle') {
+  if (['subtitle', 'text'].includes(material.type)) {
     const subtitleText = parseSubtitleContent((material as any).content);
 
     if (subtitleText) {
@@ -178,7 +178,7 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
               fontStyle: 'italic',
             }}
           >
-            "{subtitleText}"
+            &ldquo;{subtitleText}&rdquo;
           </Typography>
         </Paper>
       );
@@ -262,7 +262,7 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
   }
 
   // 渲染音频预览 (支持 audio 和 extract_music 类型)
-  if (material.type === 'audio' || material.type === 'extract_music') {
+  if (['audio', 'extract_music', 'music', 'sound'].includes(material.type)) {
     return (
       <Box sx={{ width: '100%' }}>
         <Paper elevation={1} sx={{ p: 3, bgcolor: 'grey.900', textAlign: 'center' }}>
@@ -338,21 +338,6 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
       </Paper>
     );
   }
-
-  // 渲染文本预览
-  if (material.type === 'text') {
-    return (
-      <Paper elevation={1} sx={{ p: 2, bgcolor: 'grey.50' }}>
-        <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-          <TextFieldsIcon color="primary" />
-          <Typography variant="body2" sx={{ flex: 1, wordBreak: 'break-word' }}>
-            {material.name || material.path || '文本内容'}
-          </Typography>
-        </Box>
-      </Paper>
-    );
-  }
-
   // 其他类型的素材
   return (
     <Paper elevation={0} sx={{ p: 2, bgcolor: 'grey.100', textAlign: 'center' }}>

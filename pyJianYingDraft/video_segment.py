@@ -339,7 +339,7 @@ class VideoSegment(VisualSegment):
             source_timerange = Timerange(0, round(target_timerange.duration * speed))
 
         if source_timerange.end > material.duration:
-            raise ValueError(f"截取的素材时间范围 {source_timerange} 超出了素材时长({material.duration})")
+            raise ValueError(f"截取的素材 {material.path} 时间范围 {source_timerange} 超出了素材时长({material.duration})")
 
         super().__init__(material.material_id, source_timerange, target_timerange, speed,
                          volume, change_pitch, clip_settings=clip_settings)

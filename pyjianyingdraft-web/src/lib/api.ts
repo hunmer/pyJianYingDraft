@@ -13,6 +13,7 @@ import type {
   TrackType,
   MaterialType,
 } from '@/types/draft';
+import type { RuleGroupTestRequest, RuleGroupTestResponse } from '@/types/rule';
 
 /**
  * API基础配置
@@ -210,6 +211,30 @@ export const materialsApi = {
 };
 
 /**
+ * 规则组测试 API
+ */
+export const ruleTestApi = {
+  /**
+   * 触发规则组测试
+   */
+  async runTest(payload: RuleGroupTestRequest): Promise<RuleGroupTestResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/rules/test`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    const data = await handleResponse<RuleGroupTestResponse>(response);
+    return {
+      status_code: data.status_code ?? response.status,
+      draft_path: data.draft_path,
+      message: data.message,
+    };
+  },
+};
+
+/**
  * Tracks API - 轨道管理
  */
 export const tracksApi = {
@@ -272,5 +297,6 @@ export default {
   draft: draftApi,
   subdrafts: subdraftsApi,
   materials: materialsApi,
+  ruleTest: ruleTestApi,
   tracks: tracksApi,
 };

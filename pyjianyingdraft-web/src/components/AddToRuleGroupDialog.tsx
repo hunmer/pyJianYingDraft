@@ -11,17 +11,9 @@ import {
   Box,
   Typography,
   Alert,
-  IconButton,
   Divider,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
-  Paper
 } from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import type { Rule, RuleInput, RuleGroup } from '@/types/rule';
+import type { Rule, RuleGroup } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 
 interface AddToRuleGroupDialogProps {
@@ -50,7 +42,6 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
   // 表单状态
   const [ruleType, setRuleType] = useState('');
   const [ruleTitle, setRuleTitle] = useState('');
-  const [inputs, setInputs] = useState<{ key: string; type: string; desc: string; value?: string }[]>([]);
   const [error, setError] = useState('');
 
   // 调试日志
@@ -65,7 +56,6 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
   const resetForm = () => {
     setRuleType('');
     setRuleTitle('');
-    setInputs([]);
     setError('');
   };
 
@@ -75,23 +65,6 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
       resetForm();
     }
   }, [open]);
-
-  // 添加输入字段
-  const handleAddInput = () => {
-    setInputs([...inputs, { key: '', type: 'string', desc: '', value: '' }]);
-  };
-
-  // 删除输入字段
-  const handleRemoveInput = (index: number) => {
-    setInputs(inputs.filter((_, i) => i !== index));
-  };
-
-  // 更新输入字段
-  const handleUpdateInput = (index: number, field: string, value: string) => {
-    const newInputs = [...inputs];
-    (newInputs[index] as any)[field] = value;
-    setInputs(newInputs);
-  };
 
   // 验证表单
   const validateForm = (): boolean => {
@@ -123,27 +96,6 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
       return false;
     }
 
-    // 验证输入字段
-    for (let i = 0; i < inputs.length; i++) {
-      const input = inputs[i];
-      if (!input.key.trim()) {
-        setError(`输入字段 ${i + 1}: 字段名不能为空`);
-        return false;
-      }
-      if (!input.desc.trim()) {
-        setError(`输入字段 ${i + 1}: 字段描述不能为空`);
-        return false;
-      }
-    }
-
-    // 检查字段名是否重复
-    const keys = inputs.map(i => i.key.trim());
-    const uniqueKeys = new Set(keys);
-    if (keys.length !== uniqueKeys.size) {
-      setError('输入字段名不能重复');
-      return false;
-    }
-
     return true;
   };
 
@@ -157,26 +109,11 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
       return;
     }
 
-    // 构建输入字段对象
-    const inputsObj: { [key: string]: RuleInput } = {};
-    inputs.forEach(input => {
-      const inputData: RuleInput = {
-        type: input.type as any,
-        desc: input.desc.trim()
-      };
-      if (input.value?.trim()) {
-        inputData.value = input.value.trim();
-      }
-      inputsObj[input.key.trim()] = inputData;
-    });
-
     // 创建新规则
     const newRule: Rule = {
       type: ruleType.trim(),
       title: ruleTitle.trim(),
-      material_ids: [material.id],
-      meta: {},
-      inputs: inputsObj
+      material_ids: [material.id]
     };
 
     // 更新规则组
@@ -221,7 +158,7 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
             </Alert>
           ) : (
             <Alert severity="warning">
-              请先在"预设组"标签页中选择一个规则组
+              请先在预设组标签页中选择一个规则组
             </Alert>
           )}
 
@@ -268,94 +205,6 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
             helperText="规则的显示标题(中文)"
             required
           />
-
-          <Divider />
-
-          {/* 输入字段列表 */}
-          <Box>
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-              <Typography variant="subtitle2">输入字段定义</Typography>
-              <Button
-                size="small"
-                startIcon={<AddIcon />}
-                onClick={handleAddInput}
-                variant="outlined"
-              >
-                添加字段
-              </Button>
-            </Box>
-
-            {inputs.length === 0 ? (
-              <Alert severity="info">
-                还没有添加输入字段。点击"添加字段"按钮来定义此规则需要的数据字段。
-              </Alert>
-            ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                {inputs.map((input, index) => (
-                  <Paper
-                    key={index}
-                    elevation={0}
-                    sx={{ p: 2, bgcolor: 'grey.50', border: 1, borderColor: 'divider' }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                        <TextField
-                          size="small"
-                          fullWidth
-                          label="字段名"
-                          value={input.key}
-                          onChange={(e) => handleUpdateInput(index, 'key', e.target.value)}
-                          placeholder="例如: title"
-                          required
-                        />
-
-                        <FormControl size="small" fullWidth>
-                          <InputLabel>字段类型</InputLabel>
-                          <Select
-                            value={input.type}
-                            label="字段类型"
-                            onChange={(e) => handleUpdateInput(index, 'type', e.target.value)}
-                          >
-                            <MenuItem value="string">string (文本)</MenuItem>
-                            <MenuItem value="number">number (数字)</MenuItem>
-                            <MenuItem value="boolean">boolean (布尔值)</MenuItem>
-                            <MenuItem value="image">image (图片)</MenuItem>
-                          </Select>
-                        </FormControl>
-
-                        <TextField
-                          size="small"
-                          fullWidth
-                          label="字段描述"
-                          value={input.desc}
-                          onChange={(e) => handleUpdateInput(index, 'desc', e.target.value)}
-                          placeholder="例如: 标题内容"
-                          required
-                        />
-
-                        <TextField
-                          size="small"
-                          fullWidth
-                          label="默认值(可选)"
-                          value={input.value}
-                          onChange={(e) => handleUpdateInput(index, 'value', e.target.value)}
-                          placeholder="留空表示无默认值"
-                        />
-                      </Box>
-
-                      <IconButton
-                        size="small"
-                        onClick={() => handleRemoveInput(index)}
-                        color="error"
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Box>
-                  </Paper>
-                ))}
-              </Box>
-            )}
-          </Box>
         </Box>
       </DialogContent>
 

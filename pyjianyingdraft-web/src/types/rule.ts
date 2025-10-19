@@ -1,18 +1,7 @@
 /**
  * 规则组相关的类型定义
  */
-
-/**
- * 输入字段定义
- */
-export interface RuleInput {
-  /** 字段类型 */
-  type: 'string' | 'number' | 'boolean' | 'image';
-  /** 字段描述 */
-  desc: string;
-  /** 默认值(可选) */
-  value?: any;
-}
+import type { MaterialInfo } from './draft';
 
 /**
  * 位置信息
@@ -46,10 +35,6 @@ export interface Rule {
   material_ids: string[];
   /** 规则元数据 */
   meta?: RuleMeta;
-  /** 输入字段定义 */
-  inputs: {
-    [key: string]: RuleInput;
-  };
 }
 
 /**
@@ -69,48 +54,11 @@ export interface RuleGroup {
 }
 
 /**
- * 测试数据 - 轨道信息
- */
-export interface TestTrack {
-  id: string;
-  type: 'video' | 'audio' | 'text' | 'effect' | 'filter' | 'sticker';
-}
-
-/**
- * 测试数据 - 时间轴信息
- */
-export interface TestTimeline {
-  track: string;
-  start: number;
-  duration: number;
-}
-
-/**
- * 测试数据 - 位置信息
- */
-export interface TestPosition {
-  x?: number;
-  y?: number;
-  scale?: number;
-}
-
-/**
- * 测试数据 - 素材项元数据
- */
-export interface TestItemMeta {
-  timeline: TestTimeline;
-  position?: TestPosition;
-  [key: string]: any;
-}
-
-/**
  * 测试数据 - 素材项
  */
 export interface TestItem {
   /** 规则类型 */
   type: string;
-  /** 元数据 */
-  meta: TestItemMeta;
   /** 数据内容 */
   data: {
     [key: string]: any;
@@ -122,7 +70,11 @@ export interface TestItem {
  */
 export interface TestData {
   /** 轨道列表 */
-  tracks: TestTrack[];
+  tracks: Array<{
+    id: string;
+    title?: string;
+    type: string;
+  }>;
   /** 素材项列表 */
   items: TestItem[];
 }
@@ -145,4 +97,22 @@ export interface TestDataset {
   createdAt: string;
   /** 最后修改时间 */
   updatedAt: string;
+}
+
+/**
+ * 规则组测试请求
+ */
+export interface RuleGroupTestRequest {
+  ruleGroup: RuleGroup;
+  materials: MaterialInfo[];
+  testData: TestData;
+}
+
+/**
+ * 规则组测试响应
+ */
+export interface RuleGroupTestResponse {
+  status_code: number;
+  draft_path: string;
+  message?: string;
 }

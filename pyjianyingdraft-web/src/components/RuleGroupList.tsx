@@ -14,6 +14,8 @@ import {
   Paper,
   Snackbar,
   Alert,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -136,22 +138,32 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
     const label = material.name || material.id.slice(0, 8);
 
     return (
-      <Tooltip title={tooltipContent} arrow>
-        <Chip
-          label={label}
-          size="small"
-          color={getTypeColor(material.type)}
-          icon={<ContentCopyIcon sx={{ fontSize: '16px !important' }} />}
-          onClick={() => copyToClipboard(material.id, material.name || material.id)}
-          sx={{
-            m: 0.5,
-            cursor: 'pointer',
-            '&:hover': {
-              opacity: 0.8,
-            },
-          }}
-        />
-      </Tooltip>
+      <Box>
+        <Box sx={{ mt: 1 }}>
+          <Tabs value={0} variant="scrollable" scrollButtons="auto">
+            <Tab label={material.id} />
+          </Tabs>
+          <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+              {Object.keys(material).map((key) => (
+                <Tooltip 
+                  key={`tooltip-${key}`}
+                  title={`${key}: ${JSON.stringify(material[key as keyof MaterialInfo])}`}
+                  arrow
+                >
+                  <Chip
+                    label={key}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => copyToClipboard(key, key)}
+                    sx={{ cursor: 'pointer' }}
+                  />
+                </Tooltip>
+              ))}
+            </Box>
+          </Box>
+        </Box>
+      </Box>
     );
   };
 
@@ -191,12 +203,7 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
                   <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                     <ListItemText
                       primary={rule.title}
-                      secondary={
-                        <>
-                          类型: {rule.type} | 输入字段: {Object.keys(rule.inputs).join(', ')} | 素材数:{' '}
-                          {rule.material_ids.length}
-                        </>
-                      }
+                      secondary={`类型: ${rule.type} | 素材数: ${rule.material_ids.length}`}
                       primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
                       secondaryTypographyProps={{ variant: 'caption' }}
                     />
@@ -215,13 +222,6 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
 
                   <Collapse in={isExpanded} timeout="auto" unmountOnExit>
                     <Box sx={{ mt: 1, pl: 0 }}>
-                      <Typography
-                        variant="caption"
-                        color="text.secondary"
-                        sx={{ display: 'block', mb: 0.5, fontWeight: 600 }}
-                      >
-                        关联素材 ({rule.material_ids.length}):
-                      </Typography>
                       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
                         {rule.material_ids.map((materialId) => (
                           <React.Fragment key={materialId}>
