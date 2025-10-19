@@ -10,13 +10,6 @@ export const DEFAULT_RULES: Rule[] = [
     material_ids: ['material_id_1'],
     meta: {
       position: { x: 0, y: 0, w: 200, h: 50 }
-    },
-    inputs: {
-      title: {
-        type: 'string',
-        desc: '标题内容',
-        value: '默认标题'
-      }
     }
   },
   {
@@ -25,12 +18,6 @@ export const DEFAULT_RULES: Rule[] = [
     material_ids: ['material_id_2'],
     meta: {
       position: { x: 1720, y: 0, w: 200, h: 50 }
-    },
-    inputs: {
-      img: {
-        type: 'image',
-        desc: 'logo图片'
-      }
     }
   },
   {
@@ -39,38 +26,19 @@ export const DEFAULT_RULES: Rule[] = [
     material_ids: ['material_id_3'],
     meta: {
       position: { x: 0, y: 980, w: 1920, h: 100 }
-    },
-    inputs: {
-      text: {
-        type: 'string',
-        desc: '字幕内容'
-      }
     }
   },
   {
     type: 'image',
     title: '轨道图片',
     material_ids: ['material_id_4'],
-    meta: {},
-    inputs: {
-      img: {
-        type: 'image',
-        desc: '轨道显示的图片'
-      }
-    }
+    meta: {}
   },
   {
     type: 'clip_type1',
     title: '视频片段类型1',
     material_ids: ['material_id_10', 'material_id_11', 'material_id_12'],
-    meta: {},
-    inputs: {
-      text: {
-        type: 'string',
-        desc: '标题内容',
-        value: '思维认知'
-      }
-    }
+    meta: {}
   }
 ];
 
@@ -79,65 +47,59 @@ export const DEFAULT_RULES: Rule[] = [
  */
 export const EXAMPLE_TEST_DATA = {
   tracks: [
-    { id: '1', type: 'video' as const },
-    { id: '2', type: 'video' as const },
-    { id: '3', type: 'text' as const },
-    { id: '4', type: 'video' as const }
+    { id: '1', title: '背景音乐', type: 'video' },
+    { id: '2', title: '音效', type: 'video' },
+    { id: '3', title: '字幕语音', type: 'audio' },
+    { id: '4', title: '字幕', type: 'text' },
+    { id: '5', title: '视频图片', type: 'video' }
   ],
   items: [
     {
-      type: 'top-left-title',
-      meta: {
-        timeline: { track: '1', start: 0, duration: 10 }
-      },
+      type: 'bg-music',
       data: {
-        title: '示例标题'
+        track: '1',
+        path: 'bg.mp3',
+        start: 0,
+        duration: 3
       }
     },
     {
-      type: 'top-right-logo',
-      meta: {
-        timeline: { track: '2', start: 0, duration: 10 }
-      },
+      type: 'sound-effect',
       data: {
-        img: 'a.jpg'
-      }
-    },
-    {
-      type: 'subtitle',
-      meta: {
-        timeline: { track: '3', start: 0, duration: 1 }
-      },
-      data: {
-        text: '大家好啊'
+        track: '2',
+        path: 'a.mp3',
+        start: 0,
+        duration: 3
       }
     },
     {
       type: 'subtitle',
-      meta: {
-        timeline: { track: '3', start: 1, duration: 2 }
-      },
       data: {
-        text: '很高兴再见到大家'
+        text: '大家好啊',
+        track: '4',
+        start: 0,
+        duration: 3
       }
     },
     {
-      type: 'image',
-      meta: {
-        timeline: { track: '4', start: 0, duration: 3 },
-        position: { x: 100, y: 100, scale: 1.0 }
-      },
+      type: 'subtitle',
       data: {
-        img: 'image1.jpg'
+        text: '很高兴再见到大家',
+        track: '4',
+        start: 0,
+        duration: 3
       }
     },
     {
-      type: 'clip_type1',
-      meta: {
-        timeline: { track: '1', start: 10, duration: 5 }
-      },
+      type: 'img',
       data: {
-        text: '思维认知'
+        path: 'image1.jpg',
+        track: '5',
+        start: 0,
+        duration: 3,
+        x: 100,
+        y: 100,
+        scale: 1
       }
     }
   ]

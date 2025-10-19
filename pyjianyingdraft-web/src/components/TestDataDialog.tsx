@@ -11,9 +11,6 @@ import {
   Box,
   Typography,
   Alert,
-  Tabs,
-  Tab,
-  Paper,
   Select,
   MenuItem,
   FormControl,
@@ -29,28 +26,6 @@ import type { TestData, TestDataset, RuleGroup } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 import { RuleGroupList } from './RuleGroupList';
-import { Divider } from '@mui/material';
-
-interface TabPanelProps {
-  children?: React.ReactNode;
-  index: number;
-  value: number;
-}
-
-function TabPanel(props: TabPanelProps) {
-  const { children, value, index, ...other } = props;
-  return (
-    <div
-      role="tabpanel"
-      hidden={value !== index}
-      id={`test-data-tabpanel-${index}`}
-      {...other}
-      style={{ flex: 1, overflow: 'auto' }}
-    >
-      {value === index && <Box sx={{ p: 2, height: '100%' }}>{children}</Box>}
-    </div>
-  );
-}
 
 interface TestDataDialogProps {
   /** 对话框是否打开 */
@@ -58,7 +33,7 @@ interface TestDataDialogProps {
   /** 关闭对话框回调 */
   onClose: () => void;
   /** 测试回调 */
-  onTest: (testData: TestData) => void;
+  onTest: (testData: TestData) => Promise<void> | void;
   /** 当前规则组ID(用于关联数据集) */
   ruleGroupId?: string;
   /** 当前规则组(用于转换数据) */
@@ -78,10 +53,10 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
   ruleGroup,
   materials = []
 }) => {
-  const [activeTab, setActiveTab] = useState(0);
   const [testDataJson, setTestDataJson] = useState(JSON.stringify(EXAMPLE_TEST_DATA, null, 2));
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [testing, setTesting] = useState(false);
 
   // 数据集管理状态
   const [datasets, setDatasets] = useState<TestDataset[]>([]);
@@ -89,9 +64,6 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [datasetName, setDatasetName] = useState('');
   const [datasetDescription, setDatasetDescription] = useState('');
-
-  // 测试结果状态
-  const [testResultJson, setTestResultJson] = useState<string>('');
 
   // 加载数据集列表
   useEffect(() => {
@@ -113,55 +85,6 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
     }
   };
 
-  // 根据规则转换输入数据为素材属性
-  const transformTestDataToMaterials = (testData: TestData): any[] => {
-    if (!ruleGroup) {
-      throw new Error('未选择规则组');
-    }
-
-    const results: any[] = [];
-
-    testData.items.forEach((item, index) => {
-      // 查找对应的规则
-      const rule = ruleGroup.rules.find(r => r.type === item.type);
-      if (!rule) {
-        throw new Error(`未找到规则类型: ${item.type} (素材项 ${index})`);
-      }
-
-      // 遍历规则的素材ID列表
-      rule.material_ids.forEach(materialId => {
-        // 查找对应的素材
-        const material = materials.find(m => m.id === materialId);
-        if (!material) {
-          console.warn(`未找到素材: ${materialId}`);
-          return;
-        }
-
-        // 克隆素材属性
-        const clonedMaterial = JSON.parse(JSON.stringify(material));
-
-        // 用输入数据覆盖对应字段
-        Object.keys(item.data).forEach(key => {
-          if (key in clonedMaterial) {
-            clonedMaterial[key] = item.data[key];
-          } else {
-            // 如果字段不存在于素材中,添加到素材属性中
-            clonedMaterial[key] = item.data[key];
-          }
-        });
-
-        // 添加元数据信息(时间轴、位置等)
-        if (item.meta) {
-          clonedMaterial._meta = item.meta;
-        }
-
-        results.push(clonedMaterial);
-      });
-    });
-
-    return results;
-  };
-
   // 保存数据集到localStorage
   const saveDatasets = (updatedDatasets: TestDataset[]) => {
     try {
@@ -174,10 +97,9 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
   };
 
   // 处理测试
-  const handleTest = () => {
+  const handleTest = async () => {
     setError('');
     setSuccess('');
-    setTestResultJson('');
 
     try {
       const testData: TestData = JSON.parse(testDataJson);
@@ -203,25 +125,18 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
         if (!item.type) {
           throw new Error(`素材项 ${index} 缺少 type 字段`);
         }
-        if (!item.meta || !item.meta.timeline) {
-          throw new Error(`素材项 ${index} 缺少 meta.timeline 字段`);
-        }
-        if (!item.data) {
+        if (!item.data || typeof item.data !== 'object') {
           throw new Error(`素材项 ${index} 缺少 data 字段`);
         }
       });
 
-      // 执行数据转换
-      const transformedResults = transformTestDataToMaterials(testData);
-      setTestResultJson(JSON.stringify(transformedResults, null, 2));
-
-      setSuccess(`测试通过! 已转换 ${transformedResults.length} 个素材`);
-      onTest(testData);
-
-      // 切换到测试结果Tab
-      setActiveTab(2);
+      setTesting(true);
+      await onTest(testData);
+      setSuccess('测试请求已发送, 请在右侧查看结果');
     } catch (err: any) {
       setError(err.message || '无效的JSON格式');
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -231,6 +146,7 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
     setSelectedDatasetId('');
     setError('');
     setSuccess('');
+    setTesting(false);
   };
 
   // 加载选中的数据集
@@ -396,87 +312,47 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
                 )}
               </Box>
             )}
+            <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 2, p: 2, pt: ruleGroupId && datasets.length > 0 ? 2 : 0 }}>
+              {error && (
+                <Alert severity="error" onClose={() => setError('')}>
+                  {error}
+                </Alert>
+              )}
 
-            <Box sx={{ px: 2, pt: ruleGroupId && datasets.length > 0 ? 2 : 0 }}>
-              <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ borderBottom: 1, borderColor: 'divider' }}>
-                <Tab label="数据说明" />
-                <Tab label="测试结果" />
-              </Tabs>
-            </Box>
+              {success && (
+                <Alert severity="success" onClose={() => setSuccess('')}>
+                  {success}
+                </Alert>
+              )}
 
-          <TabPanel value={activeTab} index={0}>
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError('')}>
-              {error}
-            </Alert>
-          )}
+              <Alert severity="info">
+                <Typography variant="body2">
+                  使用 `tracks` 和 `items` 来描述测试数据。每个 `item` 仅包含 `type` 与 `data`，例如 `track`、`start`、`duration` 等信息全部放在 `data` 中。
+                </Typography>
+              </Alert>
 
-          {success && (
-            <Alert severity="success" sx={{ mb: 2 }} onClose={() => setSuccess('')}>
-              {success}
-            </Alert>
-          )}
-
-          <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
-            <Editor
-              height="450px"
-              defaultLanguage="json"
-              value={testDataJson}
-              onChange={(value) => setTestDataJson(value || '')}
-              theme="vs-light"
-              options={{
-                minimap: { enabled: false },
-                fontSize: 13,
-                lineNumbers: 'on',
-                scrollBeyondLastLine: false,
-                automaticLayout: true,
-                tabSize: 2,
-                formatOnPaste: true,
-                formatOnType: true,
-                wordWrap: 'on',
-                wrappingIndent: 'indent',
-              }}
-            />
-          </Box>
-        </TabPanel>
-
-        <TabPanel value={activeTab} index={2}>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <Alert severity="info">
-              <Typography variant="body2">
-                测试结果展示了输入数据根据规则转换后的素材属性。每个输入项会根据规则的 material_ids 克隆对应素材,并用输入数据覆盖素材字段。
-              </Typography>
-            </Alert>
-
-            {testResultJson ? (
-              <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+              <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden', flex: 1 }}>
                 <Editor
-                  height="450px"
+                  height="100%"
                   defaultLanguage="json"
-                  value={testResultJson}
+                  value={testDataJson}
+                  onChange={(value) => setTestDataJson(value || '')}
                   theme="vs-light"
                   options={{
-                    readOnly: true,
                     minimap: { enabled: false },
                     fontSize: 13,
                     lineNumbers: 'on',
                     scrollBeyondLastLine: false,
                     automaticLayout: true,
                     tabSize: 2,
+                    formatOnPaste: true,
+                    formatOnType: true,
                     wordWrap: 'on',
                     wrappingIndent: 'indent',
                   }}
                 />
               </Box>
-            ) : (
-              <Paper elevation={0} sx={{ p: 4, textAlign: 'center', bgcolor: 'grey.50' }}>
-                <Typography variant="body2" color="text.secondary">
-                  请先在"JSON 编辑器"标签页运行测试,查看转换结果
-                </Typography>
-              </Paper>
-            )}
-          </Box>
-        </TabPanel>
+            </Box>
           </Box>
         </DialogContent>
 
@@ -493,8 +369,13 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
                   保存数据集
                 </Button>
               )}
-              <Button onClick={handleTest} variant="contained" startIcon={<PlayArrowIcon />}>
-                运行测试
+              <Button
+                onClick={handleTest}
+                variant="contained"
+                startIcon={<PlayArrowIcon />}
+                disabled={testing}
+              >
+                {testing ? '测试中...' : '运行测试'}
               </Button>
             </Box>
           </Box>

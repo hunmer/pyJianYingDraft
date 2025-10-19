@@ -1,0 +1,46 @@
+"""
+后端全局配置加载模块
+"""
+
+from __future__ import annotations
+
+import json
+from functools import lru_cache
+from pathlib import Path
+from typing import Any, Optional
+
+
+CONFIG_FILE_NAMES = ("config.json",)
+
+
+def _candidate_paths() -> list[Path]:
+    """按优先级返回可能的配置文件路径列表。"""
+    base_dir = Path(__file__).resolve().parent.parent
+    project_root = base_dir.parent
+    return [
+        base_dir / name
+        for name in CONFIG_FILE_NAMES
+    ] + [
+        project_root / name
+        for name in CONFIG_FILE_NAMES
+    ]
+
+
+@lru_cache(maxsize=1)
+def load_config() -> dict[str, Any]:
+    """加载配置文件，仅在首次调用时读取磁盘。"""
+    for path in _candidate_paths():
+        if path.exists():
+            try:
+                with path.open("r", encoding="utf-8") as fp:
+                    data = json.load(fp)
+                if isinstance(data, dict):
+                    return data
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"配置文件 {path} 解析失败: {exc}") from exc
+    return {}
+
+
+def get_config(key: str, default: Optional[Any] = None) -> Optional[Any]:
+    """读取指定配置项，未找到时返回默认值。"""
+    return load_config().get(key, default)

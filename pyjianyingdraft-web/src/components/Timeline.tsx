@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/react-timeline-editor';
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData } from '@/types/rule';
+import { ruleTestApi } from '@/lib/api';
 import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddBoxIcon from '@mui/icons-material/AddBox';
@@ -222,10 +223,11 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   }, []);
 
   // 处理测试数据
-  const handleTestData = (testData: TestData) => {
+  const handleTestData = async (testData: TestData) => {
     if (!selectedRuleGroup) {
-      setTestResult('请先选择规则组');
-      return;
+      const message = '请先选择规则组';
+      setTestResult(message);
+      throw new Error(message);
     }
 
     console.log('测试数据:', testData);
@@ -241,33 +243,53 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
     });
 
     if (missingRules.length > 0) {
-      setTestResult(`以下规则类型在当前规则组中不存在: ${missingRules.join(', ')}`);
-      return;
+      const message = `以下规则类型在当前规则组中不存在: ${missingRules.join(', ')}`;
+      setTestResult(message);
+      throw new Error(message);
     }
 
-    // 验证数据字段是否匹配规则定义
-    const errors: string[] = [];
-    testData.items.forEach((item, index) => {
+    // 收集测试所需的素材ID
+    const requiredMaterialIds = new Set<string>();
+    testData.items.forEach((item) => {
       const rule = selectedRuleGroup.rules.find((r) => r.type === item.type);
-      if (!rule) return;
-
-      // 检查必需字段
-      Object.keys(rule.inputs).forEach((inputKey) => {
-        if (!(inputKey in item.data)) {
-          errors.push(`素材项 ${index} (${item.type}): 缺少必需字段 "${inputKey}"`);
-        }
-      });
+      if (rule) {
+        rule.material_ids.forEach((id) => requiredMaterialIds.add(id));
+      }
     });
 
-    if (errors.length > 0) {
-      setTestResult(`数据验证失败:\n${errors.join('\n')}`);
-      return;
+    const missingMaterials: string[] = [];
+    const resolvedMaterials = Array.from(requiredMaterialIds).reduce<MaterialInfo[]>((acc, id) => {
+      const material = materials?.find((m) => m.id === id);
+      if (material) {
+        acc.push(material);
+      } else {
+        missingMaterials.push(id);
+      }
+      return acc;
+    }, []);
+
+    if (missingMaterials.length > 0) {
+      const message = `以下素材在当前草稿中未找到: ${missingMaterials.join(', ')}`;
+      setTestResult(message);
+      throw new Error(message);
     }
 
-    // 测试通过
-    setTestResult(`测试通过! 共验证了 ${testData.items.length} 个素材项, ${testData.tracks.length} 个轨道`);
-
-    // TODO: 这里可以进一步处理测试数据,例如生成草稿预览等
+    try {
+      setTestResult('测试请求处理中...');
+      const response = await ruleTestApi.runTest({
+        ruleGroup: selectedRuleGroup,
+        materials: resolvedMaterials,
+        testData,
+      });
+      const status = response.status_code;
+      const path = response.draft_path || '未知';
+      const extra = response.message ? ` | ${response.message}` : '';
+      setTestResult(`状态码: ${status} | 草稿目录: ${path}${extra}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '测试失败';
+      setTestResult(`测试失败: ${message}`);
+      throw error instanceof Error ? error : new Error(String(error));
+    }
   };
 
   return (
