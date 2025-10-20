@@ -102,10 +102,40 @@ export interface TestDataset {
 /**
  * 规则组测试请求
  */
+/**
+ * Ƭ����ʽӳ��
+ */
+export type SegmentStylesPayload = Record<string, Record<string, any>>;
+
+/**
+ * ԭʼƬ�λع�
+ */
+export interface RawSegmentPayload {
+  track_id: string;
+  track_type: string;
+  track_name?: string;
+  material_id: string;
+  segment: Record<string, any>;
+  material?: Record<string, any>;
+}
+
+/**
+ * ԭʼ�ز����
+ */
+export interface RawMaterialPayload {
+  id: string;
+  category: string;
+  data: Record<string, any>;
+}
+
 export interface RuleGroupTestRequest {
   ruleGroup: RuleGroup;
   materials: MaterialInfo[];
   testData: TestData;
+  segment_styles?: SegmentStylesPayload;
+  use_raw_segments?: boolean;
+  raw_segments?: RawSegmentPayload[];
+  raw_materials?: RawMaterialPayload[];
 }
 
 /**

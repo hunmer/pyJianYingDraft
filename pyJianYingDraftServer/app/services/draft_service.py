@@ -34,6 +34,41 @@ class DraftService:
         )
 
     @staticmethod
+    def _extract_segment_style(segment: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Collect style-related attributes from a raw segment."""
+        exclude_keys = {
+            'id',
+            'material_id',
+            'target_timerange',
+            'source_timerange',
+            'speed',
+            'volume',
+            'name',
+        }
+        style = {
+            key: value
+            for key, value in segment.items()
+            if key not in exclude_keys and value not in (None, {}, [], '')
+        }
+        return style or None
+
+    @staticmethod
+    def _build_segment_info(segment: Dict[str, Any]) -> SegmentInfo:
+        """Convert raw segment dict to SegmentInfo with style details."""
+        target_time = segment.get('target_timerange', {})
+        source_time = segment.get('source_timerange', {})
+
+        return SegmentInfo(
+            id=segment.get('id', ''),
+            material_id=segment.get('material_id', ''),
+            target_timerange=DraftService._format_timerange(target_time),
+            source_timerange=DraftService._format_timerange(source_time) if source_time else None,
+            speed=segment.get('speed'),
+            volume=segment.get('volume'),
+            style=DraftService._extract_segment_style(segment)
+        )
+
+    @staticmethod
     def load_draft(file_path: str) -> draft.ScriptFile:
         """加载草稿文件
 
@@ -66,21 +101,11 @@ class DraftService:
         tracks_info = []
         for track_data in script.content.get('tracks', []):
             segments = track_data.get('segments', [])
-            segments_info = []
+            segments_info = [
+                DraftService._build_segment_info(seg)
+                for seg in segments
+            ]
 
-            for seg in segments:
-                target_time = seg.get('target_timerange', {})
-                source_time = seg.get('source_timerange', {})
-
-                seg_info = SegmentInfo(
-                    id=seg.get('id', ''),
-                    material_id=seg.get('material_id', ''),
-                    target_timerange=DraftService._format_timerange(target_time),
-                    source_timerange=DraftService._format_timerange(source_time) if source_time else None,
-                    speed=seg.get('speed'),
-                    volume=seg.get('volume')
-                )
-                segments_info.append(seg_info)
 
             track_info = TrackInfo(
                 id=track_data.get('id', ''),
@@ -232,21 +257,11 @@ class DraftService:
                 continue
 
             segments = track_data.get('segments', [])
-            segments_info = []
+            segments_info = [
+                DraftService._build_segment_info(seg)
+                for seg in segments
+            ]
 
-            for seg in segments:
-                target_time = seg.get('target_timerange', {})
-                source_time = seg.get('source_timerange', {})
-
-                seg_info = SegmentInfo(
-                    id=seg.get('id', ''),
-                    material_id=seg.get('material_id', ''),
-                    target_timerange=DraftService._format_timerange(target_time),
-                    source_timerange=DraftService._format_timerange(source_time) if source_time else None,
-                    speed=seg.get('speed'),
-                    volume=seg.get('volume')
-                )
-                segments_info.append(seg_info)
 
             track_info = TrackInfo(
                 id=track_data.get('id', ''),

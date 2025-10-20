@@ -58,12 +58,43 @@ class TestDataModel(BaseModel):
     items: List[TestItemModel] = Field(default_factory=list, description="测试素材项列表")
 
 
+SegmentStylesPayload = Dict[str, Dict[str, Any]]
+
+
+class RawSegmentPayload(BaseModel):
+    """原始片段载荷，允许直接写入草稿结构"""
+
+    track_id: str = Field(..., description="轨道ID")
+    track_type: str = Field(..., description="轨道类型")
+    track_name: Optional[str] = Field(default=None, description="轨道名称")
+    material_id: Optional[str] = Field(default=None, description="素材ID")
+    segment: Dict[str, Any] = Field(default_factory=dict, description="完整片段数据")
+    material: Optional[Dict[str, Any]] = Field(default=None, description="片段附带的素材数据")
+    material_category: Optional[str] = Field(default=None, description="片段附带素材分类")
+
+    model_config = ConfigDict(extra="allow")
+
+
+class RawMaterialPayload(BaseModel):
+    """原始素材载荷"""
+
+    id: str = Field(..., description="素材ID")
+    category: str = Field(..., description="素材分类，如 videos、audios")
+    data: Dict[str, Any] = Field(default_factory=dict, description="素材完整JSON数据")
+
+    model_config = ConfigDict(extra="allow")
+
+
 class RuleGroupTestRequest(BaseModel):
     """规则组测试请求体"""
 
     ruleGroup: RuleGroupModel = Field(..., description="规则组定义")
     materials: List[MaterialPayload] = Field(default_factory=list, description="素材信息列表")
     testData: TestDataModel = Field(..., description="测试数据")
+    segment_styles: Optional[SegmentStylesPayload] = Field(default=None, description="素材样式映射")
+    use_raw_segments: bool = Field(default=False, description="是否直接写入原始片段")
+    raw_segments: Optional[List[RawSegmentPayload]] = Field(default=None, description="原始片段列表")
+    raw_materials: Optional[List[RawMaterialPayload]] = Field(default=None, description="原始素材列表")
 
 
 class RuleGroupTestResponse(BaseModel):

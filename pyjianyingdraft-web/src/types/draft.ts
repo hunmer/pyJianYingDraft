@@ -33,6 +33,8 @@ export interface SegmentInfo {
   speed?: number;
   /** 音量 (0.0-1.0) */
   volume?: number;
+  /** 样式或额外配置 */
+  style?: Record<string, any>;
   /** 片段类型(可选) */
   type?: string;
   /** 片段名称(可选) */
