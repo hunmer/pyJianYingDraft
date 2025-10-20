@@ -2,13 +2,17 @@
 规则组测试执行服务
 """
 
+import json
 import os
 import re
+import uuid
+from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Set
 
 import pyJianYingDraft as draft
+from pyJianYingDraft.template_mode import ImportedSegment
 
 from app.config import get_config
 from app.models.rule_models import (
@@ -53,12 +57,15 @@ class RuleTestService:
 
         RuleTestService._attach_segment_styles(materials, payload.segment_styles)
 
+        rule_lookup = {rule.type: rule for rule in rule_group.rules}
+        material_lookup = {material.id: material for material in materials}
+        plans = RuleTestService._build_segment_plans(test_data, rule_lookup, material_lookup)
+
         if payload.use_raw_segments:
             RuleTestService._build_raw_draft(script, payload)
+            if plans:
+                RuleTestService._merge_raw_segments_with_test_data(script, plans)
         else:
-            rule_lookup = {rule.type: rule for rule in rule_group.rules}
-            material_lookup = {material.id: material for material in materials}
-
             track_configs = RuleTestService._prepare_tracks(test_data, rule_lookup, material_lookup)
             track_order = RuleTestService._resolve_track_order(test_data, track_configs)
 
@@ -73,7 +80,7 @@ class RuleTestService:
                 track_name_map[track_id] = track_name
                 used_names.add(track_name)
 
-            for plan in RuleTestService._build_segment_plans(test_data, rule_lookup, material_lookup):
+            for plan in plans:
                 track_name = track_name_map[plan["track_id"]]
                 segment = RuleTestService._build_segment(plan["material"], plan["item"])
                 script.add_segment(segment, track_name=track_name)
@@ -381,35 +388,79 @@ class RuleTestService:
         raw_materials: List[RawMaterialPayload], raw_segments: List[RawSegmentPayload]
     ) -> Dict[str, List[Dict[str, Any]]]:
         grouped: Dict[str, Dict[str, Dict[str, Any]]] = {}
+        material_map: Dict[str, Dict[str, Any]] = {}
+        id_category_map: Dict[str, str] = {}
 
-        def add_material(category: Optional[str], material_id: Optional[str], data: Optional[Dict[str, Any]]) -> None:
-            if not category or not material_id or data is None:
+        def register_material(category: Optional[str], material_id: Optional[str], data: Optional[Dict[str, Any]]) -> None:
+            if not category or not material_id or not data:
                 return
-            bucket = grouped.setdefault(category, {})
-            if material_id in bucket:
+            key = str(material_id)
+            if key in material_map:
                 return
             payload = deepcopy(data)
-            payload.setdefault("id", material_id)
-            bucket[material_id] = payload
+            payload.setdefault("id", key)
+            material_map[key] = payload
+            id_category_map[key] = category
 
         for raw in raw_materials:
             if not raw.category:
                 raise ValueError("raw_materials 条目缺少 category")
-            material_id = raw.id or raw.data.get("id")
+            material_id = raw.id or raw.data.get("id") or raw.data.get("material_id")
             if not material_id:
                 raise ValueError("raw_materials 条目缺少 id")
-            payload = deepcopy(raw.data)
-            payload.setdefault("id", material_id)
-            add_material(raw.category, material_id, payload)
+            register_material(raw.category, material_id, raw.data)
+
+        required_material_ids: Set[str] = set()
 
         for segment in raw_segments:
             material_payload = segment.material
             if material_payload:
                 if not isinstance(material_payload, dict):
                     raise TypeError("raw segment material 数据必须是字典")
-                category = material_payload.get("category") or segment.material_category
-                material_id = material_payload.get("id") or segment.material_id
-                add_material(category, material_id, material_payload)
+                category = segment.material_category or material_payload.get("category")
+                material_id = (
+                    material_payload.get("id")
+                    or material_payload.get("material_id")
+                    or segment.material_id
+                )
+                register_material(category, material_id, material_payload)
+                if material_id:
+                    required_material_ids.add(str(material_id))
+
+            extra_materials = segment.extra_materials or {}
+            for category, items in extra_materials.items():
+                if not isinstance(items, list):
+                    raise TypeError("extra_materials 中的分类应对应素材列表")
+                for item in items:
+                    if not isinstance(item, dict):
+                        raise TypeError("extra_materials 内素材应为字典")
+                    candidate_id = item.get("id") or item.get("material_id")
+                    register_material(category, candidate_id, item)
+                    if candidate_id:
+                        required_material_ids.add(str(candidate_id))
+
+        for segment in raw_segments:
+            primary_id = segment.material_id or segment.segment.get("material_id")
+            if primary_id:
+                required_material_ids.add(str(primary_id))
+
+            extra_refs = segment.segment.get("extra_material_refs")
+            if isinstance(extra_refs, list):
+                for ref in extra_refs:
+                    if ref is not None:
+                        required_material_ids.add(str(ref))
+
+        missing_materials = [mid for mid in required_material_ids if mid not in material_map]
+        if missing_materials:
+            raise ValueError(f"缺少以下原始素材定义: {missing_materials}")
+
+        for material_id in required_material_ids:
+            category = id_category_map.get(material_id)
+            if not category:
+                raise ValueError(f"未能确定素材 {material_id} 的分类")
+            bucket = grouped.setdefault(category, {})
+            if material_id not in bucket:
+                bucket[material_id] = deepcopy(material_map[material_id])
 
         return {category: list(items.values()) for category, items in grouped.items()}
 
@@ -451,6 +502,207 @@ class RuleTestService:
             track["segments"].append(segment_data)
 
         return list(track_map.values())
+
+    @staticmethod
+    def _seconds_to_microseconds(value: Any) -> Optional[int]:
+        if value is None:
+            return None
+        try:
+            if isinstance(value, str):
+                value = value.strip()
+                if not value:
+                    return None
+            return int(float(value) * 1_000_000)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _find_imported_material(script: draft.ScriptFile, material_id: str) -> Optional[Dict[str, Any]]:
+        for material_list in script.imported_materials.values():
+            for entry in material_list:
+                entry_id = entry.get("id") or entry.get("material_id")
+                if entry_id is not None and str(entry_id) == material_id:
+                    return entry
+        return None
+
+    @staticmethod
+    def _update_text_material(entry: Dict[str, Any], text_value: str) -> None:
+        content = entry.get("content")
+        parsed_content: Optional[Dict[str, Any]] = None
+        if isinstance(content, str):
+            try:
+                parsed = json.loads(content)
+                if isinstance(parsed, dict):
+                    parsed_content = parsed
+            except json.JSONDecodeError:
+                parsed_content = None
+        elif isinstance(content, dict):
+            parsed_content = deepcopy(content)
+
+        if parsed_content is None:
+            parsed_content = {"text": text_value}
+        else:
+            parsed_content["text"] = text_value
+            styles = parsed_content.get("styles")
+            if isinstance(styles, list):
+                for style in styles:
+                    if isinstance(style, dict) and isinstance(style.get("range"), list) and len(style["range"]) == 2:
+                        style["range"] = [0, len(text_value)]
+
+        entry["content"] = json.dumps(parsed_content, ensure_ascii=False)
+        entry["text"] = text_value
+
+    @staticmethod
+    def _apply_item_data_to_material(
+        script: draft.ScriptFile, material_id: Optional[str], item_data: Dict[str, Any]
+    ) -> None:
+        if not material_id:
+            return
+        material_entry = RuleTestService._find_imported_material(script, str(material_id))
+        if not material_entry:
+            return
+
+        path_value = item_data.get("path")
+        if path_value:
+            material_entry["path"] = path_value
+            if "media_path" in material_entry:
+                material_entry["media_path"] = path_value
+            if "material_url" in material_entry:
+                material_entry["material_url"] = path_value
+
+        duration_us = RuleTestService._seconds_to_microseconds(item_data.get("duration"))
+        if duration_us is not None:
+            material_entry["duration"] = duration_us
+            material_entry["duration_us"] = duration_us
+            material_entry["duration_seconds"] = duration_us / 1_000_000
+
+        if "name" in item_data and item_data["name"]:
+            material_entry["name"] = item_data["name"]
+
+        if "text" in item_data and item_data["text"] is not None:
+            RuleTestService._update_text_material(material_entry, str(item_data["text"]))
+
+    @staticmethod
+    def _apply_item_data_to_segment(segment: ImportedSegment, item_data: Dict[str, Any]) -> None:
+        start_us = RuleTestService._seconds_to_microseconds(item_data.get("start"))
+        duration_us = RuleTestService._seconds_to_microseconds(item_data.get("duration"))
+        target = segment.target_timerange
+        raw_target = segment.raw_data.setdefault("target_timerange", {})
+        if start_us is not None:
+            target.start = start_us
+            raw_target["start"] = start_us
+        if duration_us is not None:
+            target.duration = duration_us
+            raw_target["duration"] = duration_us
+
+        if "volume" in item_data and item_data["volume"] is not None:
+            segment.raw_data["volume"] = item_data["volume"]
+            segment.raw_data["last_nonzero_volume"] = item_data["volume"]
+
+        if "speed" in item_data and item_data["speed"] is not None:
+            segment.raw_data["speed"] = item_data["speed"]
+
+        if "name" in item_data and item_data["name"]:
+            segment.raw_data["name"] = item_data["name"]
+
+        source_start_us = RuleTestService._seconds_to_microseconds(item_data.get("source_start"))
+        source_duration_us = RuleTestService._seconds_to_microseconds(item_data.get("source_duration"))
+        if hasattr(segment, "source_timerange") and getattr(segment, "source_timerange") is not None:
+            raw_source = segment.raw_data.setdefault("source_timerange", {})
+            source_range = segment.source_timerange  # type: ignore[attr-defined]
+            if source_start_us is not None:
+                source_range.start = source_start_us
+                raw_source["start"] = source_start_us
+            if source_duration_us is not None:
+                source_range.duration = source_duration_us
+                raw_source["duration"] = source_duration_us
+
+    @staticmethod
+    def _merge_raw_segments_with_test_data(script: draft.ScriptFile, plans: List[Dict[str, Any]]) -> None:
+        if not plans:
+            return
+
+        track_segments: Dict[str, List[ImportedSegment]] = {}
+        track_objects: Dict[str, Any] = {}
+        for track in script.imported_tracks:
+            segments = getattr(track, "segments", None)
+            track_id_value = getattr(track, "track_id", None)
+            if track_id_value is None or not segments:
+                continue
+            track_key = str(track_id_value)
+            track_objects[track_key] = track
+            track_segments[track_key] = segments  # type: ignore[assignment]
+
+        material_segments: Dict[str, List[ImportedSegment]] = defaultdict(list)
+        for segments in track_segments.values():
+            for segment in segments:
+                material_id = getattr(segment, "material_id", None)
+                if material_id is not None:
+                    material_segments[str(material_id)].append(segment)
+
+        track_indices: Dict[str, int] = defaultdict(int)
+        material_indices: Dict[str, int] = defaultdict(int)
+
+        for plan in plans:
+            track_id = str(plan["track_id"])
+            material_obj = plan["material"]
+            material_id_value = getattr(material_obj, "id", None)
+            if material_id_value is None:
+                continue
+            material_key = str(material_id_value)
+            item_data = plan["item"]
+
+            selected_segment: Optional[ImportedSegment] = None
+
+            segments_for_track = track_segments.get(track_id)
+            if segments_for_track:
+                idx = track_indices[track_id]
+                if idx < len(segments_for_track):
+                    selected_segment = segments_for_track[idx]
+                    track_indices[track_id] += 1
+
+            if selected_segment is None:
+                segments_for_material = material_segments.get(material_key)
+                if segments_for_material:
+                    idx = material_indices[material_key]
+                    if idx < len(segments_for_material):
+                        selected_segment = segments_for_material[idx]
+                        material_indices[material_key] += 1
+
+            if selected_segment is None:
+                track_obj = track_objects.get(track_id)
+                segments_list = getattr(track_obj, "segments", None) if track_obj else None
+                if track_obj and segments_list:
+                    template_segment = segments_list[-1]
+                    new_raw = deepcopy(template_segment.raw_data)
+                    new_raw["id"] = uuid.uuid4().hex
+                    target_json = new_raw.setdefault("target_timerange", {})
+                    target_json.setdefault("start", template_segment.target_timerange.start)
+                    target_json.setdefault("duration", template_segment.target_timerange.duration)
+                    new_segment = type(template_segment)(new_raw)  # type: ignore[call-arg]
+                    new_segment.material_id = material_key
+                    new_segment.raw_data["material_id"] = material_key
+                    segments_list.append(new_segment)
+                    track_segments[track_id] = segments_list
+                    material_segments[material_key].append(new_segment)
+                    selected_segment = new_segment
+                    track_indices[track_id] = len(segments_list)
+                    material_indices[material_key] = len(material_segments[material_key])
+
+            if selected_segment is not None:
+                RuleTestService._apply_item_data_to_segment(selected_segment, item_data)
+
+            RuleTestService._apply_item_data_to_material(script, material_key, item_data)
+
+        max_end = 0
+        for track in script.imported_tracks:
+            segments = getattr(track, "segments", None)
+            if not segments:
+                continue
+            for segment in segments:
+                end_point = segment.target_timerange.start + segment.target_timerange.duration
+                max_end = max(max_end, end_point)
+        script.duration = max(script.duration, max_end)
 
     @staticmethod
     def _extract_duration_from_material(material: MaterialPayload) -> Optional[float]:

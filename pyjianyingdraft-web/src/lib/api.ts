@@ -61,6 +61,15 @@ export const draftApi = {
   },
 
   /**
+   * 获取草稿原始内容
+   */
+  async getRaw(filePath: string): Promise<Record<string, any>> {
+    const url = buildUrl('/api/draft/raw', { file_path: filePath });
+    const response = await fetch(url);
+    return handleResponse<Record<string, any>>(response);
+  },
+
+  /**
    * 验证草稿文件是否有效
    * @param filePath - draft_content.json 的绝对路径
    */

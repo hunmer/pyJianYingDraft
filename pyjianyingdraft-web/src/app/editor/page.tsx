@@ -47,6 +47,8 @@ export default function EditorPage() {
   const [draftInfo, setDraftInfo] = useState<DraftInfo | null>(null);
   const [tracks, setTracks] = useState<TrackInfo[]>([]);
   const [materials, setMaterials] = useState<MaterialInfo[]>([]);
+  const [rawDraft, setRawDraft] = useState<Record<string, any> | null>(null);
+  const [materialCategories, setMaterialCategories] = useState<AllMaterialsResponse | null>(null);
 
   /**
    * 加载草稿文件
@@ -59,6 +61,8 @@ export default function EditorPage() {
 
     setLoading(true);
     setError(null);
+    setRawDraft(null);
+    setMaterialCategories(null);
 
     try {
       // 1. 验证文件
@@ -69,8 +73,10 @@ export default function EditorPage() {
 
       // 2. 获取草稿基础信息
       const info = await draftApi.getInfo(draftPath);
+      const raw = await draftApi.getRaw(draftPath);
       setDraftInfo(info);
       setTracks(info.tracks || []);
+      setRawDraft(raw);
 
       // 保存草稿路径到localStorage
       localStorage.setItem('lastDraftPath', draftPath);
@@ -79,6 +85,7 @@ export default function EditorPage() {
       try {
         const mats = await materialsApi.getAll(draftPath);
         console.log('获取素材信息成功:', mats)
+        setMaterialCategories(mats);
 
         // 将对象格式转换为数组格式: { videos: {items: []}, audios: {items: []} } => MaterialInfo[]
         const flatMaterials: MaterialInfo[] = Object.values(mats)
@@ -87,12 +94,16 @@ export default function EditorPage() {
       } catch (err) {
         console.warn('获取素材信息失败:', err);
         setMaterials([]);
+        setMaterialCategories(null);
       }
 
       console.log('草稿加载成功:', info);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '加载草稿失败';
       setError(errorMessage);
+      setRawDraft(null);
+      setMaterialCategories(null);
+      setMaterials([]);
       console.error('加载草稿错误:', err);
     } finally {
       setLoading(false);
@@ -235,6 +246,8 @@ export default function EditorPage() {
               tracks={tracks}
               materials={materials}
               duration={draftInfo.duration_seconds}
+              rawDraft={rawDraft ?? undefined}
+              rawMaterials={materialCategories ?? undefined}
               readOnly={true}
             />
           </Box>

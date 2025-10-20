@@ -22,7 +22,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Editor from '@monaco-editor/react';
-import type { TestData, TestDataset, RuleGroup } from '@/types/rule';
+import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPayload } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 import { RuleGroupList } from './RuleGroupList';
@@ -40,6 +40,12 @@ interface TestDataDialogProps {
   ruleGroup?: RuleGroup | null;
   /** 素材列表(用于提取素材属性) */
   materials?: MaterialInfo[];
+  /** 可用的原始片段载荷(用于调试展示) */
+  rawSegments?: RawSegmentPayload[] | undefined;
+  /** 可用的原始素材载荷(用于调试展示) */
+  rawMaterials?: RawMaterialPayload[] | undefined;
+  /** 当前是否会在测试时启用原始片段模式 */
+  useRawSegmentsHint?: boolean;
 }
 
 /**
@@ -51,7 +57,10 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
   onTest,
   ruleGroupId,
   ruleGroup,
-  materials = []
+  materials = [],
+  rawSegments,
+  rawMaterials,
+  useRawSegmentsHint,
 }) => {
   const [testDataJson, setTestDataJson] = useState(JSON.stringify(EXAMPLE_TEST_DATA, null, 2));
   const [error, setError] = useState('');
@@ -64,6 +73,9 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [datasetName, setDatasetName] = useState('');
   const [datasetDescription, setDatasetDescription] = useState('');
+
+  const rawSegmentCount = rawSegments?.length ?? 0;
+  const rawMaterialCount = rawMaterials?.length ?? 0;
 
   // 加载数据集列表
   useEffect(() => {
@@ -245,6 +257,34 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
     }
   };
 
+  const handleCopyRawSegments = async () => {
+    if (!rawSegments || rawSegments.length === 0) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(rawSegments, null, 2));
+      setSuccess('原始片段JSON已复制到剪贴板');
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err) {
+      console.error('复制原始片段失败:', err);
+      setError('复制原始片段失败');
+    }
+  };
+
+  const handleCopyRawMaterials = async () => {
+    if (!rawMaterials || rawMaterials.length === 0) {
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(rawMaterials, null, 2));
+      setSuccess('原始素材JSON已复制到剪贴板');
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err) {
+      console.error('复制原始素材失败:', err);
+      setError('复制原始素材失败');
+    }
+  };
+
   return (
     <>
       <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
@@ -325,6 +365,17 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
                 </Alert>
               )}
 
+              {rawSegmentCount > 0 && (
+                <Alert severity={useRawSegmentsHint ? 'success' : 'info'}>
+                  <Typography variant="body2">
+                    已解析可用的原始片段 {rawSegmentCount} 个，关联素材 {rawMaterialCount} 条。
+                    {useRawSegmentsHint
+                      ? ' 当前测试将使用原始片段数据直接写入草稿。'
+                      : ' 当前测试数据未引用原始片段对应的素材，如需启用请确保测试数据引用到相应素材。'}
+                  </Typography>
+                </Alert>
+              )}
+
               <Alert severity="info">
                 <Typography variant="body2">
                   使用 `tracks` 和 `items` 来描述测试数据。每个 `item` 仅包含 `type` 与 `data`，例如 `track`、`start`、`duration` 等信息全部放在 `data` 中。
@@ -357,8 +408,20 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
         </DialogContent>
 
         <DialogActions>
-          <Box sx={{ display: 'flex', gap: 1, width: '100%', justifyContent: 'space-between' }}>
-            <Button onClick={onClose}>取消</Button>
+          <Box sx={{ display: 'flex', gap: 1, width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button onClick={onClose}>取消</Button>
+              {rawSegmentCount > 0 && (
+                <Button variant="outlined" onClick={handleCopyRawSegments}>
+                  复制原始片段
+                </Button>
+              )}
+              {rawMaterialCount > 0 && (
+                <Button variant="outlined" onClick={handleCopyRawMaterials}>
+                  复制原始素材
+                </Button>
+              )}
+            </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
               {ruleGroupId && (
                 <Button

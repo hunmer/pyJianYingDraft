@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/react-timeline-editor';
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload } from '@/types/rule';
-import { ruleTestApi } from '@/lib/api';
+import { ruleTestApi, type AllMaterialsResponse } from '@/lib/api';
 import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddBoxIcon from '@mui/icons-material/AddBox';
@@ -68,6 +68,10 @@ interface TimelineEditorProps {
   readOnly?: boolean;
   /** ����仯�ص� */
   onChange?: (tracks: TrackInfo[]) => void;
+  /** 草稿原始JSON */
+  rawDraft?: Record<string, any>;
+  /** 分类素材原始数据 */
+  rawMaterials?: AllMaterialsResponse | null;
 }
 const cloneDeep = <T,>(value: T): T =>
   value === undefined ? (value as T) : JSON.parse(JSON.stringify(value));
@@ -242,6 +246,8 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   materialDetails = {},
   duration,
   readOnly = true,
+  rawDraft,
+  rawMaterials,
   onChange,
 }) => {
   const [data, setData] = useState<TimelineRow[]>([]);
@@ -250,6 +256,129 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const [activeTab, setActiveTab] = useState(0); // 当前激活的Tab
   const timelineRef = useRef<any>(null);
   const trackListRef = useRef<HTMLDivElement>(null); // 左侧轨道列表引用
+
+  const materialLookup = useMemo(() => {
+    const map = new Map<string, { category: string; data: Record<string, any> }>();
+
+    const registerItems = (category: string, items: unknown) => {
+      if (!Array.isArray(items)) {
+        return;
+      }
+      items.forEach((item) => {
+        if (!item || typeof item !== 'object') {
+          return;
+        }
+        const rawItem = item as Record<string, any>;
+        const candidateId = rawItem.id ?? rawItem.material_id;
+        if (!candidateId) {
+          return;
+        }
+        const key = String(candidateId);
+        if (!map.has(key)) {
+          map.set(key, { category, data: rawItem });
+        }
+      });
+    };
+
+    if (rawMaterials) {
+      Object.entries(rawMaterials).forEach(([category, info]) => {
+        if (!info) {
+          return;
+        }
+        registerItems(category, info.items);
+      });
+    } else if (rawDraft && typeof rawDraft === 'object') {
+      const materialsSection = (rawDraft as Record<string, any>).materials;
+      if (materialsSection && typeof materialsSection === 'object') {
+        Object.entries(materialsSection as Record<string, unknown>).forEach(([category, items]) => {
+          registerItems(category, items);
+        });
+      }
+    }
+
+    return map;
+  }, [rawMaterials, rawDraft]);
+
+  const rawMaterialPayloads = useMemo<RawMaterialPayload[] | undefined>(() => {
+    if (materialLookup.size === 0) {
+      return undefined;
+    }
+    return Array.from(materialLookup.entries()).map(([id, entry]) => ({
+      id,
+      category: entry.category,
+      data: cloneDeep(entry.data),
+    }));
+  }, [materialLookup]);
+
+  const rawSegmentPayloads = useMemo<RawSegmentPayload[] | undefined>(() => {
+    if (!rawDraft || typeof rawDraft !== 'object' || !Array.isArray((rawDraft as any).tracks)) {
+      return undefined;
+    }
+    const payloads: RawSegmentPayload[] = [];
+    (rawDraft as any).tracks.forEach((track: any) => {
+      if (!track || typeof track !== 'object') {
+        return;
+      }
+      const trackIdValue = track.id;
+      if (trackIdValue === undefined || trackIdValue === null) {
+        return;
+      }
+      const trackId = String(trackIdValue);
+      const trackType = typeof track.type === 'string' ? track.type : 'video';
+      const trackName = typeof track.name === 'string' ? track.name : undefined;
+      const segments = Array.isArray(track.segments) ? track.segments : [];
+      segments.forEach((segment: any) => {
+        if (!segment || typeof segment !== 'object') {
+          return;
+        }
+        const materialIdValue = segment.material_id;
+        const materialId =
+          materialIdValue === undefined || materialIdValue === null ? undefined : String(materialIdValue);
+
+        let materialCategory: string | undefined;
+        let materialData: Record<string, any> | undefined;
+        if (materialId) {
+          const materialInfo = materialLookup.get(materialId);
+          if (materialInfo) {
+            materialCategory = materialInfo.category;
+            materialData = cloneDeep(materialInfo.data);
+          }
+        }
+
+        let extraMaterials: Record<string, Record<string, any>[]> | undefined;
+        const extraRefs = Array.isArray(segment.extra_material_refs) ? segment.extra_material_refs : [];
+        extraRefs.forEach((ref: any) => {
+          if (ref === undefined || ref === null) {
+            return;
+          }
+          const refId = String(ref);
+          const refInfo = materialLookup.get(refId);
+          if (!refInfo) {
+            return;
+          }
+          if (!extraMaterials) {
+            extraMaterials = {};
+          }
+          if (!extraMaterials[refInfo.category]) {
+            extraMaterials[refInfo.category] = [];
+          }
+          extraMaterials[refInfo.category].push(cloneDeep(refInfo.data));
+        });
+
+        payloads.push({
+          track_id: trackId,
+          track_type: trackType,
+          track_name: trackName,
+          material_id: materialId,
+          segment: cloneDeep(segment),
+          material: materialData,
+          material_category: materialCategory,
+          extra_materials: extraMaterials,
+        });
+      });
+    });
+    return payloads.length > 0 ? payloads : undefined;
+  }, [rawDraft, materialLookup]);
 
   // 规则组相关状态
   const [selectedRuleGroup, setSelectedRuleGroup] = useState<RuleGroup | null>(null);
@@ -385,6 +514,23 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       throw new Error(message);
     }
 
+    const relevantRawSegments = (rawSegmentPayloads ?? []).filter((payload) => {
+      const segmentMaterialId = payload.material_id ? String(payload.material_id) : undefined;
+      if (segmentMaterialId && requiredMaterialIds.has(segmentMaterialId)) {
+        return true;
+      }
+      const refs = Array.isArray(payload.segment?.extra_material_refs)
+        ? payload.segment.extra_material_refs
+            .filter((ref: any) => ref !== undefined && ref !== null)
+            .map((ref: any) => String(ref))
+        : [];
+      return refs.some((refId) => requiredMaterialIds.has(refId));
+    });
+    const shouldUseRawSegments = relevantRawSegments.length > 0;
+    const relevantRawMaterials = rawMaterialPayloads?.filter((material) =>
+      requiredMaterialIds.has(String(material.id)),
+    );
+
     try {
       setTestResult('测试请求处理中...');
       const response = await ruleTestApi.runTest({
@@ -392,6 +538,12 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         materials: resolvedMaterials,
         testData,
         segment_styles: Object.keys(segmentStylesPayload).length > 0 ? segmentStylesPayload : undefined,
+        use_raw_segments: shouldUseRawSegments,
+        raw_segments: shouldUseRawSegments ? relevantRawSegments : undefined,
+        raw_materials:
+          shouldUseRawSegments && relevantRawMaterials && relevantRawMaterials.length > 0
+            ? relevantRawMaterials
+            : undefined,
       });
       const status = response.status_code;
       const path = response.draft_path || '未知';
@@ -794,6 +946,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         ruleGroupId={selectedRuleGroup?.id}
         ruleGroup={selectedRuleGroup}
         materials={Array.isArray(materials) ? materials : []}
+        rawSegments={rawSegmentPayloads}
+        rawMaterials={rawMaterialPayloads}
+        useRawSegmentsHint={Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0)}
       />
 
       {/* 添加到预设组对话框 */}

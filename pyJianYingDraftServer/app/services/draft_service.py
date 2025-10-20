@@ -3,6 +3,7 @@
 """
 
 import os
+from copy import deepcopy
 from typing import Dict, List, Any, Optional
 import pyJianYingDraft as draft
 
@@ -85,6 +86,12 @@ class DraftService:
             raise FileNotFoundError(f"草稿文件不存在: {file_path}")
 
         return draft.ScriptFile.load_template(file_path)
+
+    @staticmethod
+    def get_raw_content(file_path: str) -> Dict[str, Any]:
+        """获取草稿完整原始JSON内容"""
+        script = DraftService.load_draft(file_path)
+        return deepcopy(script.content)
 
     @staticmethod
     def get_draft_info(file_path: str) -> DraftInfo:
