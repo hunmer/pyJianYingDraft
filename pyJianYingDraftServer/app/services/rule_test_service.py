@@ -9,7 +9,7 @@ import uuid
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Callable, Dict, List, Optional, Set
 
 import pyJianYingDraft as draft
 from pyJianYingDraft.template_mode import ImportedSegment
@@ -378,10 +378,28 @@ class RuleTestService:
         if not raw_segments:
             raise ValueError("use_raw_segments 为 True 时必须提供 raw_segments")
 
+        print(f"[DEBUG] _build_raw_draft: raw_segments数量 = {len(raw_segments)}")
+
         materials = RuleTestService._prepare_raw_materials(payload.raw_materials or [], raw_segments)
+        print(f"[DEBUG] _build_raw_draft: materials categories = {list(materials.keys())}")
+        for cat, mats in materials.items():
+            print(f"[DEBUG]   - {cat}: {len(mats)}个material")
+
         tracks = RuleTestService._prepare_raw_tracks(raw_segments)
+        print(f"[DEBUG] _build_raw_draft: 准备了{len(tracks)}个tracks")
+        for track in tracks:
+            track_type = track.get("type")
+            segments_count = len(track.get("segments", []))
+            print(f"[DEBUG]   - Track type={track_type}, segments数量={segments_count}")
 
         script.add_raw_segments(tracks, materials, ensure_unique_material_ids=True)
+
+        print(f"[DEBUG] _build_raw_draft完成: script.imported_tracks数量 = {len(script.imported_tracks)}")
+        for track in script.imported_tracks:
+            track_type = getattr(track, "type", "?")
+            segments = getattr(track, "segments", None)
+            segments_count = len(segments) if segments else 0
+            print(f"[DEBUG]   - ImportedTrack type={track_type}, segments数量={segments_count}")
 
     @staticmethod
     def _prepare_raw_materials(
@@ -557,10 +575,18 @@ class RuleTestService:
         script: draft.ScriptFile, material_id: Optional[str], item_data: Dict[str, Any]
     ) -> None:
         if not material_id:
+            print(f"[DEBUG] _apply_item_data_to_material: material_id为空，跳过")
             return
         material_entry = RuleTestService._find_imported_material(script, str(material_id))
         if not material_entry:
+            print(f"[WARNING] 未找到material: material_id={material_id}")
+            print(f"[DEBUG] 当前script.imported_materials categories: {list(script.imported_materials.keys())}")
+            for cat, mats in script.imported_materials.items():
+                mat_ids = [m.get('id') or m.get('material_id') for m in mats[:3]]
+                print(f"[DEBUG] {cat}前3个: {mat_ids}")
             return
+
+        print(f"[DEBUG] 找到material {material_id}，应用item_data")
 
         path_value = item_data.get("path")
         if path_value:
@@ -569,18 +595,22 @@ class RuleTestService:
                 material_entry["media_path"] = path_value
             if "material_url" in material_entry:
                 material_entry["material_url"] = path_value
+            print(f"[DEBUG]   - 更新path: {path_value}")
 
         duration_us = RuleTestService._seconds_to_microseconds(item_data.get("duration"))
         if duration_us is not None:
             material_entry["duration"] = duration_us
             material_entry["duration_us"] = duration_us
             material_entry["duration_seconds"] = duration_us / 1_000_000
+            print(f"[DEBUG]   - 更新duration: {duration_us}us ({duration_us/1000000}s)")
 
         if "name" in item_data and item_data["name"]:
             material_entry["name"] = item_data["name"]
+            print(f"[DEBUG]   - 更新name: {item_data['name']}")
 
         if "text" in item_data and item_data["text"] is not None:
             RuleTestService._update_text_material(material_entry, str(item_data["text"]))
+            print(f"[DEBUG]   - 更新text: {item_data['text']}")
 
     @staticmethod
     def _apply_item_data_to_segment(segment: ImportedSegment, item_data: Dict[str, Any]) -> None:
@@ -617,83 +647,205 @@ class RuleTestService:
                 source_range.duration = source_duration_us
                 raw_source["duration"] = source_duration_us
 
+        # 处理clip相关属性（位置、大小等）- 只在有指定值时更新，否则保持模板原值
+        x = item_data.get("x")
+        y = item_data.get("y")
+        scale = item_data.get("scale")
+
+        if x is not None or y is not None or scale is not None:
+            # 获取clip对象（应该已从模板克隆）
+            clip = segment.raw_data.get("clip")
+            if not clip:
+                # 如果模板没有clip，创建一个基础结构
+                clip = {}
+                segment.raw_data["clip"] = clip
+
+            # 更新transform（位置）- 只更新指定的值
+            if x is not None or y is not None:
+                transform = clip.get("transform")
+                if not transform:
+                    # 如果模板没有transform，创建默认值
+                    transform = {"x": 0.0, "y": 0.0}
+                    clip["transform"] = transform
+
+                if x is not None:
+                    transform["x"] = float(x)
+                    print(f"[DEBUG]   - 更新clip.transform.x: {x}")
+                if y is not None:
+                    transform["y"] = float(y)
+                    print(f"[DEBUG]   - 更新clip.transform.y: {y}")
+
+            # 更新scale（大小）
+            if scale is not None:
+                scale_obj = clip.get("scale")
+                if not scale_obj:
+                    # 如果模板没有scale，创建默认值
+                    scale_obj = {"x": 1.0, "y": 1.0}
+                    clip["scale"] = scale_obj
+
+                scale_value = float(scale)
+                scale_obj["x"] = scale_value
+                scale_obj["y"] = scale_value
+                print(f"[DEBUG]   - 更新clip.scale: {scale_value}")
+
     @staticmethod
     def _merge_raw_segments_with_test_data(script: draft.ScriptFile, plans: List[Dict[str, Any]]) -> None:
+        """
+        根据testData生成新的segments和materials，清除原始样本数据
+        每个plan会创建独立的segment和material副本，确保ID唯一性
+        """
         if not plans:
+            print("[DEBUG] plans为空，跳过merge操作")
             return
 
-        track_segments: Dict[str, List[ImportedSegment]] = {}
-        track_objects: Dict[str, Any] = {}
+        print(f"[DEBUG] 开始merge操作，plans数量: {len(plans)}")
+
+        # 1. 收集各类型segment结构模板（按轨道类型分类）
+        segment_templates: Dict[str, ImportedSegment] = {}
         for track in script.imported_tracks:
-            segments = getattr(track, "segments", None)
-            track_id_value = getattr(track, "track_id", None)
-            if track_id_value is None or not segments:
+            # ImportedTrack使用track_type属性，不是type
+            track_type_enum = getattr(track, "track_type", None)
+            if not track_type_enum:
                 continue
-            track_key = str(track_id_value)
-            track_objects[track_key] = track
-            track_segments[track_key] = segments  # type: ignore[assignment]
+            # 转换为字符串（如"video", "audio", "text"）
+            track_type = track_type_enum.name if hasattr(track_type_enum, "name") else str(track_type_enum)
+            segments = getattr(track, "segments", None)
+            if segments and len(segments) > 0 and track_type not in segment_templates:
+                segment_templates[track_type] = segments[0]
+                print(f"[DEBUG] 找到{track_type}类型segment模板: track_id={getattr(track, 'track_id', '?')}")
 
-        material_segments: Dict[str, List[ImportedSegment]] = defaultdict(list)
-        for segments in track_segments.values():
-            for segment in segments:
-                material_id = getattr(segment, "material_id", None)
-                if material_id is not None:
-                    material_segments[str(material_id)].append(segment)
+        if not segment_templates:
+            print("[ERROR] 未找到任何segment模板")
+            return
 
-        track_indices: Dict[str, int] = defaultdict(int)
-        material_indices: Dict[str, int] = defaultdict(int)
+        print(f"[DEBUG] 收集到的模板类型: {list(segment_templates.keys())}")
 
+        # 2. 保存原始materials的深拷贝（用于克隆）
+        original_materials = deepcopy(script.imported_materials)
+        print(f"[DEBUG] 保存原始materials: categories={list(original_materials.keys())}")
+        for cat, mats in original_materials.items():
+            print(f"[DEBUG]   - {cat}: {len(mats)}个material")
+
+        # 3. 清空所有旧轨道
+        old_tracks_count = len(script.imported_tracks)
+        script.imported_tracks.clear()
+        print(f"[DEBUG] 清空所有旧轨道: 清除了{old_tracks_count}个轨道")
+
+        # 4. 清空所有materials（样本数据不应写入）
+        old_materials_count = sum(len(mats) for mats in script.imported_materials.values())
+        script.imported_materials.clear()
+        print(f"[DEBUG] 清空materials: 清除了{old_materials_count}个material")
+
+        # 5. 从testData中提取tracks信息用于确定轨道类型
+        from app.models.rule_models import RuleGroupTestRequest
+
+        # 获取payload以访问testData.tracks（如果可能）
+        # 这里我们需要一个更好的方式来传递track类型信息
+        # 暂时先从plan中的material推断类型
+
+        # 5. 根据plans中的track_id创建新轨道映射
+        track_map: Dict[str, Any] = {}  # track_id -> ImportedTrack对象
+        track_type_hints: Dict[str, str] = {}  # 收集每个轨道应该的类型
+
+        # 先遍历一遍plans，收集轨道类型信息
         for plan in plans:
             track_id = str(plan["track_id"])
+            if track_id not in track_type_hints:
+                # 从material推断轨道类型
+                material_obj = plan["material"]
+                inferred_type = RuleTestService._infer_track_type(material_obj)
+                track_type_hints[track_id] = inferred_type
+
+        # 创建轨道
+        for plan in plans:
+            track_id = str(plan["track_id"])
+            if track_id not in track_map:
+                # 使用推断的轨道类型
+                track_type = track_type_hints.get(track_id, "video")
+
+                # 创建新轨道（使用ImportedTrack的结构）
+                new_track_data = {
+                    "id": str(uuid.uuid4()).upper(),  # 标准UUID格式，带连字符，大写
+                    "type": track_type,  # 使用推断的类型
+                    "name": f"Track_{track_id}",  # 添加name字段
+                    "segments": [],
+                    "attribute": 0,
+                    "flag": 0,
+                }
+                # 创建ImportedTrack实例
+                from pyJianYingDraft.template_mode import ImportedMediaTrack
+                new_track = ImportedMediaTrack(new_track_data)
+                track_map[track_id] = new_track
+                script.imported_tracks.append(new_track)
+                print(f"[DEBUG] 创建新轨道: track_id={track_id}, type={track_type}, name={new_track_data['name']}")
+
+        # 6. 为每个plan创建新的segment和materials
+        print(f"[DEBUG] track_map包含的轨道: {list(track_map.keys())}")
+        created_segments = 0
+        for i, plan in enumerate(plans):
+            track_id = str(plan["track_id"])
             material_obj = plan["material"]
-            material_id_value = getattr(material_obj, "id", None)
-            if material_id_value is None:
-                continue
-            material_key = str(material_id_value)
             item_data = plan["item"]
 
-            selected_segment: Optional[ImportedSegment] = None
+            print(f"[DEBUG] 处理plan {i+1}/{len(plans)}: track_id={track_id} (type={type(track_id)}), material_id={material_obj.id}")
 
-            segments_for_track = track_segments.get(track_id)
-            if segments_for_track:
-                idx = track_indices[track_id]
-                if idx < len(segments_for_track):
-                    selected_segment = segments_for_track[idx]
-                    track_indices[track_id] += 1
+            # 获取对应轨道
+            track = track_map.get(track_id)
+            if track is None:  # 使用 is None 而不是 not track
+                print(f"[WARNING] 未找到轨道: track_id={track_id}, track_map.keys()={list(track_map.keys())}")
+                continue
 
-            if selected_segment is None:
-                segments_for_material = material_segments.get(material_key)
-                if segments_for_material:
-                    idx = material_indices[material_key]
-                    if idx < len(segments_for_material):
-                        selected_segment = segments_for_material[idx]
-                        material_indices[material_key] += 1
+            # 根据轨道类型选择对应的segment模板
+            track_type = track_type_hints.get(track_id, "video")
+            segment_template = segment_templates.get(track_type)
+            if segment_template is None:
+                # 如果没有对应类型的模板，尝试使用video模板或第一个可用模板
+                segment_template = segment_templates.get("video") or next(iter(segment_templates.values()))
+                print(f"[WARNING] 轨道{track_id}类型{track_type}没有对应模板，使用fallback模板")
 
-            if selected_segment is None:
-                track_obj = track_objects.get(track_id)
-                segments_list = getattr(track_obj, "segments", None) if track_obj else None
-                if track_obj and segments_list:
-                    template_segment = segments_list[-1]
-                    new_raw = deepcopy(template_segment.raw_data)
-                    new_raw["id"] = uuid.uuid4().hex
-                    target_json = new_raw.setdefault("target_timerange", {})
-                    target_json.setdefault("start", template_segment.target_timerange.start)
-                    target_json.setdefault("duration", template_segment.target_timerange.duration)
-                    new_segment = type(template_segment)(new_raw)  # type: ignore[call-arg]
-                    new_segment.material_id = material_key
-                    new_segment.raw_data["material_id"] = material_key
-                    segments_list.append(new_segment)
-                    track_segments[track_id] = segments_list
-                    material_segments[material_key].append(new_segment)
-                    selected_segment = new_segment
-                    track_indices[track_id] = len(segments_list)
-                    material_indices[material_key] = len(material_segments[material_key])
+            # 克隆segment和materials，分配新ID（传递轨道类型以选择正确的material模板）
+            new_segment, new_material_id = RuleTestService._clone_segment_with_materials(
+                script, segment_template, material_obj, original_materials, track_type=track_type
+            )
 
-            if selected_segment is not None:
-                RuleTestService._apply_item_data_to_segment(selected_segment, item_data)
+            # 应用segment_styles（从material获取样式并应用到segment）
+            # 先应用完整的segment_styles，然后item_data会覆盖指定的字段
+            segment_styles = getattr(material_obj, "segment_styles_map", None)
+            if segment_styles and isinstance(segment_styles, dict):
+                # 尝试获取该track_id的专属样式，或使用__default__样式
+                style_for_track = segment_styles.get(track_id) or segment_styles.get("__default__")
+                if style_for_track and isinstance(style_for_track, dict):
+                    print(f"[DEBUG] 应用segment_styles到segment: track_id={track_id}")
+                    # 应用所有样式属性到segment（item_data稍后会覆盖指定的字段）
+                    style_properties = ["clip", "hdr_settings", "uniform_scale", "enable_adjust",
+                                       "enable_color_correct", "enable_color_correct_adjust",
+                                       "enable_lut", "intensity", "reverse", "material_animations"]
+                    for prop in style_properties:
+                        if prop in style_for_track:
+                            # 深拷贝整个属性（保留模板的完整结构）
+                            new_segment.raw_data[prop] = deepcopy(style_for_track[prop])
+                            print(f"[DEBUG]   - 应用{prop}从segment_styles")
 
-            RuleTestService._apply_item_data_to_material(script, material_key, item_data)
+                    # volume和speed也可能在segment_styles中
+                    for prop in ["volume", "last_nonzero_volume", "speed"]:
+                        if prop in style_for_track and prop not in item_data:
+                            # 只在item_data没有指定时应用（这些值item_data优先级更高）
+                            new_segment.raw_data[prop] = style_for_track[prop]
+                            print(f"[DEBUG]   - 应用{prop}={style_for_track[prop]}从segment_styles")
 
+                    # 注意：extra_material_refs不从segment_styles应用
+                    # 因为它们的ID需要在克隆时正确映射，已经在_clone_segment_with_materials中处理了
+
+            # 应用item_data的数据到新segment
+            RuleTestService._apply_item_data_to_segment(new_segment, item_data)
+            RuleTestService._apply_item_data_to_material(script, new_material_id, item_data)
+
+            # 添加到轨道
+            track.segments.append(new_segment)
+            created_segments += 1
+            print(f"[DEBUG] 添加segment到轨道: track_id={track_id}, 当前轨道segments数量={len(track.segments)}")
+
+        # 7. 更新草稿总时长
         max_end = 0
         for track in script.imported_tracks:
             segments = getattr(track, "segments", None)
@@ -703,6 +855,177 @@ class RuleTestService:
                 end_point = segment.target_timerange.start + segment.target_timerange.duration
                 max_end = max(max_end, end_point)
         script.duration = max(script.duration, max_end)
+
+        # 输出最终统计
+        print(f"[DEBUG] ===== Merge完成统计 =====")
+        print(f"[DEBUG] 创建了 {len(track_map)} 个新轨道")
+        print(f"[DEBUG] 创建了 {created_segments} 个segments")
+        print(f"[DEBUG] 当前materials categories: {list(script.imported_materials.keys())}")
+        for cat, mats in script.imported_materials.items():
+            print(f"[DEBUG]   - {cat}: {len(mats)}个material")
+        total_segments = sum(len(getattr(track, "segments", [])) for track in script.imported_tracks)
+        print(f"[DEBUG] 所有轨道的segments总数: {total_segments}")
+        print(f"[DEBUG] =============================")
+
+    @staticmethod
+    def _clone_segment_with_materials(
+        script: draft.ScriptFile,
+        template_segment: ImportedSegment,
+        material_obj: MaterialPayload,
+        original_materials: Dict[str, List[Dict[str, Any]]],
+        track_type: str = "video",
+    ) -> tuple[ImportedSegment, str]:
+        """
+        克隆segment及其所有相关materials，分配新的唯一ID
+        返回: (新segment, 新material_id)
+        """
+        # 生成ID映射表
+        old_to_new_ids: Dict[str, str] = {}
+
+        def get_new_id(old_id: Optional[str]) -> str:
+            if not old_id:
+                return str(uuid.uuid4()).upper()  # 标准UUID格式，带连字符，大写
+            old_id_str = str(old_id)
+            if old_id_str not in old_to_new_ids:
+                old_to_new_ids[old_id_str] = str(uuid.uuid4()).upper()
+            return old_to_new_ids[old_id_str]
+
+        # 1. 克隆segment的raw_data
+        new_segment_raw = deepcopy(template_segment.raw_data)
+
+        # 2. 分配新的segment ID
+        old_segment_id = template_segment.raw_data.get("id")
+        new_segment_id = get_new_id(old_segment_id)
+        new_segment_raw["id"] = new_segment_id
+
+        # 3. 根据轨道类型选择正确的material模板
+        material_category_map = {
+            "audio": "audios",
+            "video": "videos",
+            "text": "texts",
+            "sticker": "stickers",
+            "effect": "effects",
+        }
+        target_category = material_category_map.get(track_type, "videos")
+
+        # 优先从目标类型中选择material模板
+        old_material_id = template_segment.material_id
+        new_material_id = get_new_id(str(old_material_id))
+
+        # 查找原始material（优先使用对应类型的material）
+        old_material = None
+        if target_category in original_materials and original_materials[target_category]:
+            # 使用对应类型的第一个material作为模板
+            old_material = {"category": target_category, "data": original_materials[target_category][0]}
+            print(f"[DEBUG] 使用{target_category}类型的material模板")
+        else:
+            # 如果没有对应类型，尝试使用segment原本的material
+            old_material = RuleTestService._find_material_in_dict(original_materials, str(old_material_id))
+            if old_material:
+                print(f"[DEBUG] 使用segment原有material: category={old_material['category']}")
+        if old_material:
+            new_material = deepcopy(old_material["data"])
+
+            # 先更新material中的嵌套ID引用（会重新映射所有ID）
+            RuleTestService._remap_material_ids(new_material, old_to_new_ids, get_new_id)
+
+            # 然后强制设置顶层ID为我们指定的新ID（覆盖_remap_material_ids的结果）
+            new_material["id"] = new_material_id
+
+            # 将新material添加到对应的category
+            category = old_material["category"]
+            if category:
+                material_list = script.imported_materials.setdefault(category, [])
+                material_list.append(new_material)
+                print(f"[DEBUG] 克隆主material: category={category}, old_id={old_material_id}, new_id={new_material_id}")
+        else:
+            print(f"[WARNING] 未找到template segment的material: material_id={old_material_id}")
+            print(f"[DEBUG] original_materials categories: {list(original_materials.keys())}")
+            # 打印前几个material的ID供参考
+            for cat, mats in original_materials.items():
+                mat_ids = [m.get('id') or m.get('material_id') for m in mats[:3]]
+                print(f"[DEBUG] {cat}: {mat_ids}...")
+
+        # 4. 更新segment中的material_id引用
+        new_segment_raw["material_id"] = new_material_id
+
+        # 5. 处理extra_material_refs（额外的素材引用，如特效、滤镜等）
+        extra_refs = new_segment_raw.get("extra_material_refs")
+        if isinstance(extra_refs, list):
+            new_extra_refs = []
+            for old_ref_id in extra_refs:
+                if old_ref_id:
+                    # 为这个ID生成新的映射（即使找不到material也要保持映射关系）
+                    new_ref_id = get_new_id(str(old_ref_id))
+
+                    # 克隆额外素材
+                    old_extra_material = RuleTestService._find_material_in_dict(original_materials, str(old_ref_id))
+                    if old_extra_material:
+                        new_extra_material = deepcopy(old_extra_material["data"])
+
+                        # 先更新嵌套ID引用
+                        RuleTestService._remap_material_ids(new_extra_material, old_to_new_ids, get_new_id)
+
+                        # 然后强制设置顶层ID
+                        new_extra_material["id"] = new_ref_id
+
+                        # 添加到materials
+                        extra_category = old_extra_material["category"]
+                        if extra_category:
+                            script.imported_materials.setdefault(extra_category, []).append(new_extra_material)
+                            print(f"[DEBUG] 克隆额外material: category={extra_category}, old_id={old_ref_id}, new_id={new_ref_id}")
+                    else:
+                        print(f"[WARNING] 未找到额外material: ref_id={old_ref_id}, 但已生成ID映射: {old_ref_id} -> {new_ref_id}")
+
+                    # 无论是否找到material，都使用新ID（保持引用关系）
+                    new_extra_refs.append(new_ref_id)
+                else:
+                    new_extra_refs.append(old_ref_id)
+            new_segment_raw["extra_material_refs"] = new_extra_refs
+
+        # 6. 创建新的segment实例
+        new_segment = type(template_segment)(new_segment_raw)
+        new_segment.material_id = new_material_id
+
+        print(f"[DEBUG] 创建新segment: old_seg_id={old_segment_id}, new_seg_id={new_segment_id}, material_id={new_material_id}")
+
+        return new_segment, new_material_id
+
+    @staticmethod
+    def _find_material_in_dict(
+        materials_dict: Dict[str, List[Dict[str, Any]]], material_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """在materials字典中查找material，返回包含category和data的字典"""
+        for category, material_list in materials_dict.items():
+            for material in material_list:
+                entry_id = material.get("id") or material.get("material_id")
+                if entry_id and str(entry_id) == material_id:
+                    return {"category": category, "data": material}
+        return None
+
+    @staticmethod
+    def _remap_material_ids(
+        material_data: Dict[str, Any], old_to_new_ids: Dict[str, str], get_new_id: Callable[[Optional[str]], str]
+    ) -> None:
+        """
+        递归重映射material数据中的所有ID引用
+        处理嵌套的ID引用（如特效参数中的ID）
+        """
+        # 处理常见的ID字段
+        id_fields = ["id", "material_id", "effect_id", "filter_id", "transition_id", "animation_id"]
+        for field in id_fields:
+            if field in material_data and material_data[field]:
+                old_id = str(material_data[field])
+                material_data[field] = get_new_id(old_id)
+
+        # 递归处理嵌套结构
+        for key, value in list(material_data.items()):
+            if isinstance(value, dict):
+                RuleTestService._remap_material_ids(value, old_to_new_ids, get_new_id)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        RuleTestService._remap_material_ids(item, old_to_new_ids, get_new_id)
 
     @staticmethod
     def _extract_duration_from_material(material: MaterialPayload) -> Optional[float]:
