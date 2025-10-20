@@ -9,6 +9,7 @@ import {
   ListItemText,
   IconButton,
   Collapse,
+  Button,
   Chip,
   Tooltip,
   Paper,
@@ -22,9 +23,12 @@ import {
   ExpandLess as ExpandLessIcon,
   Visibility as VisibilityIcon,
   ContentCopy as ContentCopyIcon,
+  Edit as EditIcon,
 } from '@mui/icons-material';
 import type { RuleGroup } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
+import { AddToRuleGroupDialog } from './AddToRuleGroupDialog';
+
 
 /**
  * 规则组列表组件的Props
@@ -38,6 +42,8 @@ interface RuleGroupListProps {
   customTitle?: string;
   /** 素材数据列表（用于查找material详情） */
   materials?: MaterialInfo[];
+  /** 规则组更新成功回调 */
+  onSuccess?: (updatedRuleGroup: RuleGroup) => void;
 }
 
 /**
@@ -49,6 +55,7 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
   showTitle = true,
   customTitle,
   materials = [],
+  onSuccess = () => {},
 }) => {
   // 展开状态：记录每个规则的展开状态
   const [expandedRules, setExpandedRules] = useState<Set<number>>(new Set());
@@ -68,6 +75,10 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
     }
     setExpandedRules(newExpanded);
   };
+
+  // 编辑对话框状态
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingRule, setEditingRule] = useState<Rule | null>(null);
 
   // 复制到剪贴板
   const copyToClipboard = (text: string, label: string) => {
@@ -180,9 +191,22 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
   return (
     <>
       {showTitle && (
-        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
-          {customTitle || `当前规则组: ${ruleGroup.title}`}
-        </Typography>
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+            {customTitle || `当前规则组: ${ruleGroup.title}`}
+          </Typography>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<EditIcon />}
+            onClick={() => {
+              setEditingRule(null);
+              setEditDialogOpen(true);
+            }}
+          >
+            添加规则
+          </Button>
+        </Box>
       )}
 
       {ruleGroup.rules.length > 0 ? (
@@ -207,17 +231,31 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
                       primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
                       secondaryTypographyProps={{ variant: 'caption' }}
                     />
-                    {hasMaterials && (
-                      <Tooltip title={isExpanded ? '收起素材' : '查看素材'}>
+                    <Box sx={{ display: 'flex' }}>
+                      {hasMaterials && (
+                        <Tooltip title={isExpanded ? '收起素材' : '查看素材'}>
+                          <IconButton
+                            size="small"
+                            onClick={() => toggleExpand(index)}
+                            sx={{ ml: 1 }}
+                          >
+                            {isExpanded ? <ExpandLessIcon /> : <VisibilityIcon />}
+                          </IconButton>
+                        </Tooltip>
+                      )}
+                      <Tooltip title="编辑规则">
                         <IconButton
                           size="small"
-                          onClick={() => toggleExpand(index)}
+                          onClick={() => {
+                            setEditingRule(rule);
+                            setEditDialogOpen(true);
+                          }}
                           sx={{ ml: 1 }}
                         >
-                          {isExpanded ? <ExpandLessIcon /> : <VisibilityIcon />}
+                          <EditIcon />
                         </IconButton>
                       </Tooltip>
-                    )}
+                    </Box>
                   </Box>
 
                   <Collapse in={isExpanded} timeout="auto" unmountOnExit>
@@ -243,6 +281,16 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
           </Typography>
         </Box>
       )}
+
+      {/* 编辑对话框 */}
+      <AddToRuleGroupDialog
+        open={editDialogOpen}
+        onClose={() => setEditDialogOpen(false)}
+        material={null}
+        ruleGroup={ruleGroup}
+        onSuccess={onSuccess}
+        editingRule={editingRule}
+      />
 
       {/* 复制成功提示 */}
       <Snackbar
