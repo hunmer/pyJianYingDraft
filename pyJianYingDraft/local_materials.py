@@ -111,6 +111,11 @@ class VideoMaterial:
             self.material_type = "photo"
             self.duration = 1000000 * 3  # 相当于3s
             self.width, self.height = info.image_tracks[0].width, info.image_tracks[0].height  # type: ignore
+        elif len(info.audio_tracks):
+            # 处理纯音频文件
+            self.material_type = "video"
+            self.duration = int(info.audio_tracks[0].duration * 1e3)  # type: ignore
+            self.width, self.height = 1920, 1080  # 默认视频尺寸
         else:
             raise ValueError(f"输入的素材文件 {path} 没有视频轨道或图片轨道")
 

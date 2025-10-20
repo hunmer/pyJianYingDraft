@@ -1,10 +1,11 @@
 import os
 import json
 import math
+import uuid
 from copy import deepcopy
 
 from typing import Optional, Literal, Union, overload
-from typing import Type, Dict, List, Any
+from typing import Type, Dict, List, Any, Set
 
 from . import util
 from . import assets
@@ -356,6 +357,144 @@ class ScriptFile:
         if isinstance(segment, (VideoSegment, AudioSegment)):
             self.add_material(segment.material_instance)
 
+        return self
+
+    def add_raw_segments(
+        self,
+        tracks: List[Dict[str, Any]],
+        materials: Optional[Dict[str, List[Dict[str, Any]]]] = None,
+        *,
+        ensure_unique_material_ids: bool = True,
+    ) -> "ScriptFile":
+        """直接将原始轨道/片段JSON导入草稿"""
+        if not isinstance(tracks, list):
+            raise TypeError("tracks must be a list of dict objects")
+
+        materials = materials or {}
+        material_id_map: Dict[str, str] = {}
+        existing_material_ids: Set[str] = set()
+
+        def _register_material_id(value: Any) -> None:
+            if value is None:
+                return
+            existing_material_ids.add(str(value))
+
+        for stored_materials in self.imported_materials.values():
+            for item in stored_materials:
+                if isinstance(item, dict):
+                    _register_material_id(item.get("id") or item.get("material_id"))
+
+        for collection in (
+            getattr(self.materials, "videos", []),
+            getattr(self.materials, "audios", []),
+        ):
+            for item in collection:
+                _register_material_id(getattr(item, "material_id", None))
+
+        for category, material_list in materials.items():
+            if not material_list:
+                continue
+            target_bucket = self.imported_materials.setdefault(category, [])
+            for material in material_list:
+                if not isinstance(material, dict):
+                    raise TypeError("raw material entry must be a dict")
+                data = deepcopy(material)
+                original_id = data.get("id") or data.get("material_id")
+                if not original_id:
+                    raise ValueError(f"原始素材缺少id: {data}")
+                original_id = str(original_id)
+                new_id = original_id
+                if ensure_unique_material_ids:
+                    while new_id in existing_material_ids:
+                        new_id = uuid.uuid4().hex
+                if new_id != original_id:
+                    material_id_map[original_id] = new_id
+                    data["id"] = new_id
+                    if "material_id" in data:
+                        data["material_id"] = new_id
+                existing_material_ids.add(new_id)
+                target_bucket.append(data)
+
+        existing_track_ids: Set[str] = {track.track_id for track in self.imported_tracks}
+        existing_track_ids.update(track.track_id for track in self.tracks.values())
+
+        prepared_tracks: List[Dict[str, Any]] = []
+        for raw_track in tracks:
+            if not isinstance(raw_track, dict):
+                raise TypeError("raw track must be represented as dict")
+            track_json = deepcopy(raw_track)
+            track_type = track_json.get("type")
+            if not isinstance(track_type, str):
+                raise ValueError("轨道缺少有效的type字段")
+            try:
+                track_enum = TrackType.from_name(track_type)
+            except ValueError as exc:
+                raise ValueError(f"不支持的轨道类型: {track_type}") from exc
+
+            track_id = str(track_json.get("id") or uuid.uuid4().hex)
+            while track_id in existing_track_ids:
+                track_id = uuid.uuid4().hex
+            track_json["id"] = track_id
+            existing_track_ids.add(track_id)
+
+            name = track_json.get("name")
+            if not isinstance(name, str) or len(name) == 0:
+                track_json["name"] = track_type
+                track_json["is_default_name"] = True
+            else:
+                track_json.setdefault("is_default_name", False)
+
+            track_json.setdefault("attribute", 0)
+            track_json.setdefault("flag", 0)
+
+            segments = track_json.get("segments", [])
+            if not isinstance(segments, list):
+                raise ValueError("轨道segments字段必须是列表")
+
+            default_render_index = track_enum.value.render_index
+            for segment in segments:
+                if not isinstance(segment, dict):
+                    raise TypeError("segment必须是dict")
+                timerange = segment.get("target_timerange")
+                if not isinstance(timerange, dict):
+                    raise ValueError("片段缺少target_timerange")
+
+                material_id = segment.get("material_id")
+                if material_id is not None:
+                    mapped = material_id_map.get(str(material_id))
+                    if mapped:
+                        segment["material_id"] = mapped
+
+                extra_refs = segment.get("extra_material_refs")
+                if isinstance(extra_refs, list):
+                    segment["extra_material_refs"] = [
+                        material_id_map.get(str(ref), ref) for ref in extra_refs
+                    ]
+
+                if "id" not in segment or not segment["id"]:
+                    segment["id"] = uuid.uuid4().hex
+
+                segment.setdefault("render_index", default_render_index)
+
+            prepared_tracks.append(track_json)
+
+        max_duration = self.duration
+        for track_json in prepared_tracks:
+            track_max = 0
+            for segment in track_json.get("segments", []):
+                if not isinstance(segment, dict):
+                    continue
+                timerange = segment.get("target_timerange") or {}
+                try:
+                    start = int(float(timerange.get("start", 0)))
+                    duration = int(float(timerange.get("duration", 0)))
+                except (TypeError, ValueError) as exc:
+                    raise ValueError(f"无法解析片段时间范围: {timerange}") from exc
+                track_max = max(track_max, start + duration)
+            max_duration = max(max_duration, track_max)
+            self.imported_tracks.append(import_track(track_json))
+
+        self.duration = max_duration
         return self
 
     def add_effect(self, effect: Union[VideoSceneEffectType, VideoCharacterEffectType],

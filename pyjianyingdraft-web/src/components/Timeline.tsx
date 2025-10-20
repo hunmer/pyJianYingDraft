@@ -3,7 +3,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/react-timeline-editor';
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
-import type { RuleGroup, TestData } from '@/types/rule';
+import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload } from '@/types/rule';
 import { ruleTestApi } from '@/lib/api';
 import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -56,17 +56,93 @@ const TRACK_COLORS: Record<string, string> = {
  * Timeline组件的Props
  */
 interface TimelineEditorProps {
-  /** 轨道数据 */
+  /** ������� */
   tracks: TrackInfo[];
-  /** 素材数据(可选,用于显示素材详情) */
+  /** �ز�����(��ѡ,������ʾ�ز�����) */
   materials?: MaterialInfo[];
-  /** 草稿总时长(秒) */
+  /** ԭʼ�ز����ϸ��Ϣ */
+  materialDetails?: Record<string, { category: string; data: Record<string, any> }>;
+  /** �ݸ���ʱ��(��) */
   duration: number;
-  /** 是否只读模式 */
+  /** �Ƿ�ֻ��ģʽ */
   readOnly?: boolean;
-  /** 轨道变化回调 */
+  /** ����仯�ص� */
   onChange?: (tracks: TrackInfo[]) => void;
 }
+const cloneDeep = <T,>(value: T): T =>
+  value === undefined ? (value as T) : JSON.parse(JSON.stringify(value));
+
+const inferMaterialCategory = (material: Record<string, any>, trackType?: string): string => {
+  const normalizedType = typeof material?.type === 'string' ? material.type.toLowerCase() : '';
+  const trackMapping: Record<string, string> = {
+    video: 'videos',
+    audio: 'audios',
+    text: 'texts',
+    effect: 'effects',
+    filter: 'filters',
+    sticker: 'stickers',
+  };
+  if (trackType && trackMapping[trackType]) {
+    return trackMapping[trackType];
+  }
+  if (normalizedType === 'speed') return 'speeds';
+  if (normalizedType === 'canvas_color' || normalizedType === 'canvas_blur') return 'canvases';
+  if (normalizedType === 'mask') return 'masks';
+  if (normalizedType === 'material_animation') return 'material_animations';
+  if (normalizedType === 'sound_channel_mapping') return 'sound_channel_mappings';
+  if (normalizedType.includes('effect')) return 'effects';
+  if (normalizedType.includes('filter')) return 'filters';
+  if (normalizedType.includes('sticker')) return 'stickers';
+  if (normalizedType.includes('text') || normalizedType === 'subtitle') return 'texts';
+  if (normalizedType.includes('audio') || normalizedType === 'music' || normalizedType === 'sound') {
+    return 'audios';
+  }
+  return trackMapping.video;
+};
+
+const buildSegmentJson = (segment: SegmentInfo, track: TrackInfo): Record<string, any> => {
+  const base = segment.style ? cloneDeep(segment.style) : {};
+  const targetRange =
+    typeof base.target_timerange === 'object'
+      ? { ...base.target_timerange }
+      : {};
+  targetRange.start = segment.target_timerange.start;
+  targetRange.duration = segment.target_timerange.duration;
+  base.target_timerange = targetRange;
+
+  if (segment.source_timerange) {
+    const sourceRange =
+      typeof base.source_timerange === 'object'
+        ? { ...base.source_timerange }
+        : {};
+    sourceRange.start = segment.source_timerange.start;
+    sourceRange.duration = segment.source_timerange.duration;
+    base.source_timerange = sourceRange;
+  }
+
+  base.id = segment.id;
+  base.material_id = segment.material_id;
+
+  if (segment.speed !== undefined) {
+    base.speed = segment.speed;
+  }
+  if (segment.volume !== undefined) {
+    base.volume = segment.volume;
+  }
+  if (segment.name && base.name === undefined) {
+    base.name = segment.name;
+  }
+  if (base.track_render_index === undefined && typeof track.render_index === 'number') {
+    base.track_render_index = track.render_index;
+  }
+  if (base.render_index === undefined && typeof track.render_index === 'number') {
+    base.render_index = track.render_index;
+  }
+
+  return base;
+};
+
+
 
 /**
  * 将剪映片段转换为Timeline编辑器的Action格式
@@ -163,6 +239,7 @@ const CustomAction: React.FC<{
 export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   tracks,
   materials = [],
+  materialDetails = {},
   duration,
   readOnly = true,
   onChange,
@@ -248,6 +325,35 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       throw new Error(message);
     }
 
+    // 预先构建素材样式映射，按素材ID与轨道ID关联
+    const materialStyleMap = new Map<string, Record<string, any>>();
+    tracks.forEach((track) => {
+      track.segments.forEach((segment) => {
+        if (!segment.material_id) {
+          return;
+        }
+        const stylePayload: Record<string, any> = segment.style ? { ...segment.style } : {};
+        if (segment.volume !== undefined && stylePayload.volume === undefined) {
+          stylePayload.volume = segment.volume;
+        }
+        if (segment.speed !== undefined && stylePayload.speed === undefined) {
+          stylePayload.speed = segment.speed;
+        }
+        if (Object.keys(stylePayload).length === 0) {
+          return;
+        }
+        const existing = materialStyleMap.get(segment.material_id);
+        const next = { ...(existing ?? {}) };
+        if (!next[track.id]) {
+          next[track.id] = stylePayload;
+        }
+        if (!next.__default__) {
+          next.__default__ = stylePayload;
+        }
+        materialStyleMap.set(segment.material_id, next);
+      });
+    });
+
     // 收集测试所需的素材ID
     const requiredMaterialIds = new Set<string>();
     testData.items.forEach((item) => {
@@ -258,9 +364,14 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
     });
 
     const missingMaterials: string[] = [];
+    const segmentStylesPayload: SegmentStylesPayload = {};
     const resolvedMaterials = Array.from(requiredMaterialIds).reduce<MaterialInfo[]>((acc, id) => {
       const material = materials?.find((m) => m.id === id);
       if (material) {
+        const styleMap = materialStyleMap.get(id);
+        if (styleMap) {
+          segmentStylesPayload[id] = styleMap;
+        }
         acc.push(material);
       } else {
         missingMaterials.push(id);
@@ -280,6 +391,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         ruleGroup: selectedRuleGroup,
         materials: resolvedMaterials,
         testData,
+        segment_styles: Object.keys(segmentStylesPayload).length > 0 ? segmentStylesPayload : undefined,
       });
       const status = response.status_code;
       const path = response.draft_path || '未知';

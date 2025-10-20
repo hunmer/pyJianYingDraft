@@ -22,6 +22,7 @@ class SegmentInfo(BaseModel):
     source_timerange: Optional[TimerangeInfo] = Field(None, description="素材时间范围")
     speed: Optional[float] = Field(None, description="播放速度")
     volume: Optional[float] = Field(None, description="音量")
+    style: Optional[Dict[str, Any]] = Field(default=None, description="segment style attributes")
 
 
 class TrackInfo(BaseModel):
