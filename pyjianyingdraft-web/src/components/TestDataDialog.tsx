@@ -58,14 +58,16 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
   ruleGroupId,
   ruleGroup,
   materials = [],
-  rawSegments,
-  rawMaterials,
+  rawSegments: _rawSegments,
+  rawMaterials: _rawMaterials,
   useRawSegmentsHint,
 }) => {
   const [testDataJson, setTestDataJson] = useState(JSON.stringify(EXAMPLE_TEST_DATA, null, 2));
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [testing, setTesting] = useState(false);
+  const [requestPayload, setRequestPayload] = useState<TestData | null>(null);
+  const [canDownloadRequestPayload, setCanDownloadRequestPayload] = useState(false);
 
   // 数据集管理状态
   const [datasets, setDatasets] = useState<TestDataset[]>([]);
@@ -73,9 +75,6 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
   const [saveDialogOpen, setSaveDialogOpen] = useState(false);
   const [datasetName, setDatasetName] = useState('');
   const [datasetDescription, setDatasetDescription] = useState('');
-
-  const rawSegmentCount = rawSegments?.length ?? 0;
-  const rawMaterialCount = rawMaterials?.length ?? 0;
 
   // 加载数据集列表
   useEffect(() => {
@@ -143,10 +142,14 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
       });
 
       setTesting(true);
+      setCanDownloadRequestPayload(false);
+      setRequestPayload(testData);
       await onTest(testData);
       setSuccess('测试请求已发送, 请在右侧查看结果');
+      setCanDownloadRequestPayload(true);
     } catch (err: any) {
       setError(err.message || '无效的JSON格式');
+      setCanDownloadRequestPayload(false);
     } finally {
       setTesting(false);
     }
@@ -159,6 +162,8 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
     setError('');
     setSuccess('');
     setTesting(false);
+    setRequestPayload(null);
+    setCanDownloadRequestPayload(false);
   };
 
   // 加载选中的数据集
@@ -257,32 +262,19 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
     }
   };
 
-  const handleCopyRawSegments = async () => {
-    if (!rawSegments || rawSegments.length === 0) {
+  const handleDownloadRequestData = () => {
+    if (!requestPayload) {
       return;
     }
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(rawSegments, null, 2));
-      setSuccess('原始片段JSON已复制到剪贴板');
-      setTimeout(() => setSuccess(''), 2000);
-    } catch (err) {
-      console.error('复制原始片段失败:', err);
-      setError('复制原始片段失败');
-    }
-  };
 
-  const handleCopyRawMaterials = async () => {
-    if (!rawMaterials || rawMaterials.length === 0) {
-      return;
-    }
-    try {
-      await navigator.clipboard.writeText(JSON.stringify(rawMaterials, null, 2));
-      setSuccess('原始素材JSON已复制到剪贴板');
-      setTimeout(() => setSuccess(''), 2000);
-    } catch (err) {
-      console.error('复制原始素材失败:', err);
-      setError('复制原始素材失败');
-    }
+    const fileContent = JSON.stringify(requestPayload, null, 2);
+    const blob = new Blob([fileContent], { type: 'application/json' });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = `test-request-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    anchor.click();
+    URL.revokeObjectURL(objectUrl);
   };
 
   return (
@@ -391,19 +383,16 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
         </DialogContent>
 
         <DialogActions>
-          <Box sx={{ display: 'flex', gap: 1, width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+            <Box sx={{ display: 'flex', gap: 1, width: '100%', justifyContent: 'space-between', flexWrap: 'wrap' }}>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button onClick={onClose}>取消</Button>
-              {rawSegmentCount > 0 && (
-                <Button variant="outlined" onClick={handleCopyRawSegments}>
-                  复制原始片段
-                </Button>
-              )}
-              {rawMaterialCount > 0 && (
-                <Button variant="outlined" onClick={handleCopyRawMaterials}>
-                  复制原始素材
-                </Button>
-              )}
+              <Button
+                variant="outlined"
+                onClick={handleDownloadRequestData}
+                disabled={!canDownloadRequestPayload || !requestPayload}
+              >
+                下载请求数据
+              </Button>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
               {ruleGroupId && (
