@@ -308,9 +308,8 @@ class DraftService:
                 if not os.path.isdir(item_path):
                     continue
 
-                # 检查是否包含 draft_content.json 或 draft_content
                 draft_file = None
-                for filename in ['draft_content.json', 'draft_content']:
+                for filename in ['draft_content.json', 'draft_info.json']:
                     test_path = os.path.join(item_path, filename)
                     if os.path.exists(test_path) and os.path.isfile(test_path):
                         draft_file = test_path
