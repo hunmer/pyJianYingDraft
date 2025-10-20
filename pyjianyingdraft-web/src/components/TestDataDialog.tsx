@@ -365,23 +365,6 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
                 </Alert>
               )}
 
-              {rawSegmentCount > 0 && (
-                <Alert severity={useRawSegmentsHint ? 'success' : 'info'}>
-                  <Typography variant="body2">
-                    已解析可用的原始片段 {rawSegmentCount} 个，关联素材 {rawMaterialCount} 条。
-                    {useRawSegmentsHint
-                      ? ' 当前测试将使用原始片段数据直接写入草稿。'
-                      : ' 当前测试数据未引用原始片段对应的素材，如需启用请确保测试数据引用到相应素材。'}
-                  </Typography>
-                </Alert>
-              )}
-
-              <Alert severity="info">
-                <Typography variant="body2">
-                  使用 `tracks` 和 `items` 来描述测试数据。每个 `item` 仅包含 `type` 与 `data`，例如 `track`、`start`、`duration` 等信息全部放在 `data` 中。
-                </Typography>
-              </Alert>
-
               <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden', flex: 1 }}>
                 <Editor
                   height="100%"
