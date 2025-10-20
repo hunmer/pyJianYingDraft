@@ -114,9 +114,11 @@ export interface RawSegmentPayload {
   track_id: string;
   track_type: string;
   track_name?: string;
-  material_id: string;
+  material_id?: string;
   segment: Record<string, any>;
   material?: Record<string, any>;
+  material_category?: string;
+  extra_materials?: Record<string, Record<string, any>[]>;
 }
 
 /**

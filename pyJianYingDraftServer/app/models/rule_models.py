@@ -71,6 +71,10 @@ class RawSegmentPayload(BaseModel):
     segment: Dict[str, Any] = Field(default_factory=dict, description="完整片段数据")
     material: Optional[Dict[str, Any]] = Field(default=None, description="片段附带的素材数据")
     material_category: Optional[str] = Field(default=None, description="片段附带素材分类")
+    extra_materials: Optional[Dict[str, List[Dict[str, Any]]]] = Field(
+        default=None,
+        description="片段所依赖的额外素材，按分类划分",
+    )
 
     model_config = ConfigDict(extra="allow")
 

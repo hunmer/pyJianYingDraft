@@ -32,6 +32,21 @@ async def get_draft_info(
         raise HTTPException(status_code=500, detail=f"解析草稿文件失败: {str(e)}")
 
 
+@router.get("/raw")
+async def get_draft_raw(
+    file_path: str = Query(..., description="草稿文件绝对路径")
+):
+    """
+    获取草稿完整原始内容
+    """
+    try:
+        return DraftService.get_raw_content(file_path)
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"读取草稿原始数据失败: {str(e)}")
+
+
 @router.get("/validate")
 async def validate_draft(
     file_path: str = Query(..., description="草稿文件绝对路径")
