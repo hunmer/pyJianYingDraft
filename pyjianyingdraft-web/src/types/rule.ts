@@ -138,6 +138,9 @@ export interface RuleGroupTestRequest {
   use_raw_segments?: boolean;
   raw_segments?: RawSegmentPayload[];
   raw_materials?: RawMaterialPayload[];
+  canvas_width?: number;
+  canvas_height?: number;
+  fps?: number;
 }
 
 /**

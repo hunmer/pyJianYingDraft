@@ -73,3 +73,36 @@ async def validate_draft(
             "valid": False,
             "message": f"草稿文件无效: {str(e)}"
         }
+
+
+@router.get("/list")
+async def list_drafts(
+    base_path: str = Query(..., description="剪映草稿根目录路径")
+):
+    """
+    列出指定目录下的所有草稿
+
+    Args:
+        base_path: 剪映草稿根目录路径 (例如: "D:\\JianyingPro Drafts")
+
+    Returns:
+        草稿列表,每个草稿包含:
+        - name: 草稿名称
+        - path: draft_content.json 文件路径
+        - modified_time: 修改时间戳
+        - folder_path: 草稿文件夹路径
+    """
+    try:
+        drafts = DraftService.list_drafts(base_path)
+        return {
+            "count": len(drafts),
+            "drafts": drafts
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"列出草稿失败: {str(e)}")

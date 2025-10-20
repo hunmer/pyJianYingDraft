@@ -72,6 +72,12 @@ interface TimelineEditorProps {
   rawDraft?: Record<string, any>;
   /** 分类素材原始数据 */
   rawMaterials?: AllMaterialsResponse | null;
+  /** 画布宽度 */
+  canvasWidth?: number;
+  /** 画布高度 */
+  canvasHeight?: number;
+  /** 帧率 */
+  fps?: number;
 }
 const cloneDeep = <T,>(value: T): T =>
   value === undefined ? (value as T) : JSON.parse(JSON.stringify(value));
@@ -249,6 +255,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   rawDraft,
   rawMaterials,
   onChange,
+  canvasWidth,
+  canvasHeight,
+  fps,
 }) => {
   const [data, setData] = useState<TimelineRow[]>([]);
   const [scaleWidth, setScaleWidth] = useState(160); // 默认刻度宽度
@@ -544,6 +553,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           shouldUseRawSegments && relevantRawMaterials && relevantRawMaterials.length > 0
             ? relevantRawMaterials
             : undefined,
+        canvas_width: canvasWidth,
+        canvas_height: canvasHeight,
+        fps: fps,
       });
       const status = response.status_code;
       const path = response.draft_path || '未知';
