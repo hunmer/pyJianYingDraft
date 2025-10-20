@@ -109,7 +109,7 @@ class VideoMaterial:
             gif.close()
         elif len(info.image_tracks):
             self.material_type = "photo"
-            self.duration = 10800000000  # 相当于3h
+            self.duration = 1000000 * 3  # 相当于3s
             self.width, self.height = info.image_tracks[0].width, info.image_tracks[0].height  # type: ignore
         else:
             raise ValueError(f"输入的素材文件 {path} 没有视频轨道或图片轨道")

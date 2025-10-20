@@ -216,7 +216,34 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onEnded={handleEnded}
-            onError={(e) => setError('视频加载失败')}
+            onError={(e) => {
+              // 视频加载失败时尝试回退到图片
+              const videoElement = e.target as HTMLVideoElement;
+              videoElement.style.display = 'none';
+              
+              // 清理之前插入的图片元素
+              const existingFallbackImg = videoElement.nextElementSibling;
+              if (existingFallbackImg && existingFallbackImg.tagName === 'IMG') {
+                existingFallbackImg.remove();
+              }
+              
+              // 创建img元素尝试加载
+              const img = document.createElement('img');
+              img.src = fileUrl || '';
+              img.style.width = '100%';
+              img.style.display = 'block';
+              img.style.maxHeight = '200px';
+              img.onerror = () => setError('视频和图片加载均失败');
+              
+              // 插入到video元素后面
+              videoElement.parentNode?.insertBefore(img, videoElement.nextSibling);
+              
+              // 隐藏控制栏
+              const controlsContainer = videoElement.parentElement?.nextElementSibling;
+              if (controlsContainer) {
+                (controlsContainer as HTMLElement).style.display = 'none';
+              }
+            }}
           />
         </Paper>
 
