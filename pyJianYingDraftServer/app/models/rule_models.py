@@ -99,6 +99,9 @@ class RuleGroupTestRequest(BaseModel):
     use_raw_segments: bool = Field(default=False, description="是否直接写入原始片段")
     raw_segments: Optional[List[RawSegmentPayload]] = Field(default=None, description="原始片段列表")
     raw_materials: Optional[List[RawMaterialPayload]] = Field(default=None, description="原始素材列表")
+    canvas_width: Optional[int] = Field(default=None, description="画布宽度")
+    canvas_height: Optional[int] = Field(default=None, description="画布高度")
+    fps: Optional[int] = Field(default=None, description="帧率")
 
 
 class RuleGroupTestResponse(BaseModel):

@@ -47,6 +47,24 @@ async function handleResponse<T>(response: Response): Promise<T> {
 }
 
 /**
+ * 草稿列表项
+ */
+export interface DraftListItem {
+  name: string;
+  path: string;
+  modified_time: number;
+  folder_path: string;
+}
+
+/**
+ * 草稿列表响应
+ */
+export interface DraftListResponse {
+  count: number;
+  drafts: DraftListItem[];
+}
+
+/**
  * Draft API - 草稿基础信息
  */
 export const draftApi = {
@@ -77,6 +95,16 @@ export const draftApi = {
     const url = buildUrl('/api/draft/validate', { file_path: filePath });
     const response = await fetch(url);
     return handleResponse<{ valid: boolean; message?: string }>(response);
+  },
+
+  /**
+   * 列出指定目录下的所有草稿
+   * @param basePath - 剪映草稿根目录路径
+   */
+  async list(basePath: string): Promise<DraftListResponse> {
+    const url = buildUrl('/api/draft/list', { base_path: basePath });
+    const response = await fetch(url);
+    return handleResponse<DraftListResponse>(response);
   },
 };
 

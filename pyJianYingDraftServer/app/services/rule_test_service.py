@@ -46,12 +46,17 @@ class RuleTestService:
         draft_root = RuleTestService._get_draft_root()
         draft_name = RuleTestService._build_draft_name(rule_group.title)
 
+        # 使用前端传递的画布大小,如果没有则使用默认值
+        canvas_width = payload.canvas_width or RuleTestService.DEFAULT_WIDTH
+        canvas_height = payload.canvas_height or RuleTestService.DEFAULT_HEIGHT
+        fps = payload.fps or RuleTestService.DEFAULT_FPS
+
         folder = draft.DraftFolder(draft_root)
         script = folder.create_draft(
             draft_name,
-            RuleTestService.DEFAULT_WIDTH,
-            RuleTestService.DEFAULT_HEIGHT,
-            fps=RuleTestService.DEFAULT_FPS,
+            canvas_width,
+            canvas_height,
+            fps=fps,
             allow_replace=True,
         )
 

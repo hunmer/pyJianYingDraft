@@ -248,6 +248,9 @@ export default function EditorPage() {
               duration={draftInfo.duration_seconds}
               rawDraft={rawDraft ?? undefined}
               rawMaterials={materialCategories ?? undefined}
+              canvasWidth={draftInfo.width}
+              canvasHeight={draftInfo.height}
+              fps={draftInfo.fps}
               readOnly={true}
             />
           </Box>

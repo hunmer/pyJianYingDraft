@@ -994,6 +994,51 @@ class ScriptFile:
 
             print()
 
+    def _download_remote_materials(
+        self,
+        draft_dir: str,
+        max_concurrent: int = 50,
+        proxy: Optional[str] = None,
+        verbose: bool = True
+    ) -> None:
+        """下载所有远程素材到草稿目录 (使用高并发异步下载)
+
+        Args:
+            draft_dir (str): 草稿文件所在目录的路径
+            max_concurrent (int): 最大并发下载数,默认50
+            proxy (str, optional): HTTP代理地址,如 "http://127.0.0.1:7890"
+            verbose (bool): 是否显示详细日志,默认True
+        """
+        from .remote_downloader import download_remote_materials
+
+        # 获取草稿ID
+        draft_id = self.content.get("id", "")
+        if not draft_id:
+            if verbose:
+                print("警告: 无法获取草稿ID, 跳过远程素材下载")
+            return
+
+        # 准备要下载的素材
+        # 先导出当前materials到content
+        self.content["materials"] = self.materials.export_json()
+
+        # 合并imported_materials
+        for material_type, material_list in self.imported_materials.items():
+            if material_type not in self.content["materials"]:
+                self.content["materials"][material_type] = material_list
+            else:
+                self.content["materials"][material_type].extend(material_list)
+
+        # 调用下载器
+        download_remote_materials(
+            materials=self.content["materials"],
+            draft_id=draft_id,
+            draft_dir=draft_dir,
+            max_concurrent=max_concurrent,
+            proxy=proxy,
+            verbose=verbose
+        )
+
     def dumps(self) -> str:
         """将草稿文件内容导出为JSON字符串"""
         self.content["fps"] = self.fps
@@ -1015,17 +1060,60 @@ class ScriptFile:
 
         return json.dumps(self.content, ensure_ascii=False, indent=4)
 
-    def dump(self, file_path: str) -> None:
-        """将草稿文件内容写入文件"""
+    def dump(
+        self,
+        file_path: str,
+        download_remote: bool = True,
+        max_concurrent: int = 50,
+        proxy: Optional[str] = None,
+        download_verbose: bool = True
+    ) -> None:
+        """将草稿文件内容写入文件
+
+        Args:
+            file_path (str): 保存文件的路径
+            download_remote (bool, optional): 是否下载远程素材. 默认为True.
+            max_concurrent (int, optional): 最大并发下载数. 默认50.
+            proxy (str, optional): HTTP代理地址,如 "http://127.0.0.1:7890"
+            download_verbose (bool, optional): 是否显示下载详细日志. 默认True.
+        """
+        # 在保存前下载远程素材
+        if download_remote:
+            draft_dir = os.path.dirname(file_path)
+            self._download_remote_materials(
+                draft_dir,
+                max_concurrent=max_concurrent,
+                proxy=proxy,
+                verbose=download_verbose
+            )
+
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(self.dumps())
 
-    def save(self) -> None:
+    def save(
+        self,
+        download_remote: bool = True,
+        max_concurrent: int = 50,
+        proxy: Optional[str] = None,
+        download_verbose: bool = True
+    ) -> None:
         """保存草稿文件至打开时的路径
+
+        Args:
+            download_remote (bool, optional): 是否下载远程素材. 默认为True.
+            max_concurrent (int, optional): 最大并发下载数. 默认50.
+            proxy (str, optional): HTTP代理地址,如 "http://127.0.0.1:7890"
+            download_verbose (bool, optional): 是否显示下载详细日志. 默认True.
 
         Raises:
             `ValueError`: 没有设置保存路径
         """
         if self.save_path is None:
             raise ValueError("没有设置保存路径, 可能不在模板模式下")
-        self.dump(self.save_path)
+        self.dump(
+            self.save_path,
+            download_remote=download_remote,
+            max_concurrent=max_concurrent,
+            proxy=proxy,
+            download_verbose=download_verbose
+        )

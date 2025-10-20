@@ -281,3 +281,57 @@ class DraftService:
             result.append(track_info)
 
         return result
+
+    @staticmethod
+    def list_drafts(base_path: str) -> List[Dict[str, Any]]:
+        """列出指定目录下的所有草稿
+
+        Args:
+            base_path: 剪映草稿根目录路径 (例如: "D:\\JianyingPro Drafts")
+
+        Returns:
+            草稿列表,每个包含: name, path, modified_time
+        """
+        if not os.path.exists(base_path):
+            raise FileNotFoundError(f"目录不存在: {base_path}")
+
+        if not os.path.isdir(base_path):
+            raise ValueError(f"路径不是目录: {base_path}")
+
+        drafts = []
+        try:
+            # 遍历base_path下的所有子目录
+            for item in os.listdir(base_path):
+                item_path = os.path.join(base_path, item)
+
+                # 只处理目录
+                if not os.path.isdir(item_path):
+                    continue
+
+                # 检查是否包含 draft_content.json 或 draft_content
+                draft_file = None
+                for filename in ['draft_content.json', 'draft_content']:
+                    test_path = os.path.join(item_path, filename)
+                    if os.path.exists(test_path) and os.path.isfile(test_path):
+                        draft_file = test_path
+                        break
+
+                if draft_file:
+                    # 获取文件修改时间
+                    mtime = os.path.getmtime(draft_file)
+
+                    drafts.append({
+                        'name': item,
+                        'path': draft_file,
+                        'modified_time': mtime,
+                        'folder_path': item_path
+                    })
+        except PermissionError as e:
+            raise PermissionError(f"没有权限访问目录: {base_path}")
+        except Exception as e:
+            raise Exception(f"列出草稿失败: {str(e)}")
+
+        # 按修改时间降序排序 (最新的在前)
+        drafts.sort(key=lambda x: x['modified_time'], reverse=True)
+
+        return drafts
