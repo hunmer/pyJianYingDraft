@@ -819,7 +819,8 @@ class RuleTestService:
                     # 应用所有样式属性到segment（item_data稍后会覆盖指定的字段）
                     style_properties = ["clip", "hdr_settings", "uniform_scale", "enable_adjust",
                                        "enable_color_correct", "enable_color_correct_adjust",
-                                       "enable_lut", "intensity", "reverse", "material_animations"]
+                                       "enable_lut", "intensity", "reverse", "material_animations",
+                                       "common_keyframes"]
                     for prop in style_properties:
                         if prop in style_for_track:
                             # 深拷贝整个属性（保留模板的完整结构）
