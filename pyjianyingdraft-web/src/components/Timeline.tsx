@@ -3,7 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/react-timeline-editor';
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
-import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload } from '@/types/rule';
+import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
 import { ruleTestApi, type AllMaterialsResponse } from '@/lib/api';
 import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
@@ -394,6 +394,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const [testDialogOpen, setTestDialogOpen] = useState(false);
   const [testResult, setTestResult] = useState<string>('');
   const [addToRuleGroupDialogOpen, setAddToRuleGroupDialogOpen] = useState(false);
+  const [fullRequestPayload, setFullRequestPayload] = useState<RuleGroupTestRequest | null>(null); // 完整的API请求载荷
 
   // 将轨道数据转换为Timeline格式
   useEffect(() => {
@@ -542,7 +543,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
     try {
       setTestResult('测试请求处理中...');
-      const response = await ruleTestApi.runTest({
+
+      // 构建完整的请求载荷
+      const requestPayload = {
         ruleGroup: selectedRuleGroup,
         materials: resolvedMaterials,
         testData,
@@ -556,7 +559,13 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         canvas_width: canvasWidth,
         canvas_height: canvasHeight,
         fps: fps,
-      });
+      };
+
+      // 保存完整载荷供下载使用
+      setFullRequestPayload(requestPayload);
+
+      // 发送请求
+      const response = await ruleTestApi.runTest(requestPayload);
       const status = response.status_code;
       const path = response.draft_path || '未知';
       const extra = response.message ? ` | ${response.message}` : '';
@@ -961,6 +970,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         rawSegments={rawSegmentPayloads}
         rawMaterials={rawMaterialPayloads}
         useRawSegmentsHint={Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0)}
+        fullRequestPayload={fullRequestPayload}
       />
 
       {/* 添加到预设组对话框 */}

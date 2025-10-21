@@ -3,6 +3,7 @@
 """
 
 import os
+import re
 from copy import deepcopy
 from typing import Dict, List, Any, Optional
 import pyJianYingDraft as draft
@@ -227,6 +228,39 @@ class DraftService:
         """
         script = DraftService.load_draft(file_path)
         materials = script.content.get('materials', {})
+
+        # 获取草稿文件夹的完整路径 (包含草稿名称的目录)
+        # file_path 示例: G:\jianyin5.9_drafts\JianyingPro Drafts\火柴人双排版\draft_content.json
+        # draft_folder_path 应该是: G:\jianyin5.9_drafts\JianyingPro Drafts\火柴人双排版
+        draft_folder_path = os.path.dirname(file_path)
+
+        # 替换路径占位符的辅助函数
+        def replace_path_placeholder(path_str: str) -> str:
+            """将路径中的占位符替换为实际的草稿路径"""
+            if not isinstance(path_str, str):
+                return path_str
+
+            # 匹配模式: ##_draftpath_placeholder_{任意内容}_##
+            pattern = r'##_draftpath_placeholder_[^#]+_##'
+
+            # 查找占位符
+            match = re.search(pattern, path_str)
+            if match:
+                # 使用字符串替换而不是正则替换,避免反斜杠转义问题
+                placeholder = match.group(0)
+                result = path_str.replace(placeholder, draft_folder_path)
+                # 确保整个路径使用统一的反斜杠(Windows标准)
+                result = result.replace('/', '\\')
+                return result
+
+            return path_str
+
+        # 处理每个素材类型中items的path属性
+        for mat_type, mat_list in materials.items():
+            if isinstance(mat_list, list):
+                for item in mat_list:
+                    if isinstance(item, dict) and 'path' in item:
+                        item['path'] = replace_path_placeholder(item['path'])
 
         if material_type:
             if material_type not in materials:
