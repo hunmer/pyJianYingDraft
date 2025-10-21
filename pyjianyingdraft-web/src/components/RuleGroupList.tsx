@@ -193,7 +193,7 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
       {showTitle && (
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-            {customTitle || `当前规则组: ${ruleGroup.title}`}
+            {customTitle ||ruleGroup.title}
           </Typography>
           <Button
             variant="outlined"
@@ -204,7 +204,7 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
               setEditDialogOpen(true);
             }}
           >
-            添加规则
+            添加
           </Button>
         </Box>
       )}

@@ -313,9 +313,17 @@ class RemoteMaterialDownloader:
         if AIOHTTP_AVAILABLE:
             # 使用异步下载
             try:
-                success_count, failed_count = asyncio.run(
-                    self._download_batch_async(download_tasks)
-                )
+                # 检查是否已在事件循环中
+                try:
+                    loop = asyncio.get_running_loop()
+                    # 已在事件循环中,降级为同步模式
+                    self._log("检测到已在事件循环中运行,使用同步下载模式")
+                    success_count, failed_count = self._download_batch_sync(download_tasks)
+                except RuntimeError:
+                    # 没有运行中的事件循环,可以使用 asyncio.run()
+                    success_count, failed_count = asyncio.run(
+                        self._download_batch_async(download_tasks)
+                    )
             except Exception as e:
                 self._log(f"异步下载失败,降级为同步模式: {str(e)}")
                 success_count, failed_count = self._download_batch_sync(download_tasks)

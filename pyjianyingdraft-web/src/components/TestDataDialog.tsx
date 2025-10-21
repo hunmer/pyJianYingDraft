@@ -22,7 +22,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
 import Editor from '@monaco-editor/react';
-import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPayload } from '@/types/rule';
+import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 import { RuleGroupList } from './RuleGroupList';
@@ -46,6 +46,8 @@ interface TestDataDialogProps {
   rawMaterials?: RawMaterialPayload[] | undefined;
   /** 当前是否会在测试时启用原始片段模式 */
   useRawSegmentsHint?: boolean;
+  /** 完整的API请求载荷(用于下载) */
+  fullRequestPayload?: RuleGroupTestRequest | null;
 }
 
 /**
@@ -61,13 +63,12 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
   rawSegments: _rawSegments,
   rawMaterials: _rawMaterials,
   useRawSegmentsHint,
+  fullRequestPayload,
 }) => {
   const [testDataJson, setTestDataJson] = useState(JSON.stringify(EXAMPLE_TEST_DATA, null, 2));
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [testing, setTesting] = useState(false);
-  const [requestPayload, setRequestPayload] = useState<TestData | null>(null);
-  const [canDownloadRequestPayload, setCanDownloadRequestPayload] = useState(false);
 
   // 数据集管理状态
   const [datasets, setDatasets] = useState<TestDataset[]>([]);
@@ -142,14 +143,10 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
       });
 
       setTesting(true);
-      setCanDownloadRequestPayload(false);
-      setRequestPayload(testData);
       await onTest(testData);
       setSuccess('测试请求已发送, 请在右侧查看结果');
-      setCanDownloadRequestPayload(true);
     } catch (err: any) {
       setError(err.message || '无效的JSON格式');
-      setCanDownloadRequestPayload(false);
     } finally {
       setTesting(false);
     }
@@ -162,8 +159,6 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
     setError('');
     setSuccess('');
     setTesting(false);
-    setRequestPayload(null);
-    setCanDownloadRequestPayload(false);
   };
 
   // 加载选中的数据集
@@ -263,16 +258,16 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
   };
 
   const handleDownloadRequestData = () => {
-    if (!requestPayload) {
+    if (!fullRequestPayload) {
       return;
     }
 
-    const fileContent = JSON.stringify(requestPayload, null, 2);
+    const fileContent = JSON.stringify(fullRequestPayload, null, 2);
     const blob = new Blob([fileContent], { type: 'application/json' });
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
     anchor.href = objectUrl;
-    anchor.download = `test-request-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    anchor.download = `full-request-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
     anchor.click();
     URL.revokeObjectURL(objectUrl);
   };
@@ -389,9 +384,9 @@ export const TestDataDialog: React.FC<TestDataDialogProps> = ({
               <Button
                 variant="outlined"
                 onClick={handleDownloadRequestData}
-                disabled={!canDownloadRequestPayload || !requestPayload}
+                disabled={!fullRequestPayload}
               >
-                下载请求数据
+                下载完整请求数据
               </Button>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
