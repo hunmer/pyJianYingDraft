@@ -28,6 +28,7 @@ import DraftList from '@/components/DraftList';
 import FileVersionList from '@/components/FileVersionList';
 import FileDiffViewer from '@/components/FileDiffViewer';
 import TimelineEditor from '@/components/Timeline';
+import TestDataPage from '@/components/TestDataPage';
 import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/lib/api';
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
 
@@ -35,12 +36,19 @@ import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
 interface TabData {
   id: string;
   label: string;
-  draftPath: string;
-  draftInfo: DraftInfo | null;
-  tracks: TrackInfo[];
-  materials: MaterialInfo[];
-  rawDraft: Record<string, any> | null;
-  materialCategories: AllMaterialsResponse | null;
+  type: 'draft_editor' | 'file_diff' | 'test_data';
+  // 草稿编辑器相关字段
+  draftPath?: string;
+  draftInfo?: DraftInfo | null;
+  tracks?: TrackInfo[];
+  materials?: MaterialInfo[];
+  rawDraft?: Record<string, any> | null;
+  materialCategories?: AllMaterialsResponse | null;
+  // 文件差异相关字段
+  filePath?: string;
+  // 测试数据相关字段
+  testDataId?: string;
+  // 通用字段
   loading: boolean;
   error: string | null;
 }
@@ -58,8 +66,53 @@ export default function Home() {
   // 左侧栏Tab状态 (0: 草稿列表, 1: 文件版本)
   const [leftTabValue, setLeftTabValue] = useState<number>(0);
 
-  // 文件版本相关状态
-  const [selectedWatchFile, setSelectedWatchFile] = useState<string | undefined>(undefined);
+  // 处理文件差异视图选择
+  const handleFileDiffSelect = useCallback((filePath: string) => {
+    // 检查是否已经打开
+    const existingTab = tabs.find(tab => tab.type === 'file_diff' && tab.filePath === filePath);
+    if (existingTab) {
+      setActiveTabId(existingTab.id);
+      return;
+    }
+
+    // 创建新tab
+    const newTabId = `diff-${Date.now()}`;
+    const newTab: TabData = {
+      id: newTabId,
+      label: `Diff: ${filePath.split('/').pop()}`,
+      type: 'file_diff',
+      filePath,
+      loading: false,
+      error: null,
+    };
+
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(newTabId);
+  }, [tabs]);
+
+  // 处理测试数据视图选择
+  const handleTestDataSelect = useCallback((testDataId: string, label: string) => {
+    // 检查是否已经打开
+    const existingTab = tabs.find(tab => tab.type === 'test_data' && tab.testDataId === testDataId);
+    if (existingTab) {
+      setActiveTabId(existingTab.id);
+      return;
+    }
+
+    // 创建新tab
+    const newTabId = `test-${Date.now()}`;
+    const newTab: TabData = {
+      id: newTabId,
+      label: `Test: ${label}`,
+      type: 'test_data',
+      testDataId,
+      loading: false,
+      error: null,
+    };
+
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(newTabId);
+  }, [tabs]);
 
   // 从localStorage恢复tabs
   useEffect(() => {
@@ -168,17 +221,18 @@ export default function Home() {
    */
   const handleDraftSelect = useCallback((draftPath: string, draftName: string) => {
     // 检查是否已经打开
-    const existingTab = tabs.find(tab => tab.draftPath === draftPath);
+    const existingTab = tabs.find(tab => tab.type === 'draft_editor' && tab.draftPath === draftPath);
     if (existingTab) {
       setActiveTabId(existingTab.id);
       return;
     }
 
     // 创建新tab
-    const newTabId = `tab-${Date.now()}`;
+    const newTabId = `draft-${Date.now()}`;
     const newTab: TabData = {
       id: newTabId,
       label: draftName,
+      type: 'draft_editor',
       draftPath,
       draftInfo: null,
       tracks: [],
@@ -259,19 +313,35 @@ export default function Home() {
         </Tabs>
 
         {/* Tab内容 */}
-        <Box sx={{ flex: 1, overflow: 'hidden' }}>
-          {leftTabValue === 0 && (
+        <Box sx={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+          <Box sx={{ 
+            display: leftTabValue === 0 ? 'block' : 'none',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            overflow: 'auto'
+          }}>
             <DraftList
               onDraftSelect={handleDraftSelect}
               selectedDraftPath={activeTab?.draftPath}
             />
-          )}
-          {leftTabValue === 1 && (
+          </Box>
+          <Box sx={{ 
+            display: leftTabValue === 1 ? 'block' : 'none',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            overflow: 'auto'
+          }}>
             <FileVersionList
-              selectedFilePath={selectedWatchFile}
-              onFileSelect={setSelectedWatchFile}
+              selectedFilePath={tabs.find(t => t.id === activeTabId && t.type === 'file_diff')?.filePath}
+              onFileSelect={handleFileDiffSelect}
             />
-          )}
+          </Box>
         </Box>
       </Drawer>
 
@@ -358,12 +428,17 @@ export default function Home() {
         {/* 内容区域 */}
         <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
           {/* 文件版本Diff视图 */}
-          {leftTabValue === 1 && selectedWatchFile && (
-            <FileDiffViewer filePath={selectedWatchFile} />
+          {activeTab?.type === 'file_diff' && (
+            <FileDiffViewer filePath={activeTab.filePath!} />
           )}
 
-          {/* 草稿编辑器视图 */}
-          {leftTabValue === 0 && !activeTab && (
+          {/* 测试数据视图 */}
+          {activeTab?.type === 'test_data' && (
+            <TestDataPage testDataId={activeTab.testDataId!} />
+          )}
+
+          {/* 草稿选择提示 */}
+          {!activeTab && (
             <Box
               sx={{
                 display: 'flex',
@@ -374,22 +449,6 @@ export default function Home() {
             >
               <Typography variant="h6" color="text.secondary">
                 请从左侧选择一个草稿开始编辑
-              </Typography>
-            </Box>
-          )}
-
-          {/* 文件版本空状态 */}
-          {leftTabValue === 1 && !selectedWatchFile && (
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100%',
-              }}
-            >
-              <Typography variant="h6" color="text.secondary">
-                请从左侧选择一个文件查看版本差异
               </Typography>
             </Box>
           )}
@@ -407,7 +466,7 @@ export default function Home() {
             </Box>
           )}
 
-          {leftTabValue === 0 && activeTab && activeTab.error && (
+          {activeTab && activeTab.error && (
             <Alert severity="error" onClose={() => {
               setTabs(prev => prev.map(tab =>
                 tab.id === activeTab.id ? { ...tab, error: null } : tab
@@ -417,8 +476,8 @@ export default function Home() {
             </Alert>
           )}
 
-          {/* 草稿编辑器内容 - 仅在草稿列表标签时显示 */}
-          {leftTabValue === 0 && activeTab && activeTab.draftInfo && !activeTab.loading && !activeTab.error && (
+          {/* 草稿编辑器内容 */}
+          {activeTab?.type === 'draft_editor' && activeTab.draftInfo && !activeTab.loading && !activeTab.error && (
             <>
               {/* 草稿信息卡片 */}
               <Box sx={{ mb: 3 }}>
@@ -509,6 +568,7 @@ export default function Home() {
                   canvasHeight={activeTab.draftInfo.height}
                   fps={activeTab.draftInfo.fps}
                   readOnly={true}
+                  onAddTestDataTab={handleTestDataSelect}
                 />
               )}
             </>
