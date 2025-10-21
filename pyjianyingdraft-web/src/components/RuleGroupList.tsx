@@ -25,7 +25,7 @@ import {
   ContentCopy as ContentCopyIcon,
   Edit as EditIcon,
 } from '@mui/icons-material';
-import type { RuleGroup } from '@/types/rule';
+import type { RuleGroup, Rule } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { AddToRuleGroupDialog } from './AddToRuleGroupDialog';
 

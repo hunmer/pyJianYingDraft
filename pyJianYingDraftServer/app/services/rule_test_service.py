@@ -642,15 +642,30 @@ class RuleTestService:
 
         source_start_us = RuleTestService._seconds_to_microseconds(item_data.get("source_start"))
         source_duration_us = RuleTestService._seconds_to_microseconds(item_data.get("source_duration"))
+
+        # 获取speed(优先从item_data,否则从segment的raw_data)
+        speed = item_data.get("speed")
+        if speed is None:
+            speed = segment.raw_data.get("speed", 1.0)
+
         if hasattr(segment, "source_timerange") and getattr(segment, "source_timerange") is not None:
             raw_source = segment.raw_data.setdefault("source_timerange", {})
             source_range = segment.source_timerange  # type: ignore[attr-defined]
+
             if source_start_us is not None:
                 source_range.start = source_start_us
                 raw_source["start"] = source_start_us
+
             if source_duration_us is not None:
                 source_range.duration = source_duration_us
                 raw_source["duration"] = source_duration_us
+            else:
+                # ⭐ 关键修复:如果没有显式指定source_duration,根据target和speed计算
+                target_duration = segment.target_timerange.duration
+                correct_source_duration = round(target_duration * speed)
+                source_range.duration = correct_source_duration
+                raw_source["duration"] = correct_source_duration
+                print(f"[DEBUG]   - 自动修正source_duration: {correct_source_duration}us (target={target_duration}, speed={speed})")
 
         # 处理clip相关属性（位置、大小等）- 只在有指定值时更新，否则保持模板原值
         x = item_data.get("x")
