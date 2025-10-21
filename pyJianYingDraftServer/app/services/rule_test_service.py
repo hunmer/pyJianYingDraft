@@ -761,10 +761,7 @@ class RuleTestService:
                 scale_obj["y"] = scale_value
                 print(f"[DEBUG]   - 更新clip.scale: {scale_value}")
 
-        # 处理animations字段（组合动画）
-        animations = item_data.get("animations")
-        if animations and isinstance(animations, dict):
-            RuleTestService._apply_animations_to_segment(segment, animations)
+        # 注意：animations字段在外层单独处理，确保它是最后执行的
 
     @staticmethod
     def _apply_animations_to_segment(segment: ImportedSegment, animations: Dict[str, Any]) -> None:
@@ -981,19 +978,19 @@ class RuleTestService:
                 script, segment_template, material_obj, original_materials, track_type=track_type
             )
 
-            # 应用segment_styles（从material获取样式并应用到segment）
-            # 先应用完整的segment_styles，然后item_data会覆盖指定的字段
+            # 步骤1: 应用segment_styles（预设数据）
             segment_styles = getattr(material_obj, "segment_styles_map", None)
             if segment_styles and isinstance(segment_styles, dict):
                 # 尝试获取该track_id的专属样式，或使用__default__样式
                 style_for_track = segment_styles.get(track_id) or segment_styles.get("__default__")
                 if style_for_track and isinstance(style_for_track, dict):
                     print(f"[DEBUG] 应用segment_styles到segment: track_id={track_id}")
-                    # 应用所有样式属性到segment（item_data稍后会覆盖指定的字段）
+                    # 应用所有样式属性到segment（包括material_animations）
                     style_properties = ["clip", "hdr_settings", "uniform_scale", "enable_adjust",
                                        "enable_color_correct", "enable_color_correct_adjust",
                                        "enable_lut", "intensity", "reverse", "material_animations",
                                        "common_keyframes"]
+
                     for prop in style_properties:
                         if prop in style_for_track:
                             # 深拷贝整个属性（保留模板的完整结构）
@@ -1007,12 +1004,15 @@ class RuleTestService:
                             new_segment.raw_data[prop] = style_for_track[prop]
                             print(f"[DEBUG]   - 应用{prop}={style_for_track[prop]}从segment_styles")
 
-                    # 注意：extra_material_refs不从segment_styles应用
-                    # 因为它们的ID需要在克隆时正确映射，已经在_clone_segment_with_materials中处理了
-
-            # 应用item_data的数据到新segment
+            # 步骤2: 应用item_data的基础数据（不包括animations）
             RuleTestService._apply_item_data_to_segment(new_segment, item_data)
             RuleTestService._apply_item_data_to_material(script, new_material_id, item_data)
+
+            # 步骤3: 最后单独处理animations（确保覆盖所有预设）
+            animations = item_data.get("animations")
+            if animations and isinstance(animations, dict):
+                print(f"[DEBUG] 最后应用animations（覆盖预设）: {animations}")
+                RuleTestService._apply_animations_to_segment(new_segment, animations)
 
             # 添加到轨道
             track.segments.append(new_segment)
