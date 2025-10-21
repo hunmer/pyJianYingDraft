@@ -25,6 +25,8 @@ import {
   Info,
 } from '@mui/icons-material';
 import DraftList from '@/components/DraftList';
+import FileVersionList from '@/components/FileVersionList';
+import FileDiffViewer from '@/components/FileDiffViewer';
 import TimelineEditor from '@/components/Timeline';
 import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/lib/api';
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
@@ -52,6 +54,12 @@ export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
   const [tabs, setTabs] = useState<TabData[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+
+  // 左侧栏Tab状态 (0: 草稿列表, 1: 文件版本)
+  const [leftTabValue, setLeftTabValue] = useState<number>(0);
+
+  // 文件版本相关状态
+  const [selectedWatchFile, setSelectedWatchFile] = useState<string | undefined>(undefined);
 
   // 从localStorage恢复tabs
   useEffect(() => {
@@ -234,13 +242,37 @@ export default function Home() {
             boxSizing: 'border-box',
             borderRight: 1,
             borderColor: 'divider',
+            display: 'flex',
+            flexDirection: 'column',
           },
         }}
       >
-        <DraftList
-          onDraftSelect={handleDraftSelect}
-          selectedDraftPath={activeTab?.draftPath}
-        />
+        {/* 左侧栏Tabs */}
+        <Tabs
+          value={leftTabValue}
+          onChange={(_, newValue) => setLeftTabValue(newValue)}
+          variant="fullWidth"
+          sx={{ borderBottom: 1, borderColor: 'divider' }}
+        >
+          <Tab label="草稿列表" />
+          <Tab label="文件版本" />
+        </Tabs>
+
+        {/* Tab内容 */}
+        <Box sx={{ flex: 1, overflow: 'hidden' }}>
+          {leftTabValue === 0 && (
+            <DraftList
+              onDraftSelect={handleDraftSelect}
+              selectedDraftPath={activeTab?.draftPath}
+            />
+          )}
+          {leftTabValue === 1 && (
+            <FileVersionList
+              selectedFilePath={selectedWatchFile}
+              onFileSelect={setSelectedWatchFile}
+            />
+          )}
+        </Box>
       </Drawer>
 
       {/* 主内容区 */}
@@ -277,41 +309,61 @@ export default function Home() {
 
           {/* Tabs */}
           {tabs.length > 0 && (
-            <Tabs
-              value={activeTabId || false}
-              onChange={handleTabChange}
-              variant="scrollable"
-              scrollButtons="auto"
-              sx={{ flex: 1 }}
-            >
-              {tabs.map(tab => (
-                <Tab
-                  key={tab.id}
-                  value={tab.id}
-                  label={
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      {tab.label}
-                      <IconButton
-                        size="small"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleCloseTab(tab.id);
-                        }}
-                        sx={{ ml: 0.5, p: 0.5 }}
-                      >
-                        <CloseIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  }
-                />
-              ))}
-            </Tabs>
+            <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+              <Tabs
+                value={activeTabId || false}
+                onChange={handleTabChange}
+                variant="scrollable"
+                scrollButtons="auto"
+                sx={{ flex: 1 }}
+              >
+                {tabs.map(tab => (
+                  <Tab
+                    key={tab.id}
+                    value={tab.id}
+                    label={
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                        {tab.label}
+                        <Box
+                          component="span"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleCloseTab(tab.id);
+                          }}
+                          sx={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: 20,
+                            height: 20,
+                            borderRadius: '50%',
+                            cursor: 'pointer',
+                            ml: 0.5,
+                            '&:hover': {
+                              backgroundColor: 'action.hover',
+                            },
+                          }}
+                        >
+                          <CloseIcon sx={{ fontSize: 16 }} />
+                        </Box>
+                      </Box>
+                    }
+                  />
+                ))}
+              </Tabs>
+            </Box>
           )}
         </Paper>
 
         {/* 内容区域 */}
         <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
-          {!activeTab && (
+          {/* 文件版本Diff视图 */}
+          {leftTabValue === 1 && selectedWatchFile && (
+            <FileDiffViewer filePath={selectedWatchFile} />
+          )}
+
+          {/* 草稿编辑器视图 */}
+          {leftTabValue === 0 && !activeTab && (
             <Box
               sx={{
                 display: 'flex',
@@ -322,6 +374,22 @@ export default function Home() {
             >
               <Typography variant="h6" color="text.secondary">
                 请从左侧选择一个草稿开始编辑
+              </Typography>
+            </Box>
+          )}
+
+          {/* 文件版本空状态 */}
+          {leftTabValue === 1 && !selectedWatchFile && (
+            <Box
+              sx={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100%',
+              }}
+            >
+              <Typography variant="h6" color="text.secondary">
+                请从左侧选择一个文件查看版本差异
               </Typography>
             </Box>
           )}
@@ -339,7 +407,7 @@ export default function Home() {
             </Box>
           )}
 
-          {activeTab && activeTab.error && (
+          {leftTabValue === 0 && activeTab && activeTab.error && (
             <Alert severity="error" onClose={() => {
               setTabs(prev => prev.map(tab =>
                 tab.id === activeTab.id ? { ...tab, error: null } : tab
@@ -349,7 +417,8 @@ export default function Home() {
             </Alert>
           )}
 
-          {activeTab && activeTab.draftInfo && !activeTab.loading && !activeTab.error && (
+          {/* 草稿编辑器内容 - 仅在草稿列表标签时显示 */}
+          {leftTabValue === 0 && activeTab && activeTab.draftInfo && !activeTab.loading && !activeTab.error && (
             <>
               {/* 草稿信息卡片 */}
               <Box sx={{ mb: 3 }}>

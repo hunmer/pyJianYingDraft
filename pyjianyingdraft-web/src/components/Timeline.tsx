@@ -423,9 +423,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
   // 在整个编辑器容器上阻止 Ctrl+滚轮的默认行为
   useEffect(() => {
-    const handleWheelCapture = (e: WheelEvent) => {
-      if (e.ctrlKey || e.metaKey) {
-        e.preventDefault();
+    const handleWheelCapture = (e: Event) => {
+      const wheelEvent = e as WheelEvent;
+      if (wheelEvent.ctrlKey || wheelEvent.metaKey) {
+        wheelEvent.preventDefault();
       }
     };
 
@@ -686,7 +687,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
             ref={timelineRef}
             editorData={data}
             effects={effects}
-            className="timeline-editor"
             onChange={(data) => {
               if (!readOnly && onChange) {
                 // 这里可以将Timeline数据转回TrackInfo格式
@@ -774,11 +774,15 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                     return <Typography variant="body2">未找到片段信息</Typography>;
                   }
 
-                  const actionData = (selectedAction as any).data;
-                  const rowData = (selectedRow as any).data;
+                  // 创建局部常量以避免类型推断问题
+                  const action = selectedAction as TimelineAction;
+                  const row = selectedRow as TimelineRow;
+
+                  const actionData = (action as any).data;
+                  const rowData = (row as any).data;
 
                   // 查找素材信息
-                  const material = materials.find(m => m.id === selectedAction.effectId);
+                  const material = materials.find(m => m.id === action.effectId);
 
                   return (
                     <>
@@ -794,13 +798,13 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                         <Box>
                           <Typography variant="caption" color="text.secondary">时间范围</Typography>
                           <Typography variant="body2">
-                            {selectedAction.start.toFixed(2)}s - {selectedAction.end.toFixed(2)}s
+                            {action.start.toFixed(2)}s - {action.end.toFixed(2)}s
                           </Typography>
                         </Box>
                         <Box>
                           <Typography variant="caption" color="text.secondary">持续时长</Typography>
                           <Typography variant="body2">
-                            {(selectedAction.end - selectedAction.start).toFixed(2)}s
+                            {(action.end - action.start).toFixed(2)}s
                           </Typography>
                         </Box>
                         {actionData?.speed && (
@@ -988,9 +992,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
             }
           });
           if (!selectedAction) return null;
-          return materials.find(m => m.id === selectedAction.effectId) || null;
+          return materials.find(m => m.id === selectedAction!.effectId) || null;
         })()}
         ruleGroup={selectedRuleGroup}
+        editingRule={null}
         onSuccess={(updatedRuleGroup) => {
           // 更新规则组
           setSelectedRuleGroup(updatedRuleGroup);
