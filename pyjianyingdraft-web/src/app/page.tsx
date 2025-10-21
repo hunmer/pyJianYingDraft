@@ -15,6 +15,10 @@ import {
   Grid,
   IconButton,
   Divider,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -23,12 +27,13 @@ import {
   Videocam,
   AudioFile,
   Info,
+  ClearAll,
 } from '@mui/icons-material';
 import DraftList from '@/components/DraftList';
 import FileVersionList from '@/components/FileVersionList';
 import FileDiffViewer from '@/components/FileDiffViewer';
 import TimelineEditor from '@/components/Timeline';
-import TestDataPage from '@/components/TestDataPage';
+import TestDataEditor from '@/components/TestDataEditor';
 import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/lib/api';
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
 
@@ -48,6 +53,16 @@ interface TabData {
   filePath?: string;
   // 测试数据相关字段
   testDataId?: string;
+  onTestData?: (testData: any) => Promise<void> | void;
+  testDataContext?: {
+    ruleGroupId?: string;
+    ruleGroup?: any;
+    materials?: MaterialInfo[];
+    rawSegments?: any[];
+    rawMaterials?: any[];
+    useRawSegmentsHint?: boolean;
+    fullRequestPayload?: any;
+  };
   // 通用字段
   loading: boolean;
   error: string | null;
@@ -65,6 +80,13 @@ export default function Home() {
 
   // 左侧栏Tab状态 (0: 草稿列表, 1: 文件版本)
   const [leftTabValue, setLeftTabValue] = useState<number>(0);
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    tabId: string;
+  } | null>(null);
 
   // 处理文件差异视图选择
   const handleFileDiffSelect = useCallback((filePath: string) => {
@@ -91,7 +113,20 @@ export default function Home() {
   }, [tabs]);
 
   // 处理测试数据视图选择
-  const handleTestDataSelect = useCallback((testDataId: string, label: string) => {
+  const handleTestDataSelect = useCallback((
+    testDataId: string,
+    label: string,
+    onTest: (testData: any) => Promise<void> | void,
+    context?: {
+      ruleGroupId?: string;
+      ruleGroup?: any;
+      materials?: MaterialInfo[];
+      rawSegments?: any[];
+      rawMaterials?: any[];
+      useRawSegmentsHint?: boolean;
+      fullRequestPayload?: any;
+    }
+  ) => {
     // 检查是否已经打开
     const existingTab = tabs.find(tab => tab.type === 'test_data' && tab.testDataId === testDataId);
     if (existingTab) {
@@ -106,6 +141,8 @@ export default function Home() {
       label: `Test: ${label}`,
       type: 'test_data',
       testDataId,
+      onTestData: onTest,
+      testDataContext: context,
       loading: false,
       error: null,
     };
@@ -272,6 +309,37 @@ export default function Home() {
     });
   }, [activeTabId]);
 
+  // 处理右键菜单打开
+  const handleTabContextMenu = useCallback((event: React.MouseEvent, tabId: string) => {
+    event.preventDefault();
+    setContextMenu(
+      contextMenu === null
+        ? {
+            mouseX: event.clientX + 2,
+            mouseY: event.clientY - 6,
+            tabId,
+          }
+        : null,
+    );
+  }, [contextMenu]);
+
+  // 关闭右键菜单
+  const handleContextMenuClose = useCallback(() => {
+    setContextMenu(null);
+  }, []);
+
+  // 关闭其他标签页
+  const handleCloseOtherTabs = useCallback((tabId: string) => {
+    setTabs(prev => {
+      const targetTab = prev.find(tab => tab.id === tabId);
+      if (!targetTab) return prev;
+
+      setActiveTabId(tabId);
+      return [targetTab];
+    });
+    handleContextMenuClose();
+  }, [handleContextMenuClose]);
+
   /**
    * 切换tab
    */
@@ -374,26 +442,62 @@ export default function Home() {
             onClick={() => setDrawerOpen(!drawerOpen)}
             sx={{ mr: 2 }}
           >
-            {drawerOpen ? <CloseIcon /> : <MenuIcon />}
+            <MenuIcon />
           </IconButton>
 
           {/* Tabs */}
           {tabs.length > 0 && (
-            <Box sx={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', flex: 1, minWidth: 0 }}>
               <Tabs
                 value={activeTabId || false}
                 onChange={handleTabChange}
                 variant="scrollable"
                 scrollButtons="auto"
-                sx={{ flex: 1 }}
+                sx={{
+                  flex: 1,
+                  minWidth: 0,
+                  maxWidth: '100%',
+                  '& .MuiTabs-flexContainer': {
+                    gap: 0.5,
+                  },
+                  '& .MuiTabs-scroller': {
+                    overflow: 'auto !important',
+                  },
+                }}
               >
                 {tabs.map(tab => (
                   <Tab
                     key={tab.id}
                     value={tab.id}
+                    onContextMenu={(e) => handleTabContextMenu(e, tab.id)}
+                    sx={{
+                      minWidth: 120,
+                      maxWidth: 200,
+                      flex: '0 0 auto',
+                      '& .MuiTab-wrapper': {
+                        width: '100%',
+                      }
+                    }}
                     label={
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                        {tab.label}
+                      <Box sx={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 0.5,
+                        width: '100%',
+                        overflow: 'hidden'
+                      }}>
+                        <Box
+                          component="span"
+                          sx={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            flex: 1,
+                            minWidth: 0
+                          }}
+                        >
+                          {tab.label}
+                        </Box>
                         <Box
                           component="span"
                           onClick={(e) => {
@@ -433,8 +537,18 @@ export default function Home() {
           )}
 
           {/* 测试数据视图 */}
-          {activeTab?.type === 'test_data' && (
-            <TestDataPage testDataId={activeTab.testDataId!} />
+          {activeTab?.type === 'test_data' && activeTab.onTestData && (
+            <TestDataEditor
+              testDataId={activeTab.testDataId!}
+              onTest={activeTab.onTestData}
+              ruleGroupId={activeTab.testDataContext?.ruleGroupId}
+              ruleGroup={activeTab.testDataContext?.ruleGroup}
+              materials={activeTab.testDataContext?.materials}
+              rawSegments={activeTab.testDataContext?.rawSegments}
+              rawMaterials={activeTab.testDataContext?.rawMaterials}
+              useRawSegmentsHint={activeTab.testDataContext?.useRawSegmentsHint}
+              fullRequestPayload={activeTab.testDataContext?.fullRequestPayload}
+            />
           )}
 
           {/* 草稿选择提示 */}
@@ -568,13 +682,51 @@ export default function Home() {
                   canvasHeight={activeTab.draftInfo.height}
                   fps={activeTab.draftInfo.fps}
                   readOnly={true}
-                  onAddTestDataTab={handleTestDataSelect}
+                  handleTestDataSelect={handleTestDataSelect}
                 />
               )}
             </>
           )}
         </Box>
       </Box>
+
+      {/* 右键菜单 */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleContextMenuClose}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+      >
+        <MenuItem
+          onClick={() => {
+            if (contextMenu) {
+              handleCloseTab(contextMenu.tabId);
+              handleContextMenuClose();
+            }
+          }}
+        >
+          <ListItemIcon>
+            <CloseIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>关闭</ListItemText>
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (contextMenu) {
+              handleCloseOtherTabs(contextMenu.tabId);
+            }
+          }}
+        >
+          <ListItemIcon>
+            <ClearAll fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>关闭其他</ListItemText>
+        </MenuItem>
+      </Menu>
     </Box>
   );
 }
