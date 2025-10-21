@@ -82,8 +82,21 @@ interface TimelineEditorProps {
   canvasHeight?: number;
   /** 帧率 */
   fps?: number;
-  /** 添加测试数据tab回调 */
-  onAddTestDataTab?: (testDataId: string, label: string) => void;
+  /** 处理测试数据选择回调(必需) */
+  handleTestDataSelect: (
+    testDataId: string,
+    label: string,
+    onTest: (testData: any) => Promise<void> | void,
+    context?: {
+      ruleGroupId?: string;
+      ruleGroup?: any;
+      materials?: MaterialInfo[];
+      rawSegments?: any[];
+      rawMaterials?: any[];
+      useRawSegmentsHint?: boolean;
+      fullRequestPayload?: any;
+    }
+  ) => void;
 }
 const cloneDeep = <T,>(value: T): T =>
   value === undefined ? (value as T) : JSON.parse(JSON.stringify(value));
@@ -264,6 +277,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   canvasWidth,
   canvasHeight,
   fps,
+  handleTestDataSelect,
 }) => {
   const [data, setData] = useState<TimelineRow[]>([]);
   const [scaleWidth, setScaleWidth] = useState(160); // 默认刻度宽度
@@ -1004,7 +1018,20 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 startIcon={<PlayArrowIcon />}
                 onClick={() => {
                   const testDataId = `test_data_${Date.now()}`;
-                  onAddTestDataTab?.(testDataId, '测试数据');
+                  handleTestDataSelect(
+                    testDataId,
+                    '测试数据',
+                    handleTestData,
+                    {
+                      ruleGroupId: selectedRuleGroup?.id,
+                      ruleGroup: selectedRuleGroup,
+                      materials: materials,
+                      rawSegments: rawSegmentPayloads,
+                      rawMaterials: rawMaterialPayloads,
+                      useRawSegmentsHint: Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0),
+                      fullRequestPayload: fullRequestPayload,
+                    }
+                  );
                 }}
                 fullWidth
               >
