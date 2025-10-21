@@ -1,0 +1,36 @@
+---
+description: 修改tab系统以支持不同类型内容展示
+globs: 
+alwaysApply: true
+---
+# 任务总计划
+
+## 任务1：修改主页面tab系统
+1. 分析当前`page.tsx`中的tab实现
+2. 修改tab系统以支持不同类型内容(draft_editor, file_diff, test_data)
+3. 确保每个tab有唯一key防止重复
+
+## 任务2：重构TestDataDialog
+1. 将`TestDataDialog.tsx`从对话框改为页面形式
+2. 集成到主tab系统中
+3. 保持原有功能不变
+
+## 任务3：添加test_data tab类型
+1. 在tab系统中注册test_data类型
+2. 实现test_data对应的内容展示组件
+
+## 任务4：修改Timeline组件
+1. 修改测试规则按钮逻辑(917~924行)
+2. 点击按钮时打开对应的test_data tab
+3. 确保每个打开的tab有唯一key
+
+## 执行顺序
+1. 先完成任务1的基础tab系统修改
+2. 同时进行任务2的TestDataDialog重构
+3. 然后完成任务3的test_data tab添加
+4. 最后修改任务4的Timeline组件逻辑
+
+## 相关文件
+- `pyjianyingdraft-web/src/app/page.tsx`
+- `pyjianyingdraft-web/src/components/TestDataDialog.tsx`
+- `pyjianyingdraft-web/src/components/Timeline.tsx`

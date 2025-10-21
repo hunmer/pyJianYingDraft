@@ -8,6 +8,10 @@ import { ruleTestApi, type AllMaterialsResponse } from '@/lib/api';
 import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddBoxIcon from '@mui/icons-material/AddBox';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import FileDownloadIcon from '@mui/icons-material/FileDownload';
+import FileUploadIcon from '@mui/icons-material/FileUpload';
+import IconButton from '@mui/material/IconButton';
 import { RuleGroupSelector } from './RuleGroupSelector';
 import { RuleGroupList } from './RuleGroupList';
 import { TestDataDialog } from './TestDataDialog';
@@ -56,17 +60,17 @@ const TRACK_COLORS: Record<string, string> = {
  * Timeline组件的Props
  */
 interface TimelineEditorProps {
-  /** ������� */
+  /** 轨道数据 */
   tracks: TrackInfo[];
-  /** �ز�����(��ѡ,������ʾ�ز�����) */
+  /** 素材数据(可选,不传则不显示素材) */
   materials?: MaterialInfo[];
-  /** ԭʼ�ز����ϸ��Ϣ */
+  /** 原始素材详细信息 */
   materialDetails?: Record<string, { category: string; data: Record<string, any> }>;
-  /** �ݸ���ʱ��(��) */
+  /** 草稿时长(秒) */
   duration: number;
-  /** �Ƿ�ֻ��ģʽ */
+  /** 是否只读模式 */
   readOnly?: boolean;
-  /** ����仯�ص� */
+  /** 轨道变化回调 */
   onChange?: (tracks: TrackInfo[]) => void;
   /** 草稿原始JSON */
   rawDraft?: Record<string, any>;
@@ -78,6 +82,8 @@ interface TimelineEditorProps {
   canvasHeight?: number;
   /** 帧率 */
   fps?: number;
+  /** 添加测试数据tab回调 */
+  onAddTestDataTab?: (testDataId: string, label: string) => void;
 }
 const cloneDeep = <T,>(value: T): T =>
   value === undefined ? (value as T) : JSON.parse(JSON.stringify(value));
@@ -395,12 +401,15 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const [testResult, setTestResult] = useState<string>('');
   const [addToRuleGroupDialogOpen, setAddToRuleGroupDialogOpen] = useState(false);
   const [fullRequestPayload, setFullRequestPayload] = useState<RuleGroupTestRequest | null>(null); // 完整的API请求载荷
+  const [hiddenTrackTypes, setHiddenTrackTypes] = useState<string[]>([]); // 隐藏的轨道类型
 
-  // 将轨道数据转换为Timeline格式
+  // 将轨道数据转换为Timeline格式，并过滤隐藏的轨道类型
   useEffect(() => {
-    const rows = tracks.map(trackToRow);
+    const rows = tracks
+      .filter(track => !hiddenTrackTypes.includes(track.type))
+      .map(trackToRow);
     setData(rows);
-  }, [tracks]);
+  }, [tracks, hiddenTrackTypes]);
 
   // 创建素材效果映射(用于显示素材名称等)
   const effects: Record<string, TimelineEffect> = materials.reduce((acc, material) => {
@@ -532,8 +541,8 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       }
       const refs = Array.isArray(payload.segment?.extra_material_refs)
         ? payload.segment.extra_material_refs
-            .filter((ref: any) => ref !== undefined && ref !== null)
-            .map((ref: any) => String(ref))
+          .filter((ref: any) => ref !== undefined && ref !== null)
+          .map((ref: any) => String(ref))
         : [];
       return refs.some((refId) => requiredMaterialIds.has(refId));
     });
@@ -587,9 +596,82 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
   return (
     <Paper elevation={2} sx={{ width: '100%', overflow: 'hidden' }}>
+      {/* 顶部按钮栏 */}
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        p: 1,
+        borderBottom: 1,
+        borderColor: 'divider',
+        backgroundColor: 'grey.100'
+      }}>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <IconButton
+            size="small"
+            onClick={() => {
+              const panel = document.querySelector('.timeline-left-panel');
+              if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+              }
+            }}
+            sx={{
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              p: 0.5
+            }}
+          >
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <IconButton
+            size="small"
+            sx={{
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              p: 0.5
+            }}
+          >
+            <FileDownloadIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            sx={{
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              p: 0.5
+            }}
+          >
+            <FileUploadIcon fontSize="small" />
+          </IconButton>
+          <IconButton
+            size="small"
+            onClick={() => {
+              const panel = document.querySelector('.timeline-right-panel');
+              if (panel) {
+                panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
+              }
+            }}
+            sx={{
+              border: '1px solid',
+              borderColor: 'divider',
+              borderRadius: 1,
+              p: 0.5
+            }}
+          >
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
+        </Box>
+      </Box>
+
       <Box className="timeline-editor-main-container" sx={{ display: 'flex', height: '500px' }}>
         {/* 左侧轨道列表 */}
         <Box
+          className="timeline-left-panel"
           sx={{
             width: '200px',
             height: '100%',
@@ -630,57 +712,59 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               flex: 1,
               overflow: 'auto',
               backgroundColor: 'grey.50',
+              position: 'relative',
             }}
           >
+
             {data.map((row) => {
-            const trackData = (row as any).data;
-            const trackType = trackData?.type || 'video';
-            const trackName = trackData?.name || '未命名轨道';
-            const color = TRACK_COLORS[trackType] || '#666';
+              const trackData = (row as any).data;
+              const trackType = trackData?.type || 'video';
+              const trackName = trackData?.name || '未命名轨道';
+              const color = TRACK_COLORS[trackType] || '#666';
 
-            const typeLabels: Record<string, string> = {
-              video: '视频',
-              audio: '音频',
-              text: '文本',
-              effect: '特效',
-              filter: '滤镜',
-              sticker: '贴纸',
-            };
+              const typeLabels: Record<string, string> = {
+                video: '视频',
+                audio: '音频',
+                text: '文本',
+                effect: '特效',
+                filter: '滤镜',
+                sticker: '贴纸',
+              };
 
-            return (
-              <Box
-                key={row.id}
-                sx={{
-                  height: '36px',  // 与 Timeline rowHeight 一致
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 1,
-                  px: 1.5,
-                  py: 0.25,  // 上下内边距增加间距
-                  borderBottom: 1,
-                  borderColor: 'divider',
-                  '&:hover': {
-                    backgroundColor: 'grey.100',
-                  },
-                }}
-              >
-                <Chip
-                  label={typeLabels[trackType] || trackType}
-                  size="small"
+              return (
+                <Box
+                  key={row.id}
                   sx={{
-                    backgroundColor: color,
-                    color: 'white',
-                    fontWeight: 500,
-                    fontSize: '10px',
-                    height: '20px',
+                    height: '36px',  // 与 Timeline rowHeight 一致
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 1,
+                    px: 1.5,
+                    py: 0.25,  // 上下内边距增加间距
+                    borderBottom: 1,
+                    borderColor: 'divider',
+                    '&:hover': {
+                      backgroundColor: 'grey.100',
+                    },
                   }}
-                />
-                <Typography variant="caption" noWrap sx={{ flex: 1 }}>
-                  {trackName}
-                </Typography>
-              </Box>
-            );
-          })}
+                >
+                  <Chip
+                    label={typeLabels[trackType] || trackType}
+                    size="small"
+                    sx={{
+                      backgroundColor: color,
+                      color: 'white',
+                      fontWeight: 500,
+                      fontSize: '10px',
+                      height: '20px',
+                    }}
+                  />
+                  <Typography variant="caption" noWrap sx={{ flex: 1 }}>
+                    {trackName}
+                  </Typography>
+                </Box>
+              );
+            })}
           </Box>
         </Box>
 
@@ -740,6 +824,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
         {/* 右侧信息面板 */}
         <Box
+          className="timeline-right-panel"
           sx={{
             width: '300px',
             height: '100%',
@@ -917,7 +1002,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               <Button
                 variant="contained"
                 startIcon={<PlayArrowIcon />}
-                onClick={() => setTestDialogOpen(true)}
+                onClick={() => {
+                  const testDataId = `test_data_${Date.now()}`;
+                  onAddTestDataTab?.(testDataId, '测试数据');
+                }}
                 fullWidth
               >
                 测试规则数据
@@ -951,38 +1039,58 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         </Box>
       </Box>
 
-      {/* 轨道图例 */}
-      <Box sx={{ padding: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-        <Typography variant="caption" sx={{ mr: 1, alignSelf: 'center' }}>
-          轨道类型:
-        </Typography>
-        {Object.entries(TRACK_COLORS).map(([type, color]) => (
-          <Chip
-            key={type}
-            label={type}
-            size="small"
-            sx={{
-              backgroundColor: color,
-              color: 'white',
-              fontSize: '11px',
-            }}
-          />
-        ))}
+      {/* 轨道类型切换按钮 */}
+      <Box sx={{
+        display: 'flex',
+        justifyContent: 'center',
+        gap: 1,
+        flexWrap: 'wrap',
+        padding: '10px',
+        maxWidth: 'calc(100% - 16px)'
+      }}>
+        {Object.entries(TRACK_COLORS).map(([type, color]) => {
+          const isHidden = hiddenTrackTypes.includes(type);
+          return (
+            <Chip
+              key={type}
+              label={type}
+              size="small"
+              onClick={() => {
+                setHiddenTrackTypes(prev =>
+                  isHidden
+                    ? prev.filter(t => t !== type)
+                    : [...prev, type]
+                );
+              }}
+              sx={{
+                backgroundColor: isHidden ? '#999' : color,
+                color: 'white',
+                fontSize: '11px',
+                cursor: 'pointer',
+                '&:hover': {
+                  opacity: 0.8
+                }
+              }}
+            />
+          );
+        })}
       </Box>
 
-      {/* 测试数据对话框 */}
-      <TestDataDialog
-        open={testDialogOpen}
-        onClose={() => setTestDialogOpen(false)}
-        onTest={handleTestData}
-        ruleGroupId={selectedRuleGroup?.id}
-        ruleGroup={selectedRuleGroup}
-        materials={Array.isArray(materials) ? materials : []}
-        rawSegments={rawSegmentPayloads}
-        rawMaterials={rawMaterialPayloads}
-        useRawSegmentsHint={Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0)}
-        fullRequestPayload={fullRequestPayload}
-      />
+      {/* 测试数据页面 */}
+      {testDialogOpen && (
+        <TestDataPage
+          open={true}
+          onClose={() => setTestDialogOpen(false)}
+          onSave={handleTestData}
+          ruleGroupId={selectedRuleGroup?.id}
+          ruleGroup={selectedRuleGroup}
+          materials={Array.isArray(materials) ? materials : []}
+          rawSegments={rawSegmentPayloads}
+          rawMaterials={rawMaterialPayloads}
+          useRawSegmentsHint={Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0)}
+          fullRequestPayload={fullRequestPayload}
+        />
+      )}
 
       {/* 添加到预设组对话框 */}
       <AddToRuleGroupDialog
