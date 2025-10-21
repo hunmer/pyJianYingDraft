@@ -13,6 +13,8 @@ from typing import Any, Callable, Dict, List, Optional, Set
 
 import pyJianYingDraft as draft
 from pyJianYingDraft.template_mode import ImportedSegment
+from pyJianYingDraft.metadata.video_group_animation import GroupAnimationType
+from pyJianYingDraft.animation import SegmentAnimations, VideoAnimation
 
 from app.config import get_config
 from app.models.rule_models import (
@@ -46,10 +48,23 @@ class RuleTestService:
         draft_root = RuleTestService._get_draft_root()
         draft_name = RuleTestService._build_draft_name(rule_group.title)
 
-        # 使用前端传递的画布大小,如果没有则使用默认值
-        canvas_width = payload.canvas_width or RuleTestService.DEFAULT_WIDTH
-        canvas_height = payload.canvas_height or RuleTestService.DEFAULT_HEIGHT
-        fps = payload.fps or RuleTestService.DEFAULT_FPS
+        # 解析画布配置，优先使用draft_config，回退到旧字段
+        canvas_width = RuleTestService.DEFAULT_WIDTH
+        canvas_height = RuleTestService.DEFAULT_HEIGHT
+        fps = RuleTestService.DEFAULT_FPS
+
+        if payload.draft_config:
+            # 使用新的draft_config结构
+            if payload.draft_config.canvas_config:
+                canvas_width = payload.draft_config.canvas_config.get("canvas_width") or canvas_width
+                canvas_height = payload.draft_config.canvas_config.get("canvas_height") or canvas_height
+            if payload.draft_config.fps:
+                fps = payload.draft_config.fps
+        else:
+            # 回退到旧字段（兼容性）
+            canvas_width = payload.canvas_width or canvas_width
+            canvas_height = payload.canvas_height or canvas_height
+            fps = payload.fps or fps
 
         folder = draft.DraftFolder(draft_root)
         script = folder.create_draft(
@@ -59,6 +74,9 @@ class RuleTestService:
             fps=fps,
             allow_replace=True,
         )
+
+        # 应用draft_config到草稿JSON（覆盖草稿文件的配置字段）
+        RuleTestService._apply_draft_config(script, payload)
 
         RuleTestService._attach_segment_styles(materials, payload.segment_styles)
 
@@ -367,6 +385,41 @@ class RuleTestService:
             candidate = probed_duration if explicit_duration is None else min(candidate, probed_duration)
 
         return candidate
+
+    @staticmethod
+    def _apply_draft_config(script: draft.ScriptFile, payload: RuleGroupTestRequest) -> None:
+        """
+        应用draft_config到草稿JSON，覆盖草稿文件的配置字段
+        canvas_config, config, fps 对应草稿JSON的顶层字段
+        """
+        if not payload.draft_config:
+            return
+
+        # 获取草稿的原始JSON数据（ScriptFile对象应该有导出方法）
+        # 我们需要在保存前修改这些字段
+
+        # 应用 canvas_config（画布配置）
+        if payload.draft_config.canvas_config:
+            # canvas_config 对应草稿JSON的 canvas_config 字段
+            if not hasattr(script, 'canvas_config'):
+                script.canvas_config = {}
+            for key, value in payload.draft_config.canvas_config.items():
+                script.canvas_config[key] = value
+            print(f"[DEBUG] 应用canvas_config: {payload.draft_config.canvas_config}")
+
+        # 应用 config（通用配置）
+        if payload.draft_config.config:
+            # config 对应草稿JSON的 config 字段
+            if not hasattr(script, 'config'):
+                script.config = {}
+            for key, value in payload.draft_config.config.items():
+                script.config[key] = value
+            print(f"[DEBUG] 应用config: {payload.draft_config.config}")
+
+        # fps 已在create_draft时设置，这里可选择性覆盖
+        if payload.draft_config.fps:
+            script.fps = payload.draft_config.fps
+            print(f"[DEBUG] 覆盖fps: {payload.draft_config.fps}")
 
     @staticmethod
     def _attach_segment_styles(materials: List[MaterialPayload], segment_styles: Optional[SegmentStylesPayload]) -> None:
@@ -707,6 +760,106 @@ class RuleTestService:
                 scale_obj["x"] = scale_value
                 scale_obj["y"] = scale_value
                 print(f"[DEBUG]   - 更新clip.scale: {scale_value}")
+
+        # 处理animations字段（组合动画）
+        animations = item_data.get("animations")
+        if animations and isinstance(animations, dict):
+            RuleTestService._apply_animations_to_segment(segment, animations)
+
+    @staticmethod
+    def _apply_animations_to_segment(segment: ImportedSegment, animations: Dict[str, Any]) -> None:
+        """
+        根据animations配置为segment添加或修改组合动画
+
+        animations格式:
+        - {"name": "动画名称", "duration": 持续时长(秒)} - 创建新动画并替换
+        - {"name": "动画名称"} - 创建新动画,使用片段时长作为duration
+        - {"duration": 持续时长(秒)} - 仅修改现有动画的duration
+        """
+        animation_name = animations.get("name")
+        animation_duration = animations.get("duration")
+
+        # 获取现有的material_animations
+        material_animations = segment.raw_data.get("material_animations", [])
+        if not isinstance(material_animations, list):
+            material_animations = []
+
+        try:
+            # 情况1: 只指定duration，修改现有动画的duration
+            if animation_duration is not None and not animation_name:
+                if not material_animations:
+                    print("[WARNING] segment没有现有动画，无法仅修改duration")
+                    return
+
+                # 将duration从秒转换为微秒
+                duration_us = RuleTestService._seconds_to_microseconds(animation_duration)
+                if duration_us is None or duration_us <= 0:
+                    print(f"[WARNING] 无效的duration: {animation_duration}")
+                    return
+
+                # 修改所有现有动画的duration
+                for anim_group in material_animations:
+                    if isinstance(anim_group, dict) and "animations" in anim_group:
+                        animations_list = anim_group.get("animations", [])
+                        if isinstance(animations_list, list):
+                            for anim in animations_list:
+                                if isinstance(anim, dict):
+                                    anim["duration"] = duration_us
+                                    print(f"[DEBUG]   - 修改动画duration: {duration_us}us ({animation_duration}s)")
+
+                segment.raw_data["material_animations"] = material_animations
+                return
+
+            # 情况2: 指定了name，创建新动画（有或没有duration）
+            if animation_name:
+                # 从GroupAnimationType枚举中查找动画
+                try:
+                    animation_type = GroupAnimationType.from_name(animation_name)
+                except ValueError:
+                    print(f"[WARNING] 未找到组合动画: {animation_name}")
+                    print(f"[DEBUG] 可用的组合动画: {[e.value.title for e in GroupAnimationType]}")
+                    return
+
+                # 确定动画duration
+                if animation_duration is not None:
+                    # 使用指定的duration
+                    duration_us = RuleTestService._seconds_to_microseconds(animation_duration)
+                    if duration_us is None or duration_us <= 0:
+                        print(f"[WARNING] 无效的duration: {animation_duration}")
+                        return
+                else:
+                    # 使用片段的target_timerange.duration作为动画duration
+                    duration_us = segment.target_timerange.duration
+                    print(f"[DEBUG]   - 未指定duration，使用片段时长: {duration_us}us ({duration_us/1000000}s)")
+
+                # 创建SegmentAnimations对象
+                segment_animations = SegmentAnimations()
+
+                # 创建VideoAnimation（组合动画从片段开始位置0开始）
+                video_animation = VideoAnimation(
+                    animation_type=animation_type,
+                    start=0,
+                    duration=duration_us
+                )
+
+                # 添加动画到SegmentAnimations
+                segment_animations.add_animation(video_animation)
+
+                # 替换所有现有动画
+                material_animations = [segment_animations.export_json()]
+                segment.raw_data["material_animations"] = material_animations
+
+                duration_s = duration_us / 1_000_000
+                print(f"[DEBUG]   - 创建组合动画: name={animation_name}, duration={duration_us}us ({duration_s}s)")
+                return
+
+            # 情况3: 既没有name也没有duration
+            print("[WARNING] animations字段必须至少包含name或duration")
+
+        except Exception as e:
+            print(f"[ERROR] 处理animations失败: {e}")
+            import traceback
+            traceback.print_exc()
 
     @staticmethod
     def _merge_raw_segments_with_test_data(script: draft.ScriptFile, plans: List[Dict[str, Any]]) -> None:

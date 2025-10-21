@@ -557,9 +557,16 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           shouldUseRawSegments && relevantRawMaterials && relevantRawMaterials.length > 0
             ? relevantRawMaterials
             : undefined,
-        canvas_width: canvasWidth,
-        canvas_height: canvasHeight,
-        fps: fps,
+        draft_config: {
+          canvas_config: {
+            canvas_width: canvasWidth,
+            canvas_height: canvasHeight,
+          },
+          config: {
+            maintrack_adsorb: false,
+          },
+          fps: fps,
+        },
       };
 
       // 保存完整载荷供下载使用
