@@ -89,6 +89,16 @@ class RawMaterialPayload(BaseModel):
     model_config = ConfigDict(extra="allow")
 
 
+class DraftConfigModel(BaseModel):
+    """草稿配置信息"""
+
+    canvas_config: Optional[Dict[str, Any]] = Field(default=None, description="画布配置(canvas_width, canvas_height等)")
+    config: Optional[Dict[str, Any]] = Field(default=None, description="通用配置(maintrack_adsorb等)")
+    fps: Optional[int] = Field(default=None, description="帧率")
+
+    model_config = ConfigDict(extra="allow")
+
+
 class RuleGroupTestRequest(BaseModel):
     """规则组测试请求体"""
 
@@ -99,9 +109,11 @@ class RuleGroupTestRequest(BaseModel):
     use_raw_segments: bool = Field(default=False, description="是否直接写入原始片段")
     raw_segments: Optional[List[RawSegmentPayload]] = Field(default=None, description="原始片段列表")
     raw_materials: Optional[List[RawMaterialPayload]] = Field(default=None, description="原始素材列表")
-    canvas_width: Optional[int] = Field(default=None, description="画布宽度")
-    canvas_height: Optional[int] = Field(default=None, description="画布高度")
-    fps: Optional[int] = Field(default=None, description="帧率")
+    draft_config: Optional[DraftConfigModel] = Field(default=None, description="草稿配置(会覆盖草稿JSON的对应字段)")
+    # 保留旧字段以兼容(但优先使用draft_config)
+    canvas_width: Optional[int] = Field(default=None, description="画布宽度(已废弃,使用draft_config)")
+    canvas_height: Optional[int] = Field(default=None, description="画布高度(已废弃,使用draft_config)")
+    fps: Optional[int] = Field(default=None, description="帧率(已废弃,使用draft_config)")
 
 
 class RuleGroupTestResponse(BaseModel):
