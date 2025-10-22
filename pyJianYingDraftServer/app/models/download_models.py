@@ -62,6 +62,10 @@ class DownloadTask(BaseModel):
     draft_config: Optional[Dict[str, Any]] = Field(default=None, description="草稿配置")
     materials: Optional[List[Dict[str, Any]]] = Field(default=None, description="素材数据（MaterialInfo数组）")
     test_data: Optional[Dict[str, Any]] = Field(default=None, description="测试数据")
+    segment_styles: Optional[Dict[str, Any]] = Field(default=None, description="片段样式")
+    use_raw_segments: bool = Field(default=False, description="是否使用原始片段")
+    raw_segments: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始片段数据")
+    raw_materials: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始素材数据")
 
     # 进度信息
     progress: Optional[DownloadProgressInfo] = Field(default=None, description="下载进度")
