@@ -14,7 +14,6 @@ import FileUploadIcon from '@mui/icons-material/FileUpload';
 import IconButton from '@mui/material/IconButton';
 import { RuleGroupSelector } from './RuleGroupSelector';
 import { RuleGroupList } from './RuleGroupList';
-import { TestDataDialog } from './TestDataDialog';
 import TestDataPage from './TestDataPage';
 import { MaterialPreview } from './MaterialPreview';
 import { AddToRuleGroupDialog } from './AddToRuleGroupDialog';
@@ -625,7 +624,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           <IconButton
             size="small"
             onClick={() => {
-              const panel = document.querySelector('.timeline-left-panel');
+              const panel = document.querySelector('.timeline-left-panel') as HTMLElement | null;
               if (panel) {
                 panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
               }
@@ -666,7 +665,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           <IconButton
             size="small"
             onClick={() => {
-              const panel = document.querySelector('.timeline-right-panel');
+              const panel = document.querySelector('.timeline-right-panel') as HTMLElement | null;
               if (panel) {
                 panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
               }
@@ -1110,13 +1109,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           open={true}
           onClose={() => setTestDialogOpen(false)}
           onSave={handleTestData}
-          ruleGroupId={selectedRuleGroup?.id}
-          ruleGroup={selectedRuleGroup}
-          materials={Array.isArray(materials) ? materials : []}
-          rawSegments={rawSegmentPayloads}
-          rawMaterials={rawMaterialPayloads}
-          useRawSegmentsHint={Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0)}
-          fullRequestPayload={fullRequestPayload}
         />
       )}
 

@@ -2,11 +2,17 @@
   "name": "pyjianyingdraft-web",
   "version": "0.1.0",
   "private": true,
+  "main": "electron/main.js",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "electron": "electron .",
+    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "electron:build": "next build && electron-builder",
+    "build:backend": "cd ../pyJianYingDraftServer && python build_server.py",
+    "build:all": "npm run build:backend && npm run electron:build"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -29,8 +35,45 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "cross-env": "^10.1.0",
+    "electron": "latest",
+    "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "15.5.6",
     "typescript": "^5"
+  },
+  "build": {
+    "appId": "com.pyjianyingdraft.web",
+    "productName": "PyJianYingDraft",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "out/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/pyJianYingDraftServer.exe",
+        "to": "pyJianYingDraftServer.exe",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "public/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
   }
 }

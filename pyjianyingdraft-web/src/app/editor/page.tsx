@@ -252,6 +252,10 @@ export default function EditorPage() {
               canvasHeight={draftInfo.height}
               fps={draftInfo.fps}
               readOnly={true}
+              handleTestDataSelect={() => {
+                // Editor页面不需要测试数据选择功能,提供空实现
+                console.log('测试数据选择功能在 Editor 页面不可用');
+              }}
             />
           </Box>
         )}
