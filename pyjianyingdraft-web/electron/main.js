@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, clipboard } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
@@ -6,7 +6,7 @@ const fs = require('fs');
 
 // 开发环境配置
 const isDev = process.env.NODE_ENV === 'development';
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3000;
 const BACKEND_PORT = 8000;
 const BACKEND_HOST = 'localhost';
 
@@ -186,6 +186,7 @@ async function createWindow() {
     icon: path.join(__dirname, '../public/icon.png') // 如果有图标
   });
 
+  console.log({isDev})
   // 加载应用
   if (isDev) {
     // 开发环境:连接到 Next.js 开发服务器
@@ -243,4 +244,62 @@ app.on('web-contents-created', (event, contents) => {
       event.preventDefault();
     }
   });
+});
+
+// ==================== IPC 处理器 ====================
+
+/**
+ * 复制文本到剪贴板
+ */
+ipcMain.handle('fs:copy-to-clipboard', async (event, text) => {
+  try {
+    clipboard.writeText(text);
+    console.log('[IPC] 已复制到剪贴板:', text);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] 复制到剪贴板失败:', error);
+    throw error;
+  }
+});
+
+/**
+ * 使用系统默认程序打开文件
+ */
+ipcMain.handle('fs:open-file', async (event, filePath) => {
+  try {
+    console.log('[IPC] 打开文件:', filePath);
+    await shell.openPath(filePath);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] 打开文件失败:', error);
+    throw error;
+  }
+});
+
+/**
+ * 在文件管理器中显示文件
+ */
+ipcMain.handle('fs:show-in-folder', async (event, filePath) => {
+  try {
+    console.log('[IPC] 在文件夹中显示:', filePath);
+    shell.showItemInFolder(filePath);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] 在文件夹中显示失败:', error);
+    throw error;
+  }
+});
+
+/**
+ * 打开文件夹
+ */
+ipcMain.handle('fs:open-folder', async (event, folderPath) => {
+  try {
+    console.log('[IPC] 打开文件夹:', folderPath);
+    await shell.openPath(folderPath);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] 打开文件夹失败:', error);
+    throw error;
+  }
 });

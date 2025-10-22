@@ -13,10 +13,13 @@ if str(parent_dir) not in sys.path:
 import uvicorn
 
 if __name__ == "__main__":
+    # 检测是否为 PyInstaller 打包环境
+    is_frozen = getattr(sys, 'frozen', False)
+
     uvicorn.run(
         "app.main:socket_app",
         host="0.0.0.0",
         port=8000,
-        reload=True,
+        reload=False if is_frozen else True,  # 打包后禁用热重载
         log_level="info"
     )

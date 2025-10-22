@@ -15,6 +15,7 @@ import {
 } from '@mui/material';
 import type { Rule, RuleGroup } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
+import { draftApi } from '@/lib/api';
 
 interface AddToRuleGroupDialogProps {
   /** 对话框是否打开 */
@@ -32,7 +33,7 @@ interface AddToRuleGroupDialogProps {
 }
 
 /**
- * 添加到预设组对话框
+ * 添加到规则组对话框
  */
 export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
   open,
@@ -106,7 +107,7 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
   };
 
   // 处理提交
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) {
       return;
     }
@@ -131,14 +132,19 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
       updatedAt: new Date().toISOString()
     };
 
-    // 保存到localStorage
+    // 保存到后端
     try {
-      const saved = localStorage.getItem('ruleGroups');
-      const allGroups: RuleGroup[] = saved ? JSON.parse(saved) : [];
+      // 获取所有规则组
+      const response = await draftApi.getRuleGroups();
+      const allGroups: RuleGroup[] = response.rule_groups as RuleGroup[];
+
+      // 更新规则组
       const updatedGroups = allGroups.map(g =>
         g.id === updatedRuleGroup.id ? updatedRuleGroup : g
       );
-      localStorage.setItem('ruleGroups', JSON.stringify(updatedGroups));
+
+      // 保存到后端
+      await draftApi.setRuleGroups(updatedGroups);
 
       onSuccess(updatedRuleGroup);
       onClose();
@@ -149,7 +155,7 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{editingRule ? '编辑规则' : '添加到预设组'}</DialogTitle>
+      <DialogTitle>{editingRule ? '编辑规则' : '添加到规则组'}</DialogTitle>
 
       <DialogContent>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
@@ -166,7 +172,7 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
             </Alert>
           ) : (
             <Alert severity="warning">
-              请先在预设组标签页中选择一个规则组
+              请先在规则组标签页中选择一个规则组
             </Alert>
           )}
 

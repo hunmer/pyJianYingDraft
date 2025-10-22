@@ -18,8 +18,8 @@ import {
   Tooltip,
   ButtonGroup,
   Button,
-  Grid,
 } from '@mui/material';
+import Grid from '@mui/material/Grid'; // 始终使用Grid，不使用Grid2
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';

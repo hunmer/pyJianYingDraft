@@ -119,9 +119,9 @@ class RuleTestService:
 
     @staticmethod
     def _get_draft_root() -> str:
-        draft_root = get_config("PYJY_TEST_DRAFT_ROOT") or os.getenv("PYJY_TEST_DRAFT_ROOT")
+        draft_root = get_config("PYJY_DRAFT_ROOT") or os.getenv("PYJY_DRAFT_ROOT")
         if not draft_root:
-            raise ValueError("未在 config.json 或环境变量 PYJY_TEST_DRAFT_ROOT 中配置草稿保存目录")
+            raise ValueError("未在 config.json 或环境变量 PYJY_DRAFT_ROOT 中配置草稿保存目录")
         draft_root = os.path.abspath(draft_root)
         if not os.path.isdir(draft_root):
             raise FileNotFoundError(f"草稿根目录不存在: {draft_root}")
@@ -764,9 +764,13 @@ class RuleTestService:
         # 注意：animations字段在外层单独处理，确保它是最后执行的
 
     @staticmethod
-    def _apply_animations_to_segment(segment: ImportedSegment, animations: Dict[str, Any]) -> None:
+    def _apply_animations_to_segment(segment: ImportedSegment, animations: Dict[str, Any], script: draft.ScriptFile) -> None:
         """
         根据animations配置为segment添加或修改组合动画
+
+        正确结构:
+        - materials.material_animations[] - 动画定义在草稿级别的materials字段中
+        - segment.extra_material_refs 引用 material_animation 的 ID
 
         animations格式:
         - {"name": "动画名称", "duration": 持续时长(秒)} - 创建新动画并替换
@@ -776,16 +780,18 @@ class RuleTestService:
         animation_name = animations.get("name")
         animation_duration = animations.get("duration")
 
-        # 获取现有的material_animations
-        material_animations = segment.raw_data.get("material_animations", [])
-        if not isinstance(material_animations, list):
-            material_animations = []
+        # 获取segment的extra_material_refs,查找material_animation的ID
+        extra_refs = segment.raw_data.get("extra_material_refs", [])
+        if not isinstance(extra_refs, list):
+            extra_refs = []
 
         try:
             # 情况1: 只指定duration，修改现有动画的duration
             if animation_duration is not None and not animation_name:
+                # 在materials.material_animations中查找并修改
+                material_animations = script.imported_materials.get("material_animations", [])
                 if not material_animations:
-                    print("[WARNING] segment没有现有动画，无法仅修改duration")
+                    print("[WARNING] 草稿中没有material_animations，无法仅修改duration")
                     return
 
                 # 将duration从秒转换为微秒
@@ -794,17 +800,20 @@ class RuleTestService:
                     print(f"[WARNING] 无效的duration: {animation_duration}")
                     return
 
-                # 修改所有现有动画的duration
-                for anim_group in material_animations:
-                    if isinstance(anim_group, dict) and "animations" in anim_group:
-                        animations_list = anim_group.get("animations", [])
+                # 遍历所有在extra_refs中引用的material_animations
+                modified = False
+                for mat_anim in material_animations:
+                    if mat_anim.get("id") in extra_refs:
+                        animations_list = mat_anim.get("animations", [])
                         if isinstance(animations_list, list):
                             for anim in animations_list:
                                 if isinstance(anim, dict):
                                     anim["duration"] = duration_us
                                     print(f"[DEBUG]   - 修改动画duration: {duration_us}us ({animation_duration}s)")
+                                    modified = True
 
-                segment.raw_data["material_animations"] = material_animations
+                if not modified:
+                    print("[WARNING] segment的extra_refs中没有引用任何material_animation")
                 return
 
             # 情况2: 指定了name，创建新动画（有或没有duration）
@@ -829,7 +838,7 @@ class RuleTestService:
                     duration_us = segment.target_timerange.duration
                     print(f"[DEBUG]   - 未指定duration，使用片段时长: {duration_us}us ({duration_us/1000000}s)")
 
-                # 创建SegmentAnimations对象
+                # 创建Segment Animations对象
                 segment_animations = SegmentAnimations()
 
                 # 创建VideoAnimation（组合动画从片段开始位置0开始）
@@ -842,12 +851,44 @@ class RuleTestService:
                 # 添加动画到SegmentAnimations
                 segment_animations.add_animation(video_animation)
 
-                # 替换所有现有动画
-                material_animations = [segment_animations.export_json()]
-                segment.raw_data["material_animations"] = material_animations
+                # 生成新的material_animation ID
+                new_anim_id = str(uuid.uuid4()).upper()
+
+                # 导出动画JSON并添加必要字段
+                anim_json = segment_animations.export_json()
+                anim_json["id"] = new_anim_id
+
+                # 添加到草稿级别的materials.material_animations
+                material_animations_list = script.imported_materials.setdefault("material_animations", [])
+                material_animations_list.append(anim_json)
+
+                # 更新segment的extra_material_refs,添加新动画ID
+                # 首先移除旧的动画引用(假设之前引用的也是material_animation)
+                existing_refs = segment.raw_data.get("extra_material_refs", [])
+                if not isinstance(existing_refs, list):
+                    existing_refs = []
+
+                # 过滤掉旧的material_animation引用
+                old_anim_ids = set()
+                if "material_animations" in script.imported_materials:
+                    old_anim_ids = {ma.get("id") for ma in script.imported_materials["material_animations"] if ma.get("id")}
+
+                # 保留非动画的引用(speeds, canvases等)
+                new_refs = [ref for ref in existing_refs if ref not in old_anim_ids or ref == new_anim_id]
+
+                # 添加新动画ID（确保在正确位置，通常在第3个位置）
+                # extra_material_refs顺序: [speed_id, canvas_id, animation_id, sound_channel_id, vocal_separation_id]
+                if len(new_refs) >= 2 and new_anim_id not in new_refs:
+                    # 在第3个位置插入动画ID
+                    new_refs.insert(2, new_anim_id)
+                elif new_anim_id not in new_refs:
+                    new_refs.append(new_anim_id)
+
+                segment.raw_data["extra_material_refs"] = new_refs
 
                 duration_s = duration_us / 1_000_000
-                print(f"[DEBUG]   - 创建组合动画: name={animation_name}, duration={duration_us}us ({duration_s}s)")
+                print(f"[DEBUG]   - 创建组合动画: name={animation_name}, duration={duration_us}us ({duration_s}s), id={new_anim_id}")
+                print(f"[DEBUG]   - 更新segment.extra_material_refs: {new_refs}")
                 return
 
             # 情况3: 既没有name也没有duration
@@ -1012,7 +1053,7 @@ class RuleTestService:
             animations = item_data.get("animations")
             if animations and isinstance(animations, dict):
                 print(f"[DEBUG] 最后应用animations（覆盖预设）: {animations}")
-                RuleTestService._apply_animations_to_segment(new_segment, animations)
+                RuleTestService._apply_animations_to_segment(new_segment, animations, script)
 
             # 添加到轨道
             track.segments.append(new_segment)

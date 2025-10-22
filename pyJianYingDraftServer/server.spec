@@ -25,6 +25,7 @@ a = Analysis(
         (str(ROOT_DIR / 'pyJianYingDraft'), 'pyJianYingDraft'),
     ],
     hiddenimports=[
+        # Uvicorn 核心模块
         'uvicorn.logging',
         'uvicorn.loops',
         'uvicorn.loops.auto',
@@ -35,15 +36,35 @@ a = Analysis(
         'uvicorn.protocols.websockets.auto',
         'uvicorn.lifespan',
         'uvicorn.lifespan.on',
+        # FastAPI 核心和中间件
         'fastapi',
+        'fastapi.middleware',
+        'fastapi.middleware.cors',
+        'fastapi.middleware.trustedhost',
+        'fastapi.middleware.gzip',
+        'fastapi.middleware.httpsredirect',
+        # Starlette (FastAPI 依赖)
+        'starlette.middleware',
+        'starlette.middleware.base',
+        'starlette.middleware.cors',
+        'starlette.middleware.errors',
+        'starlette.middleware.gzip',
+        'starlette.middleware.httpsredirect',
+        'starlette.middleware.trustedhost',
+        # Socket.IO
         'socketio',
         'python_socketio',
         'engineio',
         'python_engineio',
+        # Pydantic
         'pydantic',
+        'pydantic.networks',
+        'pydantic.types',
+        # Watchdog (文件监控)
         'watchdog',
         'watchdog.observers',
         'watchdog.events',
+        # 项目模块
         'pyJianYingDraft',
     ],
     hookspath=[],

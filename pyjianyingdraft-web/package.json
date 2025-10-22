@@ -9,7 +9,8 @@
     "start": "next start",
     "lint": "next lint",
     "electron": "electron .",
-    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "electron:dev": "chcp 65001 && cross-env NODE_ENV=development electron .",
+    "dev:electron": "chcp 65001 && concurrently \"npm run dev\" \"wait-on http://localhost:3000 && npm run electron:dev\" --kill-others",
     "electron:build": "next build && electron-builder",
     "build:backend": "cd ../pyJianYingDraftServer && python build_server.py",
     "build:all": "npm run build:backend && npm run electron:build"
@@ -35,12 +36,14 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
     "cross-env": "^10.1.0",
     "electron": "latest",
     "electron-builder": "^26.0.12",
     "eslint": "^9",
     "eslint-config-next": "15.5.6",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wait-on": "^9.0.1"
   },
   "build": {
     "appId": "com.pyjianyingdraft.web",
@@ -57,14 +60,18 @@
       {
         "from": "resources/pyJianYingDraftServer.exe",
         "to": "pyJianYingDraftServer.exe",
-        "filter": ["**/*"]
+        "filter": [
+          "**/*"
+        ]
       }
     ],
     "win": {
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "public/icon.ico"
