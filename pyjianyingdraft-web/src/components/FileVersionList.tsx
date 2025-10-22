@@ -34,6 +34,7 @@ import {
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { fileWatchApi, type WatchedFileInfo } from '@/lib/api';
+import { socketFileWatchApi } from '@/lib/socket';
 
 interface FileVersionListProps {
   /** 当前选择的文件路径 */
@@ -79,6 +80,35 @@ export default function FileVersionList({
   useEffect(() => {
     loadWatchedFiles();
   }, [loadWatchedFiles]);
+
+  /**
+   * 监听文件变化事件 - 实时更新文件列表
+   */
+  useEffect(() => {
+    const unsubscribe = socketFileWatchApi.onFileChanged((data) => {
+      console.log('🔔 FileVersionList收到文件变化通知:', data);
+
+      // 更新对应文件的版本信息
+      setWatchedFiles((prev) =>
+        prev.map((file) => {
+          if (file.file_path === data.file_path) {
+            return {
+              ...file,
+              latest_version: data.version,
+              total_versions: data.version,
+              last_modified: data.timestamp,
+            };
+          }
+          return file;
+        })
+      );
+    });
+
+    // 清理监听器
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   /**
    * 添加监控文件
