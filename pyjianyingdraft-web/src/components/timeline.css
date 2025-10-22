@@ -1,6 +1,7 @@
 /* Timeline 编辑器样式 */
 .timeline-editor {
   width: 100% !important;
+  height: 100% !important;
 }
 
 /* Timeline 容器样式 */
