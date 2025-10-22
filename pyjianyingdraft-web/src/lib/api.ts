@@ -492,6 +492,107 @@ export const fileWatchApi = {
 };
 
 /**
+ * 异步任务相关类型
+ */
+export interface TaskSubmitResponse {
+  task_id: string;
+  message: string;
+}
+
+export interface TaskProgress {
+  total_files: number;
+  completed_files: number;
+  failed_files: number;
+  active_files: number;
+  total_size: number;
+  downloaded_size: number;
+  progress_percent: number;
+  download_speed: number;
+  eta_seconds: number | null;
+}
+
+export interface TaskInfo {
+  task_id: string;
+  status: 'pending' | 'downloading' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  progress: TaskProgress | null;
+  draft_path: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at?: string;
+  completed_at?: string;
+}
+
+export interface TaskListResponse {
+  total: number;
+  tasks: TaskInfo[];
+}
+
+export interface TaskCancelResponse {
+  message: string;
+  task_id: string;
+}
+
+/**
+ * Tasks API - 异步任务管理
+ */
+export const tasksApi = {
+  /**
+   * 提交异步任务
+   * @param payload - 规则组测试请求载荷（与ruleTestApi相同格式）
+   * @returns 任务ID
+   */
+  async submit(payload: RuleGroupTestRequest): Promise<TaskSubmitResponse> {
+    const response = await fetch(`${API_BASE_URL}/api/tasks/submit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<TaskSubmitResponse>(response);
+  },
+
+  /**
+   * 查询任务状态
+   * @param taskId - 任务ID
+   */
+  async get(taskId: string): Promise<TaskInfo> {
+    const url = `${API_BASE_URL}/api/tasks/${taskId}`;
+    const response = await fetch(url);
+    return handleResponse<TaskInfo>(response);
+  },
+
+  /**
+   * 列出任务
+   * @param options - 查询选项
+   */
+  async list(options?: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<TaskListResponse> {
+    const params = new URLSearchParams();
+    if (options?.status) params.append('status', options.status);
+    if (options?.limit) params.append('limit', String(options.limit));
+    if (options?.offset) params.append('offset', String(options.offset));
+
+    const url = `${API_BASE_URL}/api/tasks?${params.toString()}`;
+    const response = await fetch(url);
+    return handleResponse<TaskListResponse>(response);
+  },
+
+  /**
+   * 取消任务
+   * @param taskId - 任务ID
+   */
+  async cancel(taskId: string): Promise<TaskCancelResponse> {
+    const url = `${API_BASE_URL}/api/tasks/${taskId}/cancel`;
+    const response = await fetch(url, { method: 'POST' });
+    return handleResponse<TaskCancelResponse>(response);
+  },
+};
+
+/**
  * 默认导出所有API
  */
 export default {
@@ -499,6 +600,7 @@ export default {
   subdrafts: subdraftsApi,
   materials: materialsApi,
   ruleTest: ruleTestApi,
+  tasks: tasksApi,
   tracks: tracksApi,
   fileWatch: fileWatchApi,
 };

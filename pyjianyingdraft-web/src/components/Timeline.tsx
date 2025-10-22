@@ -4,19 +4,21 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/react-timeline-editor';
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
-import { ruleTestApi, type AllMaterialsResponse } from '@/lib/api';
-import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText, Menu, MenuItem, Tooltip } from '@mui/material';
+import { ruleTestApi, tasksApi, type AllMaterialsResponse } from '@/lib/api';
+import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText, Menu, MenuItem, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import FileDownloadIcon from '@mui/icons-material/FileDownload';
 import FileUploadIcon from '@mui/icons-material/FileUpload';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import IconButton from '@mui/material/IconButton';
 import { RuleGroupSelector } from './RuleGroupSelector';
 import { RuleGroupList } from './RuleGroupList';
 import TestDataPage from './TestDataPage';
 import { MaterialPreview } from './MaterialPreview';
 import { AddToRuleGroupDialog } from './AddToRuleGroupDialog';
+import { DownloadProgressBar } from './DownloadProgressBar';
 import './timeline.css';
 
 /**
@@ -459,6 +461,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const [fullRequestPayload, setFullRequestPayload] = useState<RuleGroupTestRequest | null>(null); // 完整的API请求载荷
   const [hiddenTrackTypes, setHiddenTrackTypes] = useState<string[]>([]); // 隐藏的轨道类型
 
+  // 异步任务相关状态
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [asyncDialogOpen, setAsyncDialogOpen] = useState(false);
+
   // 右键菜单状态
   const [contextMenu, setContextMenu] = useState<{
     mouseX: number;
@@ -568,6 +574,147 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       setAddToRuleGroupDialogOpen(true);
     }
     handleCloseContextMenu();
+  };
+
+  // 处理异步任务提交
+  const handleAsyncSubmit = async (testData: TestData) => {
+    if (!selectedRuleGroup) {
+      const message = '请先选择规则组';
+      setTestResult(message);
+      throw new Error(message);
+    }
+
+    console.log('异步提交测试数据:', testData);
+    console.log('当前规则组:', selectedRuleGroup);
+
+    // 验证测试数据中的规则类型是否都存在于规则组中
+    const missingRules: string[] = [];
+    testData.items.forEach((item) => {
+      const ruleExists = selectedRuleGroup.rules.some((rule) => rule.type === item.type);
+      if (!ruleExists && !missingRules.includes(item.type)) {
+        missingRules.push(item.type);
+      }
+    });
+
+    if (missingRules.length > 0) {
+      const message = `以下规则类型在当前规则组中不存在: ${missingRules.join(', ')}`;
+      setTestResult(message);
+      throw new Error(message);
+    }
+
+    // 预先构建素材样式映射
+    const materialStyleMap = new Map<string, Record<string, any>>();
+    tracks.forEach((track) => {
+      track.segments.forEach((segment) => {
+        if (!segment.material_id) return;
+        const stylePayload: Record<string, any> = segment.style ? { ...segment.style } : {};
+        if (segment.volume !== undefined && stylePayload.volume === undefined) {
+          stylePayload.volume = segment.volume;
+        }
+        if (segment.speed !== undefined && stylePayload.speed === undefined) {
+          stylePayload.speed = segment.speed;
+        }
+        if (Object.keys(stylePayload).length === 0) return;
+        const existing = materialStyleMap.get(segment.material_id);
+        const next = { ...(existing ?? {}) };
+        if (!next[track.id]) {
+          next[track.id] = stylePayload;
+        }
+        if (!next.__default__) {
+          next.__default__ = stylePayload;
+        }
+        materialStyleMap.set(segment.material_id, next);
+      });
+    });
+
+    // 收集测试所需的素材ID
+    const requiredMaterialIds = new Set<string>();
+    testData.items.forEach((item) => {
+      const rule = selectedRuleGroup.rules.find((r) => r.type === item.type);
+      if (rule) {
+        rule.material_ids.forEach((id) => requiredMaterialIds.add(id));
+      }
+    });
+
+    const missingMaterials: string[] = [];
+    const segmentStylesPayload: SegmentStylesPayload = {};
+    const resolvedMaterials = Array.from(requiredMaterialIds).reduce<MaterialInfo[]>((acc, id) => {
+      const material = materials?.find((m) => m.id === id);
+      if (material) {
+        const styleMap = materialStyleMap.get(id);
+        if (styleMap) {
+          segmentStylesPayload[id] = styleMap;
+        }
+        acc.push(material);
+      } else {
+        missingMaterials.push(id);
+      }
+      return acc;
+    }, []);
+
+    if (missingMaterials.length > 0) {
+      const message = `以下素材在当前草稿中未找到: ${missingMaterials.join(', ')}`;
+      setTestResult(message);
+      throw new Error(message);
+    }
+
+    const relevantRawSegments = (rawSegmentPayloads ?? []).filter((payload) => {
+      const segmentMaterialId = payload.material_id ? String(payload.material_id) : undefined;
+      if (segmentMaterialId && requiredMaterialIds.has(segmentMaterialId)) {
+        return true;
+      }
+      const refs = Array.isArray(payload.segment?.extra_material_refs)
+        ? payload.segment.extra_material_refs
+          .filter((ref: any) => ref !== undefined && ref !== null)
+          .map((ref: any) => String(ref))
+        : [];
+      return refs.some((refId) => requiredMaterialIds.has(refId));
+    });
+    const shouldUseRawSegments = relevantRawSegments.length > 0;
+    const relevantRawMaterials = rawMaterialPayloads?.filter((material) =>
+      requiredMaterialIds.has(String(material.id)),
+    );
+
+    try {
+      setTestResult('异步任务提交中...');
+
+      // 构建完整的请求载荷
+      const requestPayload = {
+        ruleGroup: selectedRuleGroup,
+        materials: resolvedMaterials,
+        testData,
+        segment_styles: Object.keys(segmentStylesPayload).length > 0 ? segmentStylesPayload : undefined,
+        use_raw_segments: shouldUseRawSegments,
+        raw_segments: shouldUseRawSegments ? relevantRawSegments : undefined,
+        raw_materials:
+          shouldUseRawSegments && relevantRawMaterials && relevantRawMaterials.length > 0
+            ? relevantRawMaterials
+            : undefined,
+        draft_config: {
+          canvas_config: {
+            canvas_width: canvasWidth,
+            canvas_height: canvasHeight,
+          },
+          config: {
+            maintrack_adsorb: false,
+          },
+          fps: fps,
+        },
+      };
+
+      // 保存完整载荷
+      setFullRequestPayload(requestPayload);
+
+      // 提交异步任务
+      const response = await tasksApi.submit(requestPayload);
+      setCurrentTaskId(response.task_id);
+      setAsyncDialogOpen(true);
+      setTestResult(`异步任务已提交: ${response.task_id}`);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : '异步任务提交失败';
+      setTestResult(`异步任务提交失败: ${message}`);
+      throw error instanceof Error ? error : new Error(String(error));
+    }
   };
 
   // 处理测试数据
@@ -1154,6 +1301,33 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 测试规则数据
               </Button>
 
+              {/* 异步提交按钮 */}
+              <Button
+                variant="outlined"
+                color="secondary"
+                startIcon={<CloudUploadIcon />}
+                onClick={() => {
+                  const testDataId = `test_data_${Date.now()}`;
+                  handleTestDataSelect(
+                    testDataId,
+                    '异步测试数据',
+                    handleAsyncSubmit,
+                    {
+                      ruleGroupId: selectedRuleGroup?.id,
+                      ruleGroup: selectedRuleGroup,
+                      materials: materials,
+                      rawSegments: rawSegmentPayloads,
+                      rawMaterials: rawMaterialPayloads,
+                      useRawSegmentsHint: Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0),
+                      fullRequestPayload: fullRequestPayload,
+                    }
+                  );
+                }}
+                fullWidth
+              >
+                异步提交任务
+              </Button>
+
               {/* 测试结果显示 */}
               {testResult && (
                 <Paper
@@ -1283,6 +1457,36 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           setActiveTab(1);
         }}
       />
+
+      {/* 异步任务进度对话框 */}
+      <Dialog
+        open={asyncDialogOpen}
+        onClose={() => setAsyncDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>异步任务进度</DialogTitle>
+        <DialogContent>
+          {currentTaskId && (
+            <DownloadProgressBar
+              taskId={currentTaskId}
+              onComplete={(draftPath) => {
+                console.log('草稿生成完成:', draftPath);
+                setTestResult(`✅ 任务完成！草稿路径: ${draftPath}`);
+                setAsyncDialogOpen(false);
+              }}
+              onError={(error) => {
+                console.error('任务失败:', error);
+                setTestResult(`❌ 任务失败: ${error}`);
+              }}
+              showDetails
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAsyncDialogOpen(false)}>关闭</Button>
+        </DialogActions>
+      </Dialog>
     </Paper>
   );
 };
