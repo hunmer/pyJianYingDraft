@@ -86,6 +86,42 @@
       ],
       "createdAt": "2025-10-22T04:21:47.762Z",
       "updatedAt": "2025-10-22T04:22:05.345Z"
+    },
+    {
+      "id": "group_1761116967876",
+      "title": "竖屏人物图片",
+      "rules": [
+        {
+          "type": "image",
+          "title": "图片",
+          "material_ids": [
+            "ff5f7281-945f-4250-ab60-5c26176c35c1"
+          ]
+        },
+        {
+          "type": "subtitle",
+          "title": "字幕",
+          "material_ids": [
+            "be2883f3-eed8-4526-8381-49876dfbabe3"
+          ]
+        },
+        {
+          "type": "vocal",
+          "title": "配音",
+          "material_ids": [
+            "c1beb48e-a939-4473-92d3-6bd5be216614"
+          ]
+        },
+        {
+          "type": "music",
+          "title": "背景音乐",
+          "material_ids": [
+            "DB484DA4-D696-44ed-8CAA-35EC1EC359A3"
+          ]
+        }
+      ],
+      "createdAt": "2025-10-22T07:09:27.876Z",
+      "updatedAt": "2025-10-22T07:11:04.546Z"
     }
   ]
 }
