@@ -490,7 +490,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       e.preventDefault();
       e.stopPropagation(); // 阻止事件冒泡
       const delta = e.deltaY > 0 ? -20 : 20; // 滚轮向下缩小,向上放大
-      setScaleWidth(prev => Math.max(60, Math.min(400, prev + delta))); // 限制在60-400px之间
+      setScaleWidth(prev => Math.max(10, Math.min(400, prev + delta))); // 限制在60-400px之间
     }
   };
 
@@ -802,7 +802,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         <Box
           className="timeline-left-panel"
           sx={{
-            width: '200px',
+            width: '80px',
             height: '100%',
             borderRight: 1,
             borderColor: 'divider',
@@ -848,7 +848,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
             {data.map((row) => {
               const trackData = (row as any).data;
               const trackType = trackData?.type || 'video';
-              const trackName = trackData?.name || '未命名轨道';
               const color = TRACK_COLORS[trackType] || '#666';
 
               const typeLabels: Record<string, string> = {
@@ -888,9 +887,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                       height: '20px',
                     }}
                   />
-                  <Typography variant="caption" noWrap sx={{ flex: 1 }}>
-                    {trackName}
-                  </Typography>
                 </Box>
               );
             })}
