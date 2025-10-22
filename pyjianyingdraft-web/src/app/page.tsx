@@ -28,6 +28,7 @@ import {
   AudioFile,
   Info,
   ClearAll,
+  Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import DraftList from '@/components/DraftList';
 import FileVersionList from '@/components/FileVersionList';
@@ -339,6 +340,35 @@ export default function Home() {
     });
     handleContextMenuClose();
   }, [handleContextMenuClose]);
+
+  // 刷新标签页
+  const handleRefreshTab = useCallback((tabId: string) => {
+    const tab = tabs.find(t => t.id === tabId);
+    if (!tab) return;
+
+    // 根据tab类型执行刷新操作
+    if (tab.type === 'draft_editor' && tab.draftPath) {
+      // 重新加载草稿数据
+      loadDraftData(tabId, tab.draftPath);
+    } else if (tab.type === 'file_diff' && tab.filePath) {
+      // 文件diff视图会通过FileDiffViewer组件内部的loadVersions自动刷新
+      // 这里我们强制触发一次刷新,通过修改tab的key
+      setTabs(prev => prev.map(t =>
+        t.id === tabId
+          ? { ...t, loading: false, error: null }
+          : t
+      ));
+    } else if (tab.type === 'test_data') {
+      // 测试数据视图刷新 - 重置错误状态
+      setTabs(prev => prev.map(t =>
+        t.id === tabId
+          ? { ...t, error: null }
+          : t
+      ));
+    }
+
+    handleContextMenuClose();
+  }, [tabs, loadDraftData, handleContextMenuClose]);
 
   /**
    * 切换tab
@@ -701,6 +731,19 @@ export default function Home() {
             : undefined
         }
       >
+        <MenuItem
+          onClick={() => {
+            if (contextMenu) {
+              handleRefreshTab(contextMenu.tabId);
+            }
+          }}
+        >
+          <ListItemIcon>
+            <RefreshIcon fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>刷新</ListItemText>
+        </MenuItem>
+        <Divider />
         <MenuItem
           onClick={() => {
             if (contextMenu) {

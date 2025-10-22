@@ -49,6 +49,9 @@ class FileVersionManager:
         # 为每个文件单独创建 Observer {file_path: Observer}
         self.observers: Dict[str, BaseObserver] = {}
 
+        # Socket.IO服务器实例(由main.py注入)
+        self.sio = None
+
         # 加载元数据
         self._load_metadata()
 
@@ -363,7 +366,37 @@ class FileVersionManager:
             info = self.watched_files[file_path]
             if info.is_watching:
                 print(f"检测到文件变化: {file_path}")
-                self._save_version(file_path)
+                new_version = self._save_version(file_path)
+
+                # 通过WebSocket广播文件变化事件
+                if self.sio:
+                    import asyncio
+                    try:
+                        # 获取新版本信息
+                        version_file = self._get_version_file_path(file_path, new_version)
+                        stat = version_file.stat()
+                        file_hash = self._get_file_hash(str(version_file))
+
+                        # 构造变化事件数据
+                        change_data = {
+                            'file_path': file_path,
+                            'version': new_version,
+                            'timestamp': datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                            'file_size': stat.st_size,
+                            'file_hash': file_hash
+                        }
+
+                        print(f"广播文件变化事件: v{new_version}")
+
+                        # 在新的事件循环中发送(因为watchdog在独立线程中)
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        loop.run_until_complete(
+                            self.sio.emit('file_changed', change_data)
+                        )
+                        loop.close()
+                    except Exception as e:
+                        print(f"广播文件变化事件失败: {e}")
 
     def _create_observer(self):
         """

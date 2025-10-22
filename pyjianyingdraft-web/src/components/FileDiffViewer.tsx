@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Box,
   Paper,
@@ -27,10 +27,10 @@ import { Diff, Hunk, parseDiff } from 'react-diff-view';
 import { diffLines } from 'diff';
 import 'react-diff-view/style/index.css';
 import {
-  fileWatchApi,
   type FileVersionInfo,
   type FileContentResponse,
 } from '@/lib/api';
+import { socketFileWatchApi } from '@/lib/socket';
 
 interface FileDiffViewerProps {
   /** 选中的文件路径 */
@@ -52,45 +52,65 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
   const [fontSize, setFontSize] = useState<number>(13); // 字体大小状态
 
   /**
-   * 加载版本列表
+   * 加载版本列表 (使用WebSocket)
    */
-  useEffect(() => {
-    const loadVersions = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        const response = await fileWatchApi.getVersions(filePath);
-        setVersions(response.versions.sort((a, b) => b.version - a.version));
+  const loadVersions = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await socketFileWatchApi.getVersions(filePath);
+      const sortedVersions = [...response.versions].sort((a, b) => b.version - a.version);
+      setVersions(sortedVersions);
 
-        // 自动选择最新两个版本
-        if (response.versions.length >= 2) {
-          const sorted = [...response.versions].sort((a, b) => b.version - a.version);
-          setSelectedVersion1(sorted[1].version);
-          setSelectedVersion2(sorted[0].version);
-        } else if (response.versions.length === 1) {
-          setSelectedVersion1(response.versions[0].version);
-        }
-      } catch (err) {
-        setError(err instanceof Error ? err.message : '加载版本列表失败');
-      } finally {
-        setLoading(false);
+      // 自动选择最新两个版本
+      if (sortedVersions.length >= 2) {
+        setSelectedVersion1(sortedVersions[1].version);
+        setSelectedVersion2(sortedVersions[0].version);
+      } else if (sortedVersions.length === 1) {
+        setSelectedVersion1(sortedVersions[0].version);
       }
-    };
-
-    if (filePath) {
-      loadVersions();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '加载版本列表失败');
+    } finally {
+      setLoading(false);
     }
   }, [filePath]);
 
+  useEffect(() => {
+    if (filePath) {
+      loadVersions();
+    }
+  }, [filePath, loadVersions]);
+
   /**
-   * 加载版本1内容
+   * 监听文件变化事件
+   */
+  useEffect(() => {
+    const unsubscribe = socketFileWatchApi.onFileChanged((data) => {
+      console.log('🔔 FileDiffViewer收到文件变化通知:', data);
+
+      // 如果是当前正在查看的文件,则重新加载版本列表
+      if (data.file_path === filePath) {
+        console.log('🔄 重新加载版本列表...');
+        loadVersions();
+      }
+    });
+
+    // 清理监听器
+    return () => {
+      unsubscribe();
+    };
+  }, [filePath, loadVersions]);
+
+  /**
+   * 加载版本1内容 (使用WebSocket)
    */
   useEffect(() => {
     const loadContent = async () => {
       if (selectedVersion1 === '') return;
 
       try {
-        const response = await fileWatchApi.getVersionContent(filePath, selectedVersion1);
+        const response = await socketFileWatchApi.getVersionContent(filePath, selectedVersion1);
         setContent1(response);
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载版本内容失败');
@@ -101,14 +121,14 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
   }, [filePath, selectedVersion1]);
 
   /**
-   * 加载版本2内容
+   * 加载版本2内容 (使用WebSocket)
    */
   useEffect(() => {
     const loadContent = async () => {
       if (selectedVersion2 === '') return;
 
       try {
-        const response = await fileWatchApi.getVersionContent(filePath, selectedVersion2);
+        const response = await socketFileWatchApi.getVersionContent(filePath, selectedVersion2);
         setContent2(response);
       } catch (err) {
         setError(err instanceof Error ? err.message : '加载版本内容失败');
