@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, Dialog, DialogActions, DialogContent, DialogTitle, TextField } from '@mui/material';
-import { TestData } from '@/types/draft';
+import type { TestData } from '@/types/rule';
 
 interface TestDataDialogProps {
   open: boolean;
@@ -9,13 +9,13 @@ interface TestDataDialogProps {
   initialData?: TestData;
 }
 
-export default function TestDataPage({ 
-  open, 
-  onClose, 
+export default function TestDataPage({
+  open,
+  onClose,
   onSave,
-  initialData 
+  initialData
 }: TestDataDialogProps) {
-  const [data, setData] = useState<TestData>(initialData || {});
+  const [data, setData] = useState<TestData>(initialData || { tracks: [], items: [] });
   
   const handleSave = () => {
     onSave(data);

@@ -671,9 +671,9 @@ export default function Home() {
                           {activeTab.draftInfo.track_count}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {activeTab.tracks.filter(t => t.type === 'video').length} 视频 /{' '}
-                          {activeTab.tracks.filter(t => t.type === 'audio').length} 音频 /{' '}
-                          {activeTab.tracks.filter(t => t.type === 'text').length} 文本
+                          {(activeTab.tracks || []).filter(t => t.type === 'video').length} 视频 /{' '}
+                          {(activeTab.tracks || []).filter(t => t.type === 'audio').length} 音频 /{' '}
+                          {(activeTab.tracks || []).filter(t => t.type === 'text').length} 文本
                         </Typography>
                       </CardContent>
                     </Card>
@@ -687,12 +687,12 @@ export default function Home() {
                           <Typography variant="h6">素材</Typography>
                         </Box>
                         <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                          {activeTab.materials.length}
+                          {(activeTab.materials || []).length}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {activeTab.materials.filter(m => m.type === 'video').length} 视频 /{' '}
-                          {activeTab.materials.filter(m => m.type === 'audio').length} 音频 /{' '}
-                          {activeTab.materials.filter(m => m.type === 'text').length} 文本
+                          {(activeTab.materials || []).filter(m => m.type === 'video').length} 视频 /{' '}
+                          {(activeTab.materials || []).filter(m => m.type === 'audio').length} 音频 /{' '}
+                          {(activeTab.materials || []).filter(m => m.type === 'text').length} 文本
                         </Typography>
                       </CardContent>
                     </Card>
@@ -701,10 +701,10 @@ export default function Home() {
               </Box>
 
               {/* 时间轴编辑器 */}
-              {activeTab.tracks.length > 0 && (
+              {(activeTab.tracks || []).length > 0 && (
                 <TimelineEditor
-                  tracks={activeTab.tracks}
-                  materials={activeTab.materials}
+                  tracks={activeTab.tracks || []}
+                  materials={activeTab.materials || []}
                   duration={activeTab.draftInfo.duration_seconds}
                   rawDraft={activeTab.rawDraft ?? undefined}
                   rawMaterials={activeTab.materialCategories ?? undefined}
