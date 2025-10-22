@@ -14,7 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import socketio
 
-from app.routers import draft, subdrafts, materials, tracks, files, rules, file_watch
+from app.routers import draft, subdrafts, materials, tracks, files, rules, file_watch, tasks
 
 # 创建Socket.IO服务器
 sio = socketio.AsyncServer(
@@ -47,6 +47,7 @@ app.include_router(tracks.router, prefix="/api/tracks", tags=["轨道管理"])
 app.include_router(files.router, prefix="/api/files", tags=["文件服务"])
 app.include_router(rules.router, prefix="/api/rules", tags=["规则测试"])
 app.include_router(file_watch.router, prefix="/api/file-watch", tags=["文件监控"])
+app.include_router(tasks.router, tags=["异步任务"])
 
 # 注入Socket.IO实例到文件版本管理器
 from app.services.file_watch_service import get_file_version_manager
@@ -117,6 +118,55 @@ async def get_version_content(sid, data):
     except Exception as e:
         await sio.emit('version_content_error', {'error': str(e)}, room=sid)
 
+# ==================== 异步任务WebSocket事件 ====================
+
+@sio.event
+async def subscribe_task(sid, data):
+    """订阅任务进度更新"""
+    try:
+        task_id = data.get('task_id')
+        if not task_id:
+            await sio.emit('subscribe_error', {'error': '任务ID不能为空'}, room=sid)
+            return
+
+        from app.services.task_queue import get_task_queue
+        queue = get_task_queue()
+
+        # 订阅任务
+        success = queue.subscribe(task_id, sid)
+
+        if success:
+            # 立即发送当前任务状态
+            task = queue.get_task(task_id)
+            if task:
+                await sio.emit('task_subscribed', {
+                    'task_id': task_id,
+                    'status': task.status.value,
+                    'progress': task.progress.model_dump() if task.progress else None
+                }, room=sid)
+            else:
+                await sio.emit('subscribe_error', {'error': f'任务不存在: {task_id}'}, room=sid)
+        else:
+            await sio.emit('subscribe_error', {'error': f'订阅失败: {task_id}'}, room=sid)
+    except Exception as e:
+        await sio.emit('subscribe_error', {'error': str(e)}, room=sid)
+
+@sio.event
+async def unsubscribe_task(sid, data):
+    """取消订阅任务进度更新"""
+    try:
+        task_id = data.get('task_id')
+        if not task_id:
+            return
+
+        from app.services.task_queue import get_task_queue
+        queue = get_task_queue()
+        queue.unsubscribe(task_id, sid)
+
+        await sio.emit('task_unsubscribed', {'task_id': task_id}, room=sid)
+    except Exception as e:
+        print(f"取消订阅失败: {e}")
+
 # 将Socket.IO集成到FastAPI
 socket_app = socketio.ASGIApp(sio, app)
 
@@ -135,3 +185,88 @@ async def root():
 async def health():
     """健康检查"""
     return {"status": "ok"}
+
+
+# ==================== 应用生命周期事件 ====================
+
+@app.on_event("startup")
+async def startup_event():
+    """应用启动事件"""
+    print("=" * 60)
+    print("🚀 pyJianYingDraft API Server 启动中...")
+    print("=" * 60)
+
+    # 启动Aria2进程管理器
+    try:
+        from app.services.aria2_manager import get_aria2_manager
+        manager = get_aria2_manager()
+
+        if manager.start():
+            print(f"✓ Aria2进程已启动")
+            print(f"  - RPC URL: {manager.get_rpc_url()}")
+            print(f"  - 下载目录: {manager.download_dir}")
+
+            # 启动健康检查
+            manager.start_health_check(interval=30)
+            print(f"✓ Aria2健康检查已启动（间隔: 30秒）")
+        else:
+            print("⚠ Aria2进程启动失败，异步下载功能将不可用")
+    except Exception as e:
+        print(f"✗ Aria2初始化失败: {e}")
+
+    # 启动任务队列进度监控
+    try:
+        from app.services.task_queue import get_task_queue
+        queue = get_task_queue()
+
+        # 注入Socket.IO实例以便推送进度
+        queue.sio = sio
+
+        await queue.start_progress_monitor()
+        print(f"✓ 任务队列进度监控已启动（间隔: 1秒）")
+    except Exception as e:
+        print(f"✗ 任务队列启动失败: {e}")
+
+    # 初始化数据库
+    try:
+        from app.db import get_database
+        await get_database()
+        print(f"✓ 数据库已初始化")
+    except Exception as e:
+        print(f"✗ 数据库初始化失败: {e}")
+
+    print("=" * 60)
+    print("✅ 服务器启动完成！")
+    print("📚 API文档: http://localhost:8000/docs")
+    print("=" * 60)
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """应用关闭事件"""
+    print("\n" + "=" * 60)
+    print("🛑 pyJianYingDraft API Server 关闭中...")
+    print("=" * 60)
+
+    # 停止任务队列进度监控
+    try:
+        from app.services.task_queue import get_task_queue
+        queue = get_task_queue()
+        await queue.stop_progress_monitor()
+        print("✓ 任务队列进度监控已停止")
+    except Exception as e:
+        print(f"✗ 停止任务队列失败: {e}")
+
+    # 停止Aria2进程
+    try:
+        from app.services.aria2_manager import get_aria2_manager
+        manager = get_aria2_manager()
+        manager.stop_health_check()
+        manager.stop()
+        print("✓ Aria2进程已停止")
+    except Exception as e:
+        print(f"✗ 停止Aria2失败: {e}")
+
+    print("=" * 60)
+    print("✅ 服务器已关闭")
+    print("=" * 60)

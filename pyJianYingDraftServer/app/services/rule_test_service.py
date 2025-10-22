@@ -147,7 +147,6 @@ class RuleTestService:
             return "effect"
         if material_type in {"sticker"}:
             return "sticker"
-        print("unknown material type:", material_type)
         return "video"
 
     @staticmethod
