@@ -15,11 +15,15 @@ import {
   Divider,
   IconButton,
   Tooltip,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import {
   Folder,
   Refresh,
   Settings,
+  FolderOpen,
+  ContentCopy,
 } from '@mui/icons-material';
 import { draftApi, type DraftListItem } from '@/lib/api';
 
@@ -38,16 +42,37 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
 
-  // 从localStorage加载基础路径
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    draft: DraftListItem | null;
+  } | null>(null);
+
+  // 检查是否在 Electron 环境
+  const isElectron = typeof window !== 'undefined' && (window as any).electron;
+
+  // 从后端加载草稿根目录配置
   useEffect(() => {
-    const savedPath = localStorage.getItem('draftsBasePath');
-    if (savedPath) {
-      setBasePath(savedPath);
-      // 自动加载草稿列表
-      loadDrafts(savedPath);
-    } else {
-      setShowSettings(true);
-    }
+    const loadDraftRoot = async () => {
+      try {
+        const response = await draftApi.getDraftRoot();
+        const rootPath = response.draft_root;
+
+        if (rootPath) {
+          setBasePath(rootPath);
+          // 自动加载草稿列表
+          loadDrafts(rootPath);
+        } else {
+          setShowSettings(true);
+        }
+      } catch (err) {
+        console.error('加载草稿根目录配置失败:', err);
+        setShowSettings(true);
+      }
+    };
+
+    loadDraftRoot();
   }, []);
 
   /**
@@ -68,8 +93,13 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
       const response = await draftApi.list(pathToUse);
       setDrafts(response.drafts);
 
-      // 保存路径到localStorage
-      localStorage.setItem('draftsBasePath', pathToUse);
+      // 保存路径到后端配置
+      try {
+        await draftApi.setDraftRoot(pathToUse);
+      } catch (err) {
+        console.warn('保存草稿根目录到后端失败:', err);
+      }
+
       setShowSettings(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '加载草稿列表失败';
@@ -107,6 +137,93 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
     onDraftSelect(draft.path, draft.name);
   };
 
+  /**
+   * 处理右键菜单
+   */
+  const handleContextMenu = (event: React.MouseEvent, draft: DraftListItem) => {
+    event.preventDefault();
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      draft,
+    });
+  };
+
+  /**
+   * 关闭右键菜单
+   */
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  /**
+   * 复制路径到剪贴板
+   */
+  const handleCopyPath = () => {
+    if (!contextMenu?.draft) {
+      handleCloseContextMenu();
+      return;
+    }
+
+    if (isElectron) {
+      (window as any).electron.fs.copyToClipboard(contextMenu.draft.path)
+        .then(() => {
+          console.log('路径已复制:', contextMenu.draft!.path);
+        })
+        .catch((err: Error) => {
+          console.error('复制失败:', err);
+          alert(`复制失败: ${err.message}`);
+        });
+    } else {
+      // 浏览器环境回退方案
+      navigator.clipboard.writeText(contextMenu.draft.path).catch((err) => {
+        console.error('复制失败:', err);
+      });
+    }
+    handleCloseContextMenu();
+  };
+
+  /**
+   * 在文件管理器中打开
+   */
+  const handleOpenInFolder = () => {
+    if (!contextMenu?.draft) {
+      handleCloseContextMenu();
+      return;
+    }
+
+    if (isElectron) {
+      (window as any).electron.fs.showInFolder(contextMenu.draft.path)
+        .catch((err: Error) => {
+          console.error('打开文件夹失败:', err);
+          alert(`打开文件夹失败: ${err.message}`);
+        });
+    } else {
+      alert('此功能仅在 Electron 环境下可用');
+    }
+    handleCloseContextMenu();
+  };
+
+  /**
+   * 打开草稿根目录
+   */
+  const handleOpenDraftRootFolder = () => {
+    if (!basePath) {
+      alert('未设置草稿根目录');
+      return;
+    }
+
+    if (isElectron) {
+      (window as any).electron.fs.openFolder(basePath)
+        .catch((err: Error) => {
+          console.error('打开文件夹失败:', err);
+          alert(`打开文件夹失败: ${err.message}`);
+        });
+    } else {
+      alert('此功能仅在 Electron 环境下可用');
+    }
+  };
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* 头部 */}
@@ -117,6 +234,13 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
             草稿列表
           </Typography>
           <Box>
+            {isElectron && basePath && (
+              <Tooltip title="打开草稿文件夹">
+                <IconButton size="small" onClick={handleOpenDraftRootFolder}>
+                  <FolderOpen />
+                </IconButton>
+              </Tooltip>
+            )}
             <Tooltip title="刷新">
               <IconButton size="small" onClick={() => loadDrafts()} disabled={loading}>
                 <Refresh />
@@ -178,6 +302,7 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
                 <ListItemButton
                   selected={selectedDraftPath === draft.path}
                   onClick={() => handleDraftClick(draft)}
+                  onContextMenu={(e) => handleContextMenu(e, draft)}
                   sx={{
                     py: 1.5,
                     '&.Mui-selected': {
@@ -215,6 +340,27 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
           </Typography>
         </Box>
       )}
+
+      {/* 右键菜单 */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleCloseContextMenu}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+      >
+        <MenuItem onClick={handleCopyPath}>
+          <ContentCopy sx={{ mr: 1 }} fontSize="small" />
+          复制完整路径
+        </MenuItem>
+        <MenuItem onClick={handleOpenInFolder}>
+          <FolderOpen sx={{ mr: 1 }} fontSize="small" />
+          打开文件夹位置
+        </MenuItem>
+      </Menu>
     </Box>
   );
 }

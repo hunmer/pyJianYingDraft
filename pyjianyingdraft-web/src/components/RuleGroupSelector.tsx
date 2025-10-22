@@ -29,6 +29,7 @@ import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
 import type { RuleGroup, Rule } from '@/types/rule';
 import { DEFAULT_RULES } from '@/config/defaultRules';
+import { draftApi } from '@/lib/api';
 
 interface RuleGroupSelectorProps {
   /** 当前选中的规则组 */
@@ -53,48 +54,49 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
   // 文件上传 ref
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
-  // 初始化:创建默认规则组
+  // 初始化:从后端加载规则组
   useEffect(() => {
-    const defaultGroup: RuleGroup = {
-      id: 'default',
-      title: '默认规则组',
-      rules: DEFAULT_RULES,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+    const loadRuleGroups = async () => {
+      const defaultGroup: RuleGroup = {
+        id: 'default',
+        title: '默认规则组',
+        rules: DEFAULT_RULES,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      try {
+        // 从后端加载已保存的规则组
+        const response = await draftApi.getRuleGroups();
+        const savedGroups = response.rule_groups as RuleGroup[];
+
+        // 如果没有默认规则组,添加它
+        const hasDefault = savedGroups.some(g => g.id === 'default');
+        const allGroups = hasDefault ? savedGroups : [defaultGroup, ...savedGroups];
+
+        setRuleGroups(allGroups);
+
+        // 如果没有选中的规则组,默认选中第一个
+        if (!value && allGroups.length > 0) {
+          onChange(allGroups[0]);
+        }
+      } catch (error) {
+        console.error('从后端加载规则组失败:', error);
+        // 如果加载失败，使用默认规则组
+        setRuleGroups([defaultGroup]);
+        onChange(defaultGroup);
+      }
     };
 
-    // 从 localStorage 加载已保存的规则组
-    const savedGroups = loadRuleGroupsFromStorage();
-
-    // 如果没有默认规则组,添加它
-    const hasDefault = savedGroups.some(g => g.id === 'default');
-    const allGroups = hasDefault ? savedGroups : [defaultGroup, ...savedGroups];
-
-    setRuleGroups(allGroups);
-
-    // 如果没有选中的规则组,默认选中第一个
-    if (!value && allGroups.length > 0) {
-      onChange(allGroups[0]);
-    }
+    loadRuleGroups();
   }, []);
 
-  // 保存规则组到 localStorage
-  const saveRuleGroupsToStorage = (groups: RuleGroup[]) => {
+  // 保存规则组到后端
+  const saveRuleGroupsToBackend = async (groups: RuleGroup[]) => {
     try {
-      localStorage.setItem('ruleGroups', JSON.stringify(groups));
+      await draftApi.setRuleGroups(groups);
     } catch (error) {
-      console.error('Failed to save rule groups:', error);
-    }
-  };
-
-  // 从 localStorage 加载规则组
-  const loadRuleGroupsFromStorage = (): RuleGroup[] => {
-    try {
-      const saved = localStorage.getItem('ruleGroups');
-      return saved ? JSON.parse(saved) : [];
-    } catch (error) {
-      console.error('Failed to load rule groups:', error);
-      return [];
+      console.error('保存规则组到后端失败:', error);
     }
   };
 
@@ -123,7 +125,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
 
     const updatedGroups = [...ruleGroups, newGroup];
     setRuleGroups(updatedGroups);
-    saveRuleGroupsToStorage(updatedGroups);
+    saveRuleGroupsToBackend(updatedGroups);
 
     // 自动选中新创建的规则组
     onChange(newGroup);
@@ -142,7 +144,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
 
     const updatedGroups = ruleGroups.filter(g => g.id !== groupId);
     setRuleGroups(updatedGroups);
-    saveRuleGroupsToStorage(updatedGroups);
+    saveRuleGroupsToBackend(updatedGroups);
 
     // 如果删除的是当前选中的规则组,切换到第一个
     if (value?.id === groupId) {
@@ -235,7 +237,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
 
       const updatedGroups = [...ruleGroups, clonedGroup];
       setRuleGroups(updatedGroups);
-      saveRuleGroupsToStorage(updatedGroups);
+      saveRuleGroupsToBackend(updatedGroups);
 
       // 自动选中克隆的规则组
       onChange(clonedGroup);
@@ -290,7 +292,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
 
       const updatedGroups = [...ruleGroups, newGroup];
       setRuleGroups(updatedGroups);
-      saveRuleGroupsToStorage(updatedGroups);
+      saveRuleGroupsToBackend(updatedGroups);
 
       // 自动选中导入的规则组
       onChange(newGroup);

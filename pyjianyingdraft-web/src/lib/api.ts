@@ -106,6 +106,56 @@ export const draftApi = {
     const response = await fetch(url);
     return handleResponse<DraftListResponse>(response);
   },
+
+  /**
+   * 获取草稿根目录配置
+   */
+  async getDraftRoot(): Promise<{ draft_root: string }> {
+    const url = `${API_BASE_URL}/api/draft/config/root`;
+    const response = await fetch(url);
+    return handleResponse<{ draft_root: string }>(response);
+  },
+
+  /**
+   * 设置草稿根目录配置
+   * @param draftRoot - 草稿根目录路径
+   */
+  async setDraftRoot(draftRoot: string): Promise<{ draft_root: string; message: string }> {
+    const url = `${API_BASE_URL}/api/draft/config/root`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ draft_root: draftRoot }),
+    });
+    return handleResponse<{ draft_root: string; message: string }>(response);
+  },
+
+  /**
+   * 获取规则组配置
+   */
+  async getRuleGroups(): Promise<{ rule_groups: any[] }> {
+    const url = `${API_BASE_URL}/api/draft/config/rule-groups`;
+    const response = await fetch(url);
+    return handleResponse<{ rule_groups: any[] }>(response);
+  },
+
+  /**
+   * 设置规则组配置
+   * @param ruleGroups - 规则组列表
+   */
+  async setRuleGroups(ruleGroups: any[]): Promise<{ rule_groups: any[]; message: string }> {
+    const url = `${API_BASE_URL}/api/draft/config/rule-groups`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ rule_groups: ruleGroups }),
+    });
+    return handleResponse<{ rule_groups: any[]; message: string }>(response);
+  },
 };
 
 /**

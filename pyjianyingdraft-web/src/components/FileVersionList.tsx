@@ -23,6 +23,8 @@ import {
   Alert,
   CircularProgress,
   Tooltip,
+  Menu,
+  MenuItem,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -57,6 +59,13 @@ export default function FileVersionList({
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [newFilePath, setNewFilePath] = useState('');
   const [newWatchName, setNewWatchName] = useState('');
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    file: WatchedFileInfo | null;
+  } | null>(null);
 
   /**
    * 加载监控文件列表
@@ -165,6 +174,51 @@ export default function FileVersionList({
     onFileSelect?.(filePath);
   };
 
+  /**
+   * 处理右键菜单
+   */
+  const handleContextMenu = (event: React.MouseEvent, file: WatchedFileInfo) => {
+    event.preventDefault();
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      file,
+    });
+  };
+
+  /**
+   * 关闭右键菜单
+   */
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  /**
+   * 从右键菜单切换监听状态
+   */
+  const handleToggleWatchFromMenu = async () => {
+    if (!contextMenu?.file) {
+      handleCloseContextMenu();
+      return;
+    }
+
+    await handleToggleWatch(contextMenu.file);
+    handleCloseContextMenu();
+  };
+
+  /**
+   * 从右键菜单删除
+   */
+  const handleRemoveFromMenu = async () => {
+    if (!contextMenu?.file) {
+      handleCloseContextMenu();
+      return;
+    }
+
+    await handleRemoveWatch(contextMenu.file.file_path);
+    handleCloseContextMenu();
+  };
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* 头部 */}
@@ -228,35 +282,11 @@ export default function FileVersionList({
 
           {watchedFiles.map((file) => (
             <React.Fragment key={file.file_path}>
-              <ListItem
-                disablePadding
-                secondaryAction={
-                  <Box>
-                    <Tooltip title={file.is_watching ? '停止监控' : '开始监控'}>
-                      <IconButton
-                        edge="end"
-                        size="small"
-                        onClick={() => handleToggleWatch(file)}
-                        color={file.is_watching ? 'success' : 'default'}
-                      >
-                        {file.is_watching ? <StopIcon /> : <PlayIcon />}
-                      </IconButton>
-                    </Tooltip>
-                    <Tooltip title="删除">
-                      <IconButton
-                        edge="end"
-                        size="small"
-                        onClick={() => handleRemoveWatch(file.file_path)}
-                      >
-                        <DeleteIcon />
-                      </IconButton>
-                    </Tooltip>
-                  </Box>
-                }
-              >
+              <ListItem disablePadding>
                 <ListItemButton
                   selected={selectedFilePath === file.file_path}
                   onClick={() => handleSelectFile(file.file_path)}
+                  onContextMenu={(e) => handleContextMenu(e, file)}
                 >
                   <ListItemIcon>
                     <FileIcon />
@@ -332,6 +362,36 @@ export default function FileVersionList({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 右键菜单 */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleCloseContextMenu}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+      >
+        <MenuItem onClick={handleToggleWatchFromMenu}>
+          {contextMenu?.file?.is_watching ? (
+            <>
+              <StopIcon sx={{ mr: 1 }} fontSize="small" />
+              停止监听
+            </>
+          ) : (
+            <>
+              <PlayIcon sx={{ mr: 1 }} fontSize="small" />
+              开始监听
+            </>
+          )}
+        </MenuItem>
+        <MenuItem onClick={handleRemoveFromMenu}>
+          <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
+          删除
+        </MenuItem>
+      </Menu>
     </Box>
   );
 }

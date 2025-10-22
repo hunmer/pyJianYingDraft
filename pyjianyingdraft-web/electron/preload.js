@@ -9,18 +9,35 @@ contextBridge.exposeInMainWorld('electron', {
     chrome: process.versions.chrome,
     electron: process.versions.electron
   },
-  // 示例:发送消息到主进程
-  // send: (channel, data) => {
-  //   const validChannels = ['toMain'];
-  //   if (validChannels.includes(channel)) {
-  //     ipcRenderer.send(channel, data);
-  //   }
-  // },
-  // 示例:接收来自主进程的消息
-  // receive: (channel, func) => {
-  //   const validChannels = ['fromMain'];
-  //   if (validChannels.includes(channel)) {
-  //     ipcRenderer.on(channel, (event, ...args) => func(...args));
-  //   }
-  // }
+
+  // 文件系统操作 API
+  fs: {
+    /**
+     * 复制文本到剪贴板
+     * @param {string} text - 要复制的文本
+     * @returns {Promise<void>}
+     */
+    copyToClipboard: (text) => ipcRenderer.invoke('fs:copy-to-clipboard', text),
+
+    /**
+     * 使用系统默认程序打开文件
+     * @param {string} filePath - 文件路径
+     * @returns {Promise<void>}
+     */
+    openFile: (filePath) => ipcRenderer.invoke('fs:open-file', filePath),
+
+    /**
+     * 在文件管理器中显示文件
+     * @param {string} filePath - 文件路径
+     * @returns {Promise<void>}
+     */
+    showInFolder: (filePath) => ipcRenderer.invoke('fs:show-in-folder', filePath),
+
+    /**
+     * 打开文件夹
+     * @param {string} folderPath - 文件夹路径
+     * @returns {Promise<void>}
+     */
+    openFolder: (folderPath) => ipcRenderer.invoke('fs:open-folder', folderPath),
+  }
 });

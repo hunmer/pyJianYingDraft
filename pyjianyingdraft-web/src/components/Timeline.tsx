@@ -5,7 +5,7 @@ import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
 import { ruleTestApi, type AllMaterialsResponse } from '@/lib/api';
-import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText } from '@mui/material';
+import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText, Menu, MenuItem, Tooltip } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -222,43 +222,85 @@ const CustomAction: React.FC<{
   row: TimelineRow;
   isSelected?: boolean;
   onClick?: () => void;
-}> = ({ action, row, isSelected = false, onClick }) => {
+  onContextMenu?: (event: React.MouseEvent, action: TimelineAction, row: TimelineRow) => void;
+  material?: MaterialInfo;
+}> = ({ action, row, isSelected = false, onClick, onContextMenu, material }) => {
   const trackType = (row as any).data?.type || 'video';
   const color = TRACK_COLORS[trackType] || '#666';
   const name = (action as any).data?.name || '未命名';
   const speed = (action as any).data?.speed;
   const volume = (action as any).data?.volume;
 
+  const handleContextMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    onContextMenu?.(event, action, row);
+  };
+
+  // 创建悬浮预览内容
+  const tooltipContent = material ? (
+    <Box sx={{ maxWidth: 300 }}>
+      <MaterialPreview material={material} />
+      <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
+        {material.name || name}
+      </Typography>
+      {material.path && (
+        <Typography variant="caption" sx={{ color: 'grey.400', display: 'block', wordBreak: 'break-all' }}>
+          {material.path}
+        </Typography>
+      )}
+    </Box>
+  ) : (
+    name
+  );
+
   return (
-    <Box
-      onClick={onClick}
-      sx={{
-        width: '100%',
-        height: '100%',
-        backgroundColor: color,
-        color: 'white',
-        borderRadius: 1,
-        padding: 0.5,
-        overflow: 'hidden',
-        fontSize: '12px',
-        fontWeight: 500,
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'center',
-        cursor: 'pointer',
-        border: isSelected ? '2px solid #fff' : '2px solid transparent',
-        boxShadow: isSelected ? '0 0 0 2px rgba(25, 118, 210, 0.5)' : 'none',
-        transition: 'all 0.2s ease',
-        '&:hover': {
-          opacity: 0.9,
-          transform: 'scale(1.02)',
-        },
+    <Tooltip
+      title={tooltipContent}
+      placement="top"
+      arrow
+      enterDelay={500}
+      componentsProps={{
+        tooltip: {
+          sx: {
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            maxWidth: 320,
+            p: 1.5,
+          }
+        }
       }}
     >
-      <Typography variant="caption" noWrap sx={{ color: 'white', fontWeight: 500 }}>
-        {name}
-      </Typography>
-    </Box>
+      <Box
+        onClick={onClick}
+        onContextMenu={handleContextMenu}
+        sx={{
+          width: '100%',
+          height: '100%',
+          backgroundColor: color,
+          color: 'white',
+          borderRadius: 1,
+          padding: 0.5,
+          overflow: 'hidden',
+          fontSize: '12px',
+          fontWeight: 500,
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'center',
+          cursor: 'pointer',
+          border: isSelected ? '2px solid #fff' : '2px solid transparent',
+          boxShadow: isSelected ? '0 0 0 2px rgba(25, 118, 210, 0.5)' : 'none',
+          transition: 'all 0.2s ease',
+          '&:hover': {
+            opacity: 0.9,
+            transform: 'scale(1.02)',
+          },
+        }}
+      >
+        <Typography variant="caption" noWrap sx={{ color: 'white', fontWeight: 500 }}>
+          {name}
+        </Typography>
+      </Box>
+    </Tooltip>
   );
 };
 
@@ -417,6 +459,14 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const [fullRequestPayload, setFullRequestPayload] = useState<RuleGroupTestRequest | null>(null); // 完整的API请求载荷
   const [hiddenTrackTypes, setHiddenTrackTypes] = useState<string[]>([]); // 隐藏的轨道类型
 
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    action: TimelineAction | null;
+    row: TimelineRow | null;
+  } | null>(null);
+
   // 将轨道数据转换为Timeline格式，并过滤隐藏的轨道类型
   useEffect(() => {
     const rows = tracks
@@ -461,6 +511,64 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       };
     }
   }, []);
+
+  // 处理右键菜单
+  const handleContextMenu = (event: React.MouseEvent, action: TimelineAction, row: TimelineRow) => {
+    event.preventDefault();
+    event.stopPropagation(); // 阻止事件冒泡
+
+    // 使用全局坐标,因为 anchorPosition 需要全局坐标
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      action,
+      row,
+    });
+  };
+
+  // 关闭右键菜单
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  // 从右键菜单打开预览文件
+  const handleOpenPreviewFile = () => {
+    if (!contextMenu || !contextMenu.action) {
+      handleCloseContextMenu();
+      return;
+    }
+
+    const material = materials.find(m => m.id === contextMenu.action!.effectId);
+    if (material && material.path) {
+      // 检查是否在 Electron 环境
+      if (typeof window !== 'undefined' && (window as any).electron?.fs?.openFile) {
+        (window as any).electron.fs.openFile(material.path).catch((err: Error) => {
+          console.error('打开文件失败:', err);
+          alert(`打开文件失败: ${err.message}`);
+        });
+      } else {
+        alert('此功能仅在 Electron 环境下可用');
+      }
+    } else {
+      alert('未找到素材文件路径');
+    }
+    handleCloseContextMenu();
+  };
+
+  // 从右键菜单添加到规则组
+  const handleAddToRuleGroupFromContextMenu = () => {
+    if (!contextMenu || !contextMenu.action) {
+      handleCloseContextMenu();
+      return;
+    }
+
+    const material = materials.find(m => m.id === contextMenu.action!.effectId);
+    if (material) {
+      setSelectedActionId(contextMenu.action.id);
+      setAddToRuleGroupDialogOpen(true);
+    }
+    handleCloseContextMenu();
+  };
 
   // 处理测试数据
   const handleTestData = async (testData: TestData) => {
@@ -682,7 +790,14 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         </Box>
       </Box>
 
-      <Box className="timeline-editor-main-container" sx={{ display: 'flex', height: '500px' }}>
+      <Box
+        className="timeline-editor-main-container"
+        sx={{
+          display: 'flex',
+          height: '500px',
+          position: 'relative', // 添加相对定位,使菜单相对于此容器定位
+        }}
+      >
         {/* 左侧轨道列表 */}
         <Box
           className="timeline-left-panel"
@@ -817,17 +932,22 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               }
             }}
             // 自定义渲染器
-            getActionRender={(action, row) => (
-              <CustomAction
-                action={action}
-                row={row}
-                isSelected={selectedActionId === action.id}
-                onClick={() => {
-                  setSelectedActionId(action.id);
-                  setActiveTab(0); // 切换到素材信息 tab
-                }}
-              />
-            )}
+            getActionRender={(action, row) => {
+              const material = materials.find(m => m.id === action.effectId);
+              return (
+                <CustomAction
+                  action={action}
+                  row={row}
+                  isSelected={selectedActionId === action.id}
+                  onClick={() => {
+                    setSelectedActionId(action.id);
+                    setActiveTab(0); // 切换到素材信息 tab
+                  }}
+                  onContextMenu={handleContextMenu}
+                  material={material}
+                />
+              );
+            }}
             getScaleRender={(scale) => (
               <Box sx={{ textAlign: 'center', fontSize: '12px', color: '#333', fontWeight: 500 }}>
                 {scale.toFixed(1)}s
@@ -855,7 +975,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
             sx={{ borderBottom: 1, borderColor: 'divider', minHeight: '42px' }}
           >
             <Tab label="素材信息" sx={{ minHeight: '42px' }} />
-            <Tab label="预设组" sx={{ minHeight: '42px' }} />
+            <Tab label="规则组" sx={{ minHeight: '42px' }} />
           </Tabs>
 
           <TabPanel value={activeTab} index={0}>
@@ -978,7 +1098,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                         </>
                       )}
 
-                      {/* 添加到预设组按钮 */}
+                      {/* 添加到规则组按钮 */}
                       {material && (
                         <>
                           <Divider />
@@ -988,7 +1108,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                             onClick={() => setAddToRuleGroupDialogOpen(true)}
                             fullWidth
                           >
-                            添加到预设组
+                            添加到规则组
                           </Button>
                         </>
                       )}
@@ -1064,6 +1184,33 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
             </Box>
           </TabPanel>
         </Box>
+
+        {/* 右键菜单 */}
+        <Menu
+          open={contextMenu !== null}
+          onClose={handleCloseContextMenu}
+          anchorReference="anchorPosition"
+          anchorPosition={
+            contextMenu !== null
+              ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+              : undefined
+          }
+          disableScrollLock={true}
+          sx={{
+            '& .MuiPaper-root': {
+              maxHeight: '300px',
+            }
+          }}
+        >
+          <MenuItem onClick={handleAddToRuleGroupFromContextMenu}>
+            <AddBoxIcon sx={{ mr: 1 }} fontSize="small" />
+            添加到规则组
+          </MenuItem>
+          <MenuItem onClick={handleOpenPreviewFile}>
+            <VisibilityIcon sx={{ mr: 1 }} fontSize="small" />
+            打开预览文件
+          </MenuItem>
+        </Menu>
       </Box>
 
       {/* 轨道类型切换按钮 */}
@@ -1112,7 +1259,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         />
       )}
 
-      {/* 添加到预设组对话框 */}
+      {/* 添加到规则组对话框 */}
       <AddToRuleGroupDialog
         open={addToRuleGroupDialogOpen}
         onClose={() => setAddToRuleGroupDialogOpen(false)}
@@ -1136,7 +1283,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           setSelectedRuleGroup(updatedRuleGroup);
           // 显示成功消息
           setTestResult(`规则添加成功! 规则组"${updatedRuleGroup.title}"现在有 ${updatedRuleGroup.rules.length} 条规则`);
-          // 切换到预设组Tab
+          // 切换到规则组Tab
           setActiveTab(1);
         }}
       />

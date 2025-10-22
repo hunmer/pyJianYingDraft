@@ -2,13 +2,29 @@
 草稿文件基础操作路由
 """
 
-from fastapi import APIRouter, HTTPException, Query
-from typing import Optional
+from fastapi import APIRouter, HTTPException, Query, Body
+from typing import Optional, List, Dict, Any
+from pydantic import BaseModel
 
 from app.models.draft_models import DraftInfo
 from app.services.draft_service import DraftService
+from app.config import get_config, update_config
 
 router = APIRouter()
+
+
+class DraftRootConfig(BaseModel):
+    """草稿根目录配置"""
+    draft_root: str
+
+
+class RuleGroupsConfig(BaseModel):
+    """规则组配置"""
+    rule_groups: List[Dict[str, Any]]
+
+
+DRAFT_ROOT_CONFIG_KEY = "PYJY_DRAFT_ROOT"
+RULE_GROUPS_CONFIG_KEY = "PYJY_RULE_GROUPS"
 
 
 @router.get("/info", response_model=DraftInfo)
@@ -106,3 +122,90 @@ async def list_drafts(
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"列出草稿失败: {str(e)}")
+
+
+@router.get("/config/root")
+async def get_draft_root():
+    """
+    获取草稿根目录配置
+
+    Returns:
+        草稿根目录路径，如果未配置则返回空字符串
+    """
+    try:
+        draft_root = get_config(DRAFT_ROOT_CONFIG_KEY, "")
+        return {
+            "draft_root": draft_root
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取配置失败: {str(e)}")
+
+
+@router.post("/config/root")
+async def set_draft_root(config: DraftRootConfig):
+    """
+    设置草稿根目录配置
+
+    Args:
+        config: 包含draft_root的配置对象
+
+    Returns:
+        更新后的配置
+    """
+    try:
+        # 验证路径是否存在
+        import os
+        if config.draft_root and not os.path.exists(config.draft_root):
+            raise HTTPException(status_code=400, detail=f"目录不存在: {config.draft_root}")
+
+        # 更新配置
+        update_config(DRAFT_ROOT_CONFIG_KEY, config.draft_root)
+
+        return {
+            "draft_root": config.draft_root,
+            "message": "草稿根目录配置已更新"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新配置失败: {str(e)}")
+
+
+@router.get("/config/rule-groups")
+async def get_rule_groups():
+    """
+    获取规则组配置
+
+    Returns:
+        规则组列表,如果未配置则返回空列表
+    """
+    try:
+        rule_groups = get_config(RULE_GROUPS_CONFIG_KEY, [])
+        return {
+            "rule_groups": rule_groups
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取规则组配置失败: {str(e)}")
+
+
+@router.post("/config/rule-groups")
+async def set_rule_groups(config: RuleGroupsConfig):
+    """
+    设置规则组配置
+
+    Args:
+        config: 包含rule_groups的配置对象
+
+    Returns:
+        更新后的配置
+    """
+    try:
+        # 更新配置
+        update_config(RULE_GROUPS_CONFIG_KEY, config.rule_groups)
+
+        return {
+            "rule_groups": config.rule_groups,
+            "message": "规则组配置已更新"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新规则组配置失败: {str(e)}")
