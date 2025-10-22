@@ -123,6 +123,10 @@ class TaskQueue:
             draft_config=request.draft_config,
             materials=request.materials,
             test_data=request.testData,
+            segment_styles=request.segment_styles,
+            use_raw_segments=request.use_raw_segments,
+            raw_segments=request.raw_segments,
+            raw_materials=request.raw_materials,
             created_at=datetime.now(),
             updated_at=datetime.now()
         )
@@ -527,14 +531,16 @@ class TaskQueue:
                 ruleGroup=task.rule_group or {},  # 使用完整的规则组对象
                 materials=task.materials or [],  # 直接使用materials（已是列表格式）
                 testData=task.test_data or {},
-                draft_config=task.draft_config or {}
+                draft_config=task.draft_config or {},
+                segment_styles=task.segment_styles,
+                use_raw_segments=task.use_raw_segments,
+                raw_segments=task.raw_segments,
+                raw_materials=task.raw_materials
             )
 
             # 同步调用草稿生成（在线程池中执行以避免阻塞）
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(RuleTestService.run_test, request)
-                response = await asyncio.get_running_loop().run_in_executor(None, future.result)
+            loop = asyncio.get_running_loop()
+            response = await loop.run_in_executor(None, RuleTestService.run_test, request)
 
             # 更新任务状态为完成
             task.status = TaskStatus.COMPLETED
