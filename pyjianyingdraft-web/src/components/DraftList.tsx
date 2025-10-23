@@ -237,7 +237,6 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
       <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
           <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Folder />
             草稿列表
           </Typography>
           <Box>

@@ -264,12 +264,28 @@ export default function Home() {
     if (savedTabs) {
       try {
         const parsedTabs: TabData[] = JSON.parse(savedTabs);
-        setTabs(parsedTabs);
 
-        if (savedActiveTabId && parsedTabs.some(t => t.id === savedActiveTabId)) {
+        // 为test_data类型的tab恢复onTestData回调函数(因为函数无法序列化)
+        const restoredTabs = parsedTabs.map(tab => {
+          if (tab.type === 'test_data' && !tab.onTestData) {
+            return {
+              ...tab,
+              onTestData: async () => {
+                console.log('[恢复的tab] 执行测试回调,testDataId:', tab.testDataId);
+                return Promise.resolve();
+              }
+            };
+          }
+          return tab;
+        });
+
+        setTabs(restoredTabs);
+        console.log('[页面恢复] 恢复了', restoredTabs.length, '个tabs');
+
+        if (savedActiveTabId && restoredTabs.some(t => t.id === savedActiveTabId)) {
           setActiveTabId(savedActiveTabId);
-        } else if (parsedTabs.length > 0) {
-          setActiveTabId(parsedTabs[0].id);
+        } else if (restoredTabs.length > 0) {
+          setActiveTabId(restoredTabs[0].id);
         }
       } catch (e) {
         console.error('恢复tabs失败:', e);
