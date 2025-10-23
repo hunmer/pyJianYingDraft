@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Select,
   MenuItem,
@@ -13,153 +13,87 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  IconButton,
   Typography,
   Divider,
   Alert,
   ButtonGroup,
-  Menu
+  Menu,
+  Tooltip,
+  CircularProgress,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
-import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import FileCopyIcon from '@mui/icons-material/FileCopy';
-import type { RuleGroup, Rule } from '@/types/rule';
-import { DEFAULT_RULES } from '@/config/defaultRules';
-import { draftApi } from '@/lib/api';
+import SaveIcon from '@mui/icons-material/Save';
+import type { RuleGroup } from '@/types/rule';
 
 interface RuleGroupSelectorProps {
   /** 当前选中的规则组 */
   value: RuleGroup | null;
   /** 选择变化回调 */
   onChange: (ruleGroup: RuleGroup | null) => void;
+  /** 所有可用的规则组 */
+  ruleGroups: RuleGroup[];
+  /** 规则组变更回调 */
+  onRuleGroupsChange?: (ruleGroups: RuleGroup[]) => void;
+  /** 保存到草稿目录 */
+  onSaveToDraft?: (ruleGroups: RuleGroup[]) => Promise<void> | void;
+  /** 是否禁用交互 */
+  disabled?: boolean;
+  /** 显示加载状态 */
+  loading?: boolean;
 }
 
-/**
- * 规则组选择器组件
- */
-export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onChange }) => {
-  const [ruleGroups, setRuleGroups] = useState<RuleGroup[]>([]);
+const buildRuleGroupTitle = (title: string, index: number): string =>
+  title || `未命名规则组 ${index + 1}`;
+
+const cloneRuleGroups = (groups: RuleGroup[]): RuleGroup[] =>
+  groups.map((group) => ({
+    ...group,
+    rules: Array.isArray(group.rules) ? group.rules.map(rule => ({ ...rule })) : [],
+  }));
+
+export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
+  value,
+  onChange,
+  ruleGroups,
+  onRuleGroupsChange,
+  onSaveToDraft,
+  disabled = false,
+  loading = false,
+}) => {
+  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
+  const menuOpen = Boolean(menuAnchorEl);
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
   const [newGroupTitle, setNewGroupTitle] = useState('');
   const [createError, setCreateError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [localRuleGroups, setLocalRuleGroups] = useState<RuleGroup[]>(ruleGroups);
+  const selectionId = useMemo(() => value?.id ?? null, [value]);
 
-  // 下拉菜单状态
-  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const menuOpen = Boolean(menuAnchorEl);
-
-  // 文件上传 ref
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-
-  // 初始化:从后端加载规则组
   useEffect(() => {
-    const loadRuleGroups = async () => {
-      const defaultGroup: RuleGroup = {
-        id: 'default',
-        title: '默认规则组',
-        rules: DEFAULT_RULES,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+    setLocalRuleGroups(cloneRuleGroups(ruleGroups));
+  }, [ruleGroups]);
 
-      try {
-        // 从后端加载已保存的规则组
-        const response = await draftApi.getRuleGroups();
-        const savedGroups = response.rule_groups as RuleGroup[];
-
-        // 如果没有默认规则组,添加它
-        const hasDefault = savedGroups.some(g => g.id === 'default');
-        const allGroups = hasDefault ? savedGroups : [defaultGroup, ...savedGroups];
-
-        setRuleGroups(allGroups);
-
-        // 如果没有选中的规则组,默认选中第一个
-        if (!value && allGroups.length > 0) {
-          onChange(allGroups[0]);
-        }
-      } catch (error) {
-        console.error('从后端加载规则组失败:', error);
-        // 如果加载失败，使用默认规则组
-        setRuleGroups([defaultGroup]);
-        onChange(defaultGroup);
+  useEffect(() => {
+    if (localRuleGroups.length === 0) {
+      onChange(null);
+      return;
+    }
+    const currentId = selectionId;
+    if (currentId) {
+      const match = localRuleGroups.find(group => group.id === currentId);
+      if (match) {
+        onChange(match);
+        return;
       }
-    };
-
-    loadRuleGroups();
-  }, []);
-
-  // 保存规则组到后端
-  const saveRuleGroupsToBackend = async (groups: RuleGroup[]) => {
-    try {
-      await draftApi.setRuleGroups(groups);
-    } catch (error) {
-      console.error('保存规则组到后端失败:', error);
     }
-  };
+    onChange(localRuleGroups[0]);
+  }, [localRuleGroups, selectionId, onChange]);
 
-  // 处理创建新规则组
-  const handleCreateRuleGroup = () => {
-    setCreateError('');
-
-    if (!newGroupTitle.trim()) {
-      setCreateError('请输入规则组标题');
-      return;
-    }
-
-    // 检查标题是否重复
-    if (ruleGroups.some(g => g.title === newGroupTitle.trim())) {
-      setCreateError('规则组标题已存在');
-      return;
-    }
-
-    const newGroup: RuleGroup = {
-      id: `group_${Date.now()}`,
-      title: newGroupTitle.trim(),
-      rules: [], // 新建规则组默认为空
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    const updatedGroups = [...ruleGroups, newGroup];
-    setRuleGroups(updatedGroups);
-    saveRuleGroupsToBackend(updatedGroups);
-
-    // 自动选中新创建的规则组
-    onChange(newGroup);
-
-    // 重置对话框
-    setNewGroupTitle('');
-    setOpenCreateDialog(false);
-  };
-
-  // 处理删除规则组
-  const handleDeleteRuleGroup = (groupId: string) => {
-    // 不允许删除默认规则组
-    if (groupId === 'default') {
-      return;
-    }
-
-    const updatedGroups = ruleGroups.filter(g => g.id !== groupId);
-    setRuleGroups(updatedGroups);
-    saveRuleGroupsToBackend(updatedGroups);
-
-    // 如果删除的是当前选中的规则组,切换到第一个
-    if (value?.id === groupId) {
-      onChange(updatedGroups.length > 0 ? updatedGroups[0] : null);
-    }
-  };
-
-  // 处理选择变化
-  const handleChange = (event: any) => {
-    const selectedId = event.target.value;
-    const selectedGroup = ruleGroups.find(g => g.id === selectedId) || null;
-    onChange(selectedGroup);
-  };
-
-  // 处理菜单操作
   const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
     setMenuAnchorEl(event.currentTarget);
   };
@@ -168,149 +102,139 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
     setMenuAnchorEl(null);
   };
 
+  const emitGroups = (nextGroups: RuleGroup[]) => {
+    const normalized = cloneRuleGroups(nextGroups);
+    setLocalRuleGroups(normalized);
+    onRuleGroupsChange?.(cloneRuleGroups(normalized));
+  };
+
+  const handleCreateRuleGroup = () => {
+    setCreateError('');
+    if (!newGroupTitle.trim()) {
+      setCreateError('请输入规则组标题');
+      return;
+    }
+
+    if (localRuleGroups.some(group => group.title === newGroupTitle.trim())) {
+      setCreateError('规则组标题已存在');
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const newGroup: RuleGroup = {
+      id: `group_${Date.now()}`,
+      title: newGroupTitle.trim(),
+      rules: [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    emitGroups([...localRuleGroups, newGroup]);
+    onChange(newGroup);
+    setNewGroupTitle('');
+    setOpenCreateDialog(false);
+  };
+
+  const handleDeleteRuleGroup = (groupId: string) => {
+    const nextGroups = localRuleGroups.filter(group => group.id !== groupId);
+    emitGroups(nextGroups);
+    if (value?.id === groupId) {
+      onChange(nextGroups[0] ?? null);
+    }
+  };
+
   const handleNewRuleGroup = () => {
     handleMenuClose();
     setOpenCreateDialog(true);
   };
 
-  const handleDownloadRuleGroup = () => {
+  const handleCloneRuleGroup = () => {
     handleMenuClose();
-
     if (!value) {
       alert('请先选择一个规则组');
       return;
     }
-
-    try {
-      // 准备下载数据
-      const dataToDownload = {
-        id: value.id,
-        title: value.title,
-        rules: value.rules,
-        createdAt: value.createdAt,
-        updatedAt: value.updatedAt,
-        exportedAt: new Date().toISOString(),
-        version: '1.0.0'
-      };
-
-      // 转换为 JSON 字符串
-      const jsonString = JSON.stringify(dataToDownload, null, 2);
-
-      // 创建 Blob 对象
-      const blob = new Blob([jsonString], { type: 'application/json' });
-
-      // 创建下载链接
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-
-      // 生成文件名（使用规则组标题，替换特殊字符）
-      const safeFileName = value.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
-      const timestamp = new Date().toISOString().split('T')[0];
-      link.download = `${safeFileName}_${timestamp}.json`;
-
-      // 触发下载
-      document.body.appendChild(link);
-      link.click();
-
-      // 清理
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-
-      console.log('规则组下载成功:', value.title);
-    } catch (error) {
-      console.error('下载规则组失败:', error);
-      alert('下载失败，请重试');
-    }
-  };
-
-  const handleCloneRuleGroup = () => {
-    handleMenuClose();
-    if (value) {
-      const clonedGroup: RuleGroup = {
-        id: `group_${Date.now()}`,
-        title: `${value.title} (副本)`,
-        rules: JSON.parse(JSON.stringify(value.rules)), // 深拷贝规则
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
-
-      const updatedGroups = [...ruleGroups, clonedGroup];
-      setRuleGroups(updatedGroups);
-      saveRuleGroupsToBackend(updatedGroups);
-
-      // 自动选中克隆的规则组
-      onChange(clonedGroup);
-    } else {
-      alert('请先选择一个规则组');
-    }
+    const now = new Date().toISOString();
+    const cloned: RuleGroup = {
+      ...value,
+      id: `group_${Date.now()}`,
+      title: `${value.title || '未命名规则组'} (副本)`,
+      rules: value.rules.map(rule => ({ ...rule })),
+      createdAt: now,
+      updatedAt: now,
+    };
+    emitGroups([...localRuleGroups, cloned]);
+    onChange(cloned);
   };
 
   const handleImportRuleGroup = () => {
     handleMenuClose();
-    // 触发文件选择
     fileInputRef.current?.click();
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
-
-    // 验证文件类型
+    if (!file) {
+      return;
+    }
     if (!file.name.endsWith('.json')) {
       alert('请选择 JSON 格式的文件');
       return;
     }
-
     try {
-      // 读取文件内容
       const text = await file.text();
-      const importedData = JSON.parse(text);
-
-      // 验证数据结构
-      if (!importedData.title || !Array.isArray(importedData.rules)) {
-        alert('文件格式无效：缺少必要的字段（title 或 rules）');
+      const imported = JSON.parse(text);
+      if (!imported.title || !Array.isArray(imported.rules)) {
+        alert('文件格式无效：缺少必要字段');
         return;
       }
-
-      // 检查标题是否重复
-      let finalTitle = importedData.title;
+      let finalTitle = String(imported.title);
       let counter = 1;
-      while (ruleGroups.some(g => g.title === finalTitle)) {
-        finalTitle = `${importedData.title} (${counter})`;
-        counter++;
+      while (localRuleGroups.some(group => group.title === finalTitle)) {
+        finalTitle = `${imported.title} (${counter})`;
+        counter += 1;
       }
-
-      // 创建新规则组
+      const now = new Date().toISOString();
       const newGroup: RuleGroup = {
         id: `group_${Date.now()}`,
         title: finalTitle,
-        rules: importedData.rules,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
+        rules: imported.rules,
+        createdAt: now,
+        updatedAt: now,
       };
-
-      const updatedGroups = [...ruleGroups, newGroup];
-      setRuleGroups(updatedGroups);
-      saveRuleGroupsToBackend(updatedGroups);
-
-      // 自动选中导入的规则组
+      emitGroups([...localRuleGroups, newGroup]);
       onChange(newGroup);
-
-      alert(`规则组 "${finalTitle}" 导入成功！包含 ${newGroup.rules.length} 条规则`);
+      alert(`规则组 "${finalTitle}" 导入成功`);
     } catch (error) {
       console.error('导入规则组失败:', error);
-      if (error instanceof SyntaxError) {
-        alert('文件格式错误：无法解析 JSON 文件');
-      } else {
-        alert('导入失败，请检查文件格式');
-      }
+      alert('导入失败，请检查文件格式');
     } finally {
-      // 清空文件选择，允许重复选择同一文件
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
     }
+  };
+
+  const handleDownloadRuleGroup = () => {
+    handleMenuClose();
+    if (!value) {
+      alert('请先选择一个规则组');
+      return;
+    }
+    const data = {
+      ...value,
+      exportedAt: new Date().toISOString(),
+      version: '1.0.0',
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const safeName = value.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+    link.href = url;
+    link.download = `${safeName}_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const handleDeleteCurrentRuleGroup = () => {
@@ -319,32 +243,48 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
       alert('请先选择一个规则组');
       return;
     }
-
     if (value.id === 'default') {
       alert('无法删除默认规则组');
       return;
     }
-
     if (confirm(`确定要删除规则组 "${value.title}" 吗？此操作不可恢复。`)) {
       handleDeleteRuleGroup(value.id);
     }
   };
 
+  const handleSaveToDraft = async () => {
+    if (!onSaveToDraft) {
+      return;
+    }
+    await onSaveToDraft(localRuleGroups);
+  };
+
+  const handleChange = (event: React.ChangeEvent<{ value: unknown }>) => {
+    const selectedId = event.target.value as string;
+    const selectedGroup = localRuleGroups.find(group => group.id === selectedId) ?? null;
+    onChange(selectedGroup);
+  };
+
+  const renderSelectLabel = (index: number, group: RuleGroup) =>
+    `${buildRuleGroupTitle(group.title, index)} (${group.rules.length})`;
+
+  const isSaveDisabled = disabled || loading || !onSaveToDraft;
+
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-      <FormControl fullWidth size="small">
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
+      <FormControl fullWidth size="small" disabled={disabled || loading}>
         <InputLabel id="rule-group-select-label">选择规则组</InputLabel>
         <Select
           labelId="rule-group-select-label"
           id="rule-group-select"
-          value={value?.id || ''}
+          value={value?.id ?? ''}
           label="选择规则组"
           onChange={handleChange}
         >
-          {ruleGroups.map((group) => (
+          {localRuleGroups.map((group, index) => (
             <MenuItem key={group.id} value={group.id}>
               <Typography variant="body2">
-                {group.title} ({group.rules.length})
+                {renderSelectLabel(index, group)}
               </Typography>
             </MenuItem>
           ))}
@@ -359,12 +299,12 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
           aria-haspopup="true"
           aria-expanded={menuOpen ? 'true' : undefined}
           onClick={handleMenuClick}
-          sx={{ width: '40px', minWidth: '40px', px: 0 }}
+          disabled={disabled || loading}
+          sx={{ width: 40, minWidth: 40, px: 0 }}
         >
           <ArrowDropDownIcon />
         </Button>
       </ButtonGroup>
-
       <Menu
         id="rule-group-menu"
         anchorEl={menuAnchorEl}
@@ -374,11 +314,18 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
           'aria-labelledby': 'rule-group-button',
         }}
       >
-        <MenuItem onClick={handleNewRuleGroup}>
+        <Tooltip title={isSaveDisabled ? '当前不可保存' : '保存到草稿目录'}>
+          <MenuItem onClick={handleSaveToDraft} disabled={isSaveDisabled}>
+            {loading ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
+            保存到草稿目录
+          </MenuItem>
+        </Tooltip>
+        <Divider />
+        <MenuItem onClick={handleNewRuleGroup} disabled={disabled}>
           <AddIcon fontSize="small" sx={{ mr: 1 }} />
           新建规则组
         </MenuItem>
-        <MenuItem onClick={handleImportRuleGroup}>
+        <MenuItem onClick={handleImportRuleGroup} disabled={disabled}>
           <CloudUploadIcon fontSize="small" sx={{ mr: 1 }} />
           导入规则组
         </MenuItem>
@@ -387,14 +334,14 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
           <CloudDownloadIcon fontSize="small" sx={{ mr: 1 }} />
           下载规则组
         </MenuItem>
-        <MenuItem onClick={handleCloneRuleGroup} disabled={!value}>
+        <MenuItem onClick={handleCloneRuleGroup} disabled={!value || disabled}>
           <FileCopyIcon fontSize="small" sx={{ mr: 1 }} />
           克隆规则组
         </MenuItem>
         <Divider />
         <MenuItem
           onClick={handleDeleteCurrentRuleGroup}
-          disabled={!value || value.id === 'default'}
+          disabled={!value || value.id === 'default' || disabled}
           sx={{ color: 'error.main' }}
         >
           <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
@@ -402,7 +349,6 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
         </MenuItem>
       </Menu>
 
-      {/* 隐藏的文件上传输入 */}
       <input
         ref={fileInputRef}
         type="file"
@@ -411,7 +357,6 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
         onChange={handleFileUpload}
       />
 
-      {/* 创建规则组对话框 */}
       <Dialog
         open={openCreateDialog}
         onClose={() => {
@@ -435,7 +380,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({ value, onC
               fullWidth
               label="规则组标题"
               value={newGroupTitle}
-              onChange={(e) => setNewGroupTitle(e.target.value)}
+              onChange={(event) => setNewGroupTitle(event.target.value)}
               placeholder="例如: 视频标准模板"
               helperText="为新规则组输入一个有意义的标题"
             />

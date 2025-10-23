@@ -13,7 +13,7 @@ import type {
   TrackType,
   MaterialType,
 } from '@/types/draft';
-import type { RuleGroupTestRequest, RuleGroupTestResponse } from '@/types/rule';
+import type { RuleGroupTestRequest, RuleGroupTestResponse, RuleGroup } from '@/types/rule';
 
 /**
  * API基础配置
@@ -54,6 +54,7 @@ export interface DraftListItem {
   path: string;
   modified_time: number;
   folder_path: string;
+  has_rules?: boolean;
 }
 
 /**
@@ -155,6 +156,33 @@ export const draftApi = {
       body: JSON.stringify({ rule_groups: ruleGroups }),
     });
     return handleResponse<{ rule_groups: any[]; message: string }>(response);
+  },
+
+  /**
+   * 获取指定草稿绑定的规则组
+   */
+  async getDraftRuleGroups(draftPath: string): Promise<{ rule_groups: RuleGroup[] }> {
+    const url = buildUrl('/api/draft/rules', { draft_path: draftPath });
+    const response = await fetch(url);
+    return handleResponse<{ rule_groups: RuleGroup[] }>(response);
+  },
+
+  /**
+   * 保存指定草稿的规则组
+   */
+  async setDraftRuleGroups(
+    draftPath: string,
+    ruleGroups: RuleGroup[],
+  ): Promise<{ rule_groups: RuleGroup[]; message: string }> {
+    const url = `${API_BASE_URL}/api/draft/rules`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ draft_path: draftPath, rule_groups: ruleGroups }),
+    });
+    return handleResponse<{ rule_groups: RuleGroup[]; message: string }>(response);
   },
 };
 

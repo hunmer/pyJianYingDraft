@@ -2,6 +2,7 @@
 草稿文件解析服务
 """
 
+import json
 import os
 import re
 from copy import deepcopy
@@ -16,6 +17,35 @@ from app.models.draft_models import (
 
 class DraftService:
     """草稿文件解析服务类"""
+
+    @staticmethod
+    def _resolve_draft_folder(draft_path: str) -> str:
+        """
+        根据传入的草稿路径推导草稿所在目录。
+        入参既可以是 draft_content.json 的完整路径，也可以直接是草稿目录。
+        """
+        if not draft_path:
+            raise ValueError("草稿路径不能为空")
+
+        normalized_path = os.path.abspath(draft_path)
+        if os.path.isdir(normalized_path):
+            return normalized_path
+        if os.path.isfile(normalized_path):
+            return os.path.dirname(normalized_path)
+        raise FileNotFoundError(f"草稿路径不存在: {draft_path}")
+
+    @staticmethod
+    def _rules_dir(draft_folder: str) -> str:
+        return os.path.join(draft_folder, "rules")
+
+    @staticmethod
+    def _rule_groups_file(draft_folder: str) -> str:
+        return os.path.join(draft_folder, "rule_groups.json")
+
+    @staticmethod
+    def _sanitize_rule_filename(identifier: str) -> str:
+        sanitized = re.sub(r"[^a-zA-Z0-9-_]", "_", identifier.strip())
+        return sanitized or "rule"
 
     @staticmethod
     def _microseconds_to_seconds(microseconds: int) -> float:
@@ -87,6 +117,113 @@ class DraftService:
             raise FileNotFoundError(f"草稿文件不存在: {file_path}")
 
         return draft.ScriptFile.load_template(file_path)
+
+    @staticmethod
+    def _draft_has_rules(draft_folder: str) -> bool:
+        rules_dir = DraftService._rules_dir(draft_folder)
+        rule_groups_file = DraftService._rule_groups_file(draft_folder)
+
+        if os.path.isfile(rule_groups_file):
+            return True
+
+        if os.path.isdir(rules_dir):
+            for file_name in os.listdir(rules_dir):
+                if file_name.lower().endswith(".json"):
+                    return True
+        return False
+
+    @staticmethod
+    def get_draft_rule_groups(draft_path: str) -> List[Dict[str, Any]]:
+        """读取草稿绑定的规则组"""
+        draft_folder = DraftService._resolve_draft_folder(draft_path)
+        rule_groups_file = DraftService._rule_groups_file(draft_folder)
+        rules_dir = DraftService._rules_dir(draft_folder)
+
+        groups: List[Dict[str, Any]] = []
+
+        if os.path.isfile(rule_groups_file):
+            try:
+                with open(rule_groups_file, "r", encoding="utf-8") as fp:
+                    loaded = json.load(fp)
+                    if isinstance(loaded, list):
+                        groups = loaded
+            except json.JSONDecodeError as exc:
+                raise ValueError(f"解析规则组文件失败: {rule_groups_file}: {exc}") from exc
+
+        # 如果 rules 目录存在，则尝试使用文件覆盖规则内容，保持数据同步
+        if os.path.isdir(rules_dir):
+            for group in groups:
+                rules = group.get("rules")
+                if not isinstance(rules, list):
+                    continue
+                merged_rules: List[Dict[str, Any]] = []
+                for rule in rules:
+                    rule_type = str(rule.get("type") or rule.get("title") or "")
+                    if not rule_type:
+                        continue
+                    filename = f"{DraftService._sanitize_rule_filename(rule_type)}.json"
+                    rule_path = os.path.join(rules_dir, filename)
+                    if os.path.isfile(rule_path):
+                        try:
+                            with open(rule_path, "r", encoding="utf-8") as fp:
+                                file_rule = json.load(fp)
+                                if isinstance(file_rule, dict):
+                                    merged_rules.append(file_rule)
+                                    continue
+                        except json.JSONDecodeError:
+                            pass
+                    merged_rules.append(rule)
+                group["rules"] = merged_rules
+
+        return groups
+
+    @staticmethod
+    def set_draft_rule_groups(draft_path: str, rule_groups: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """保存草稿绑定的规则组，并同步生成 rules 目录下的规则文件"""
+        if not isinstance(rule_groups, list):
+            raise ValueError("rule_groups 必须是列表")
+
+        draft_folder = DraftService._resolve_draft_folder(draft_path)
+        os.makedirs(draft_folder, exist_ok=True)
+
+        rule_groups_file = DraftService._rule_groups_file(draft_folder)
+        rules_dir = DraftService._rules_dir(draft_folder)
+        os.makedirs(rules_dir, exist_ok=True)
+
+        # 写入 rule_groups.json
+        with open(rule_groups_file, "w", encoding="utf-8") as fp:
+            json.dump(rule_groups, fp, ensure_ascii=False, indent=2)
+
+        expected_files: set[str] = set()
+
+        for group in rule_groups:
+            rules = group.get("rules", [])
+            if not isinstance(rules, list):
+                continue
+            for rule in rules:
+                if not isinstance(rule, dict):
+                    continue
+                rule_type = str(rule.get("type") or rule.get("title") or "")
+                if not rule_type:
+                    continue
+                filename = f"{DraftService._sanitize_rule_filename(rule_type)}.json"
+                file_path = os.path.join(rules_dir, filename)
+                expected_files.add(file_path)
+                with open(file_path, "w", encoding="utf-8") as fp:
+                    json.dump(rule, fp, ensure_ascii=False, indent=2)
+
+        # 清理多余的旧规则文件
+        for file_name in os.listdir(rules_dir):
+            if not file_name.lower().endswith(".json"):
+                continue
+            absolute_path = os.path.join(rules_dir, file_name)
+            if absolute_path not in expected_files:
+                try:
+                    os.remove(absolute_path)
+                except OSError:
+                    pass
+
+        return rule_groups
 
     @staticmethod
     def get_raw_content(file_path: str) -> Dict[str, Any]:
@@ -357,7 +494,8 @@ class DraftService:
                         'name': item,
                         'path': draft_file,
                         'modified_time': mtime,
-                        'folder_path': item_path
+                        'folder_path': item_path,
+                        'has_rules': DraftService._draft_has_rules(item_path),
                     })
         except PermissionError as e:
             raise PermissionError(f"没有权限访问目录: {base_path}")

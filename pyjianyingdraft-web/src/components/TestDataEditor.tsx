@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Box,
   Paper,
@@ -49,6 +49,8 @@ interface TestDataEditorProps {
   useRawSegmentsHint?: boolean;
   /** 完整的API请求载荷(用于下载) */
   fullRequestPayload?: RuleGroupTestRequest | null;
+  /** 预设测试数据 */
+  initialTestData?: TestData | null;
 }
 
 /**
@@ -65,12 +67,20 @@ export default function TestDataEditor({
   rawMaterials: _rawMaterials,
   useRawSegmentsHint,
   fullRequestPayload,
+  initialTestData = null,
 }: TestDataEditorProps) {
-  const [testDataJson, setTestDataJson] = useState(JSON.stringify(EXAMPLE_TEST_DATA, null, 2));
+  const initialJson = useMemo(
+    () => JSON.stringify(initialTestData ?? EXAMPLE_TEST_DATA, null, 2),
+    [initialTestData],
+  );
+  const [testDataJson, setTestDataJson] = useState(initialJson);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [testing, setTesting] = useState(false);
 
+  useEffect(() => {
+    setTestDataJson(initialJson);
+  }, [initialJson]);
   // 数据集管理状态
   const [datasets, setDatasets] = useState<TestDataset[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');

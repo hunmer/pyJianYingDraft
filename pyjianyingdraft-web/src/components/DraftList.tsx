@@ -17,6 +17,7 @@ import {
   Tooltip,
   Menu,
   MenuItem,
+  Chip,
 } from '@mui/material';
 import {
   Folder,
@@ -313,17 +314,36 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
                     },
                   }}
                 >
-                  <ListItemText
-                    primary={draft.name}
-                    secondary={formatTime(draft.modified_time)}
-                    primaryTypographyProps={{
-                      variant: 'body2',
-                      fontWeight: selectedDraftPath === draft.path ? 600 : 400,
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      width: '100%',
+                      gap: 1,
                     }}
-                    secondaryTypographyProps={{
-                      variant: 'caption',
-                    }}
-                  />
+                  >
+                    <ListItemText
+                      primary={draft.name}
+                      secondary={formatTime(draft.modified_time)}
+                      primaryTypographyProps={{
+                        variant: 'body2',
+                        fontWeight: selectedDraftPath === draft.path ? 600 : 400,
+                      }}
+                      secondaryTypographyProps={{
+                        variant: 'caption',
+                      }}
+                      sx={{ mr: draft.has_rules ? 1 : 0 }}
+                    />
+                    {draft.has_rules ? (
+                      <Chip
+                        label="规则"
+                        size="small"
+                        color="primary"
+                        sx={{ fontWeight: 600 }}
+                      />
+                    ) : null}
+                  </Box>
                 </ListItemButton>
               </ListItem>
               {index < drafts.length - 1 && <Divider />}

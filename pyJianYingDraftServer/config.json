@@ -123,6 +123,28 @@
       ],
       "createdAt": "2025-10-22T07:09:27.876Z",
       "updatedAt": "2025-10-22T07:11:04.546Z"
+    },
+    {
+      "id": "group_1761142753180",
+      "title": "哲学图片视频",
+      "rules": [
+        {
+          "type": "image",
+          "title": "图片",
+          "material_ids": [
+            "0E41E04A-D914-49bf-B7C3-EEEA78FAA7E8"
+          ]
+        },
+        {
+          "type": "subtitle",
+          "title": "字幕",
+          "material_ids": [
+            "C06D4A0E-DF03-4eff-90BE-A680BD962766"
+          ]
+        }
+      ],
+      "createdAt": "2025-10-22T14:19:13.180Z",
+      "updatedAt": "2025-10-22T14:19:31.716Z"
     }
   ]
 }
