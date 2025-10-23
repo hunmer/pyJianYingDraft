@@ -58,6 +58,7 @@ def get_config(key: str, default: Optional[Any] = None) -> Optional[Any]:
 def save_config(config_data: dict[str, Any]) -> None:
     """保存配置到文件，并清除缓存"""
     config_path = _get_config_file_path()
+    print(config_path)
     if config_path is None:
         raise ValueError("无法确定配置文件路径")
 

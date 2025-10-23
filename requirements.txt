@@ -2,3 +2,5 @@ pymediainfo
 imageio
 uiautomation>=2
 aria2p
+sqlalchemy
+aiosqlite

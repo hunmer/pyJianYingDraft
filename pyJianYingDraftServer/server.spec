@@ -23,6 +23,8 @@ a = Analysis(
         ('app', 'app'),
         # 包含 pyJianYingDraft 模块
         (str(ROOT_DIR / 'pyJianYingDraft'), 'pyJianYingDraft'),
+        # 包含 aria2 目录(aria2c.exe 及配置文件)
+        ('aria2', 'aria2'),
     ],
     hiddenimports=[
         # Uvicorn 核心模块
@@ -64,6 +66,34 @@ a = Analysis(
         'watchdog',
         'watchdog.observers',
         'watchdog.events',
+        # SQLAlchemy (数据库ORM)
+        'sqlalchemy',
+        'sqlalchemy.ext',
+        'sqlalchemy.ext.declarative',
+        'sqlalchemy.ext.asyncio',
+        'sqlalchemy.orm',
+        'sqlalchemy.engine',
+        'sqlalchemy.pool',
+        'sqlalchemy.dialects',
+        'sqlalchemy.dialects.sqlite',
+        'sqlalchemy.sql',
+        # aiosqlite (异步SQLite驱动)
+        'aiosqlite',
+        # aria2p (Aria2 RPC客户端)
+        'aria2p',
+        'aria2p.api',
+        'aria2p.client',
+        'aria2p.downloads',
+        'aria2p.options',
+        'aria2p.stats',
+        'aria2p.utils',
+        # aria2p 依赖
+        'loguru',
+        'websocket',
+        'websocket._app',
+        'websocket._core',
+        'websocket._socket',
+        'websocket._utils',
         # 项目模块
         'pyJianYingDraft',
     ],

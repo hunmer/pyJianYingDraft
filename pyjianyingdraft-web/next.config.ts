@@ -16,6 +16,10 @@ const nextConfig: NextConfig = {
 
   // 配置静态资源路径
   trailingSlash: true,
+  
+  // 使用相对路径以支持 Electron
+  assetPrefix: './',
+  
   typescript: {
     // !! 警告 !!
     // 危险地允许生产构建即使有类型错误也能成功完成
