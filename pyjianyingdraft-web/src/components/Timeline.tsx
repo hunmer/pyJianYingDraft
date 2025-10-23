@@ -1520,6 +1520,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               <RuleGroupList
                 ruleGroup={selectedRuleGroup}
                 materials={Array.isArray(materials) ? materials : []}
+                onSuccess={handleRuleGroupRuleSave}
               />
             </Box>
           </TabPanel>
