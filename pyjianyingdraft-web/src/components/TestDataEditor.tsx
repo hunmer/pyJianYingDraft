@@ -71,15 +71,34 @@ export default function TestDataEditor({
     () => JSON.stringify(initialTestData ?? EXAMPLE_TEST_DATA, null, 2),
     [initialTestData],
   );
-  const [testDataJson, setTestDataJson] = useState(initialJson);
+  const [testDataJson, setTestDataJson] = useState(() => {
+    // 尝试从localStorage恢复上次的测试数据
+    const stored = localStorage.getItem(`test-data-json-${testDataId}`);
+    return stored || initialJson;
+  });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [testing, setTesting] = useState(false);
   const [fullRequestPayload, setFullRequestPayload] = useState<RuleGroupTestRequest | null>(null);
+  const [editorKey, setEditorKey] = useState(0); // 用于强制重新渲染编辑器
 
+  // 当testDataId变化时,强制重新加载对应的测试数据
   useEffect(() => {
-    setTestDataJson(initialJson);
-  }, [initialJson]);
+    const stored = localStorage.getItem(`test-data-json-${testDataId}`);
+    // 如果有本地存储则使用本地存储,否则使用初始数据
+    const newContent = stored || initialJson;
+    setTestDataJson(newContent);
+    // 强制重新渲染编辑器以确保内容更新
+    setEditorKey(prev => prev + 1);
+    console.log('[TestDataEditor] 加载测试数据:', { testDataId, hasStored: !!stored, contentLength: newContent.length });
+  }, [testDataId, initialJson]);
+
+  // 保存测试数据到localStorage
+  useEffect(() => {
+    if (testDataJson) {
+      localStorage.setItem(`test-data-json-${testDataId}`, testDataJson);
+    }
+  }, [testDataJson, testDataId]);
   // 数据集管理状态
   const [datasets, setDatasets] = useState<TestDataset[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
@@ -87,32 +106,37 @@ export default function TestDataEditor({
   const [datasetName, setDatasetName] = useState('');
   const [datasetDescription, setDatasetDescription] = useState('');
 
-  // 从localStorage加载数据集
+  // 从localStorage加载数据集 - 使用testDataId作为存储键
   const loadDatasets = useCallback(() => {
     try {
-      const stored = localStorage.getItem(`test-datasets-${ruleGroupId}`);
+      const stored = localStorage.getItem(`test-datasets-${testDataId}`);
       if (stored) {
         const loadedDatasets = JSON.parse(stored) as TestDataset[];
         setDatasets(loadedDatasets);
+      } else {
+        // 如果没有存储的数据集,清空当前列表
+        setDatasets([]);
       }
+      // 重置选中的数据集
+      setSelectedDatasetId('');
     } catch (err) {
       console.error('加载数据集失败:', err);
     }
-  }, [ruleGroupId]);
+  }, [testDataId]);
 
-  // 加载数据集列表
+  // 加载数据集列表 - 当testDataId变化时重新加载
   useEffect(() => {
-    if (ruleGroupId) {
+    if (testDataId) {
       loadDatasets();
     }
-  }, [ruleGroupId, loadDatasets]);
+  }, [testDataId, loadDatasets]);
 
-  
 
-  // 保存数据集到localStorage
+
+  // 保存数据集到localStorage - 使用testDataId作为存储键
   const saveDatasets = (updatedDatasets: TestDataset[]) => {
     try {
-      localStorage.setItem(`test-datasets-${ruleGroupId}`, JSON.stringify(updatedDatasets));
+      localStorage.setItem(`test-datasets-${testDataId}`, JSON.stringify(updatedDatasets));
       setDatasets(updatedDatasets);
     } catch (err) {
       console.error('保存数据集失败:', err);
@@ -172,17 +196,21 @@ export default function TestDataEditor({
 
   // 重置为示例数据
   const handleReset = () => {
-    setTestDataJson(JSON.stringify(EXAMPLE_TEST_DATA, null, 2));
+    const resetJson = JSON.stringify(initialTestData ?? EXAMPLE_TEST_DATA, null, 2);
+    setTestDataJson(resetJson);
     setSelectedDatasetId('');
     setError('');
     setSuccess('');
     setTesting(false);
+    // 清除localStorage中的数据
+    localStorage.removeItem(`test-data-json-${testDataId}`);
   };
 
   // 加载选中的数据集
   const handleLoadDataset = (datasetId: string) => {
     if (!datasetId) {
-      setTestDataJson('');
+      // 恢复到初始数据
+      setTestDataJson(initialJson);
       setSelectedDatasetId('');
       setError('');
       setSuccess('');
@@ -214,11 +242,6 @@ export default function TestDataEditor({
       return;
     }
 
-    if (!ruleGroupId) {
-      setError('未选择规则组');
-      return;
-    }
-
     try {
       const testData: TestData = JSON.parse(testDataJson);
       const now = new Date().toISOString();
@@ -242,7 +265,7 @@ export default function TestDataEditor({
         const newDataset: TestDataset = {
           id: `dataset-${Date.now()}`,
           name: datasetName.trim(),
-          ruleGroupId: ruleGroupId,
+          ruleGroupId: ruleGroupId || testDataId, // 使用ruleGroupId或testDataId作为关联
           data: testData,
           description: datasetDescription,
           createdAt: now,
@@ -298,9 +321,14 @@ export default function TestDataEditor({
       {/* 顶部标题栏 */}
       <Paper elevation={0} sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Button size="small" onClick={handleReset} variant="outlined" startIcon={<RestartAltIcon />}>
-            重置为示例数据
-          </Button>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button size="small" onClick={handleReset} variant="outlined" startIcon={<RestartAltIcon />}>
+              重置为示例数据
+            </Button>
+            <Typography variant="caption" color="text.secondary">
+              实例ID: {testDataId}
+            </Typography>
+          </Box>
         </Box>
       </Paper>
 
@@ -323,7 +351,7 @@ export default function TestDataEditor({
         {/* 右侧编辑器区域 */}
         <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {/* 数据集选择器 */}
-          {ruleGroupId && datasets.length > 0 && (
+          {datasets.length > 0 && (
             <Box sx={{ p: 2, pb: 0, display: 'flex', gap: 1, alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
               <FormControl size="small" sx={{ minWidth: 200, flex: 1 }}>
                 <InputLabel>选择数据集</InputLabel>
@@ -362,7 +390,7 @@ export default function TestDataEditor({
           )}
 
           {/* 消息提示 */}
-          <Box sx={{ p: 2, pb: ruleGroupId && datasets.length > 0 ? 2 : 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ p: 2, pb: datasets.length > 0 ? 2 : 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
             {error && (
               <Alert severity="error" onClose={() => setError('')}>
                 {error}
@@ -380,6 +408,7 @@ export default function TestDataEditor({
           <Box sx={{ flex: 1, p: 2, pt: 0, overflow: 'hidden' }}>
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden', height: '100%' }}>
               <Editor
+                key={editorKey}
                 height="100%"
                 defaultLanguage="json"
                 value={testDataJson}
@@ -414,15 +443,13 @@ export default function TestDataEditor({
               </Button>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              {ruleGroupId && (
-                <Button
-                  onClick={handleOpenSaveDialog}
-                  variant="outlined"
-                  startIcon={<SaveIcon />}
-                >
-                  保存数据集
-                </Button>
-              )}
+              <Button
+                onClick={handleOpenSaveDialog}
+                variant="outlined"
+                startIcon={<SaveIcon />}
+              >
+                保存数据集
+              </Button>
               <Button
                 onClick={handleTest}
                 variant="contained"
