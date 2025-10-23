@@ -13,3 +13,5 @@ dist/
 venv/
 nul
 pyJianYingDraftServer/.file_versions/
+pyjianyingdraft-web/temp_extract/
+pyjianyingdraft-web/dist/

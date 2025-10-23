@@ -117,7 +117,6 @@ interface TimelineEditorProps {
       rawSegments?: any[];
       rawMaterials?: any[];
       useRawSegmentsHint?: boolean;
-      fullRequestPayload?: any;
       initialTestData?: TestData;
     }
   ) => void;
@@ -859,6 +858,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       setCurrentTaskId(response.task_id);
       setAsyncDialogOpen(true);
       setTestResult(`异步任务已提交: ${response.task_id}`);
+
+      // 返回完整的请求载荷供下载使用
+      return requestPayload;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '异步任务提交失败';
       setTestResult(`异步任务提交失败: ${message}`);
@@ -1005,6 +1007,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       const path = response.draft_path || '未知';
       const extra = response.message ? ` | ${response.message}` : '';
       setTestResult(`状态码: ${status} | 草稿目录: ${path}${extra}`);
+
+      // 返回完整的请求载荷供下载使用
+      return requestPayload;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '测试失败';
       setTestResult(`测试失败: ${message}`);
@@ -1459,7 +1464,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                       rawSegments: rawSegmentPayloads,
                       rawMaterials: rawMaterialPayloads,
                       useRawSegmentsHint: Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0),
-                      fullRequestPayload: fullRequestPayload,
                     }
                   );
                 }}
@@ -1486,7 +1490,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                       rawSegments: rawSegmentPayloads,
                       rawMaterials: rawMaterialPayloads,
                       useRawSegmentsHint: Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0),
-                      fullRequestPayload: fullRequestPayload,
                     }
                   );
                 }}

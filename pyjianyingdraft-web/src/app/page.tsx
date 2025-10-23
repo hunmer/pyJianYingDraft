@@ -70,7 +70,6 @@ interface TabData {
     rawSegments?: any[];
     rawMaterials?: any[];
     useRawSegmentsHint?: boolean;
-    fullRequestPayload?: any;
     initialTestData?: TestData;
   };
   // 通用字段
@@ -762,7 +761,6 @@ export default function Home() {
               rawSegments={activeTab.testDataContext?.rawSegments}
               rawMaterials={activeTab.testDataContext?.rawMaterials}
               useRawSegmentsHint={activeTab.testDataContext?.useRawSegmentsHint}
-              fullRequestPayload={activeTab.testDataContext?.fullRequestPayload}
               initialTestData={activeTab.testDataContext?.initialTestData}
             />
           )}

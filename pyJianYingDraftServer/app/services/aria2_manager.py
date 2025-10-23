@@ -80,17 +80,23 @@ class Aria2ProcessManager:
         if config_path:
             self.config_path = Path(config_path)
         else:
-            # 默认放在项目根目录
-            project_root = Path(__file__).resolve().parent.parent.parent
-            self.config_path = project_root / "aria2/aria2.conf"
+            # 配置文件应该和aria2c.exe在同一目录下
+            aria2c_dir = Path(self.aria2c_path).parent
+            self.config_path = aria2c_dir / "aria2.conf"
 
         # 下载目录
         if download_dir:
             self.download_dir = Path(download_dir)
         else:
-            # 默认使用项目根目录下的downloads文件夹
-            project_root = Path(__file__).resolve().parent.parent.parent
-            self.download_dir = project_root / "downloads"
+            # 在打包环境下，使用用户目录下的downloads文件夹
+            if getattr(sys, 'frozen', False):
+                # 打包环境
+                user_dir = Path(os.path.expanduser("~"))
+                self.download_dir = user_dir / "Downloads/pyJianYingDraft"
+            else:
+                # 开发环境
+                project_root = Path(__file__).resolve().parent.parent.parent
+                self.download_dir = project_root / "downloads"
 
         self.download_dir.mkdir(parents=True, exist_ok=True)
 

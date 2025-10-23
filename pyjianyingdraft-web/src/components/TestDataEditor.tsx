@@ -34,8 +34,8 @@ import { RuleGroupList } from './RuleGroupList';
 interface TestDataEditorProps {
   /** 测试数据ID */
   testDataId: string;
-  /** 测试回调(必需) */
-  onTest: (testData: TestData) => Promise<void> | void;
+  /** 测试回调(必需) - 返回完整的请求载荷 */
+  onTest: (testData: TestData) => Promise<RuleGroupTestRequest | void> | RuleGroupTestRequest | void;
   /** 当前规则组ID(用于关联数据集) */
   ruleGroupId?: string;
   /** 当前规则组(用于转换数据) */
@@ -48,8 +48,6 @@ interface TestDataEditorProps {
   rawMaterials?: RawMaterialPayload[] | undefined;
   /** 当前是否会在测试时启用原始片段模式 */
   useRawSegmentsHint?: boolean;
-  /** 完整的API请求载荷(用于下载) */
-  fullRequestPayload?: RuleGroupTestRequest | null;
   /** 预设测试数据 */
   initialTestData?: TestData | null;
 }
@@ -67,7 +65,6 @@ export default function TestDataEditor({
   rawSegments: _rawSegments,
   rawMaterials: _rawMaterials,
   useRawSegmentsHint,
-  fullRequestPayload,
   initialTestData = null,
 }: TestDataEditorProps) {
   const initialJson = useMemo(
@@ -78,6 +75,7 @@ export default function TestDataEditor({
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [testing, setTesting] = useState(false);
+  const [fullRequestPayload, setFullRequestPayload] = useState<RuleGroupTestRequest | null>(null);
 
   useEffect(() => {
     setTestDataJson(initialJson);
@@ -157,7 +155,13 @@ export default function TestDataEditor({
       });
 
       setTesting(true);
-      await onTest(testData);
+      const result = await onTest(testData);
+
+      // 如果回调返回了完整的请求载荷,保存它以供下载
+      if (result && typeof result === 'object' && 'testData' in result) {
+        setFullRequestPayload(result);
+      }
+
       setSuccess('测试请求已发送');
     } catch (err: any) {
       setError(err.message || '无效的JSON格式');
