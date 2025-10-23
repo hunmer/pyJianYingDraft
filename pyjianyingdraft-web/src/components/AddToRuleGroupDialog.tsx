@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -15,7 +15,6 @@ import {
 } from '@mui/material';
 import type { Rule, RuleGroup } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
-import { draftApi } from '@/lib/api';
 
 interface AddToRuleGroupDialogProps {
   /** 对话框是否打开 */
@@ -30,6 +29,8 @@ interface AddToRuleGroupDialogProps {
   onSuccess: (updatedRuleGroup: RuleGroup) => void;
   /** 正在编辑的规则 */
   editingRule: Rule | null;
+  /** 保存回调（由父组件处理持久化） */
+  onSaveRuleGroup: (updatedRuleGroup: RuleGroup) => Promise<void> | void;
 }
 
 /**
@@ -41,7 +42,8 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
   material,
   ruleGroup,
   onSuccess,
-  editingRule
+  editingRule,
+  onSaveRuleGroup,
 }) => {
   // 表单状态
   const [ruleType, setRuleType] = useState('');
@@ -132,24 +134,12 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
       updatedAt: new Date().toISOString()
     };
 
-    // 保存到后端
     try {
-      // 获取所有规则组
-      const response = await draftApi.getRuleGroups();
-      const allGroups: RuleGroup[] = response.rule_groups as RuleGroup[];
-
-      // 更新规则组
-      const updatedGroups = allGroups.map(g =>
-        g.id === updatedRuleGroup.id ? updatedRuleGroup : g
-      );
-
-      // 保存到后端
-      await draftApi.setRuleGroups(updatedGroups);
-
+      await onSaveRuleGroup(updatedRuleGroup);
       onSuccess(updatedRuleGroup);
       onClose();
     } catch (err: any) {
-      setError('保存失败: ' + err.message);
+      setError('保存失败: ' + (err?.message ?? String(err)));
     }
   };
 

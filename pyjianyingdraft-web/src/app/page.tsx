@@ -19,6 +19,8 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  Button,
+  Tooltip,
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -37,6 +39,8 @@ import TimelineEditor from '@/components/Timeline';
 import TestDataEditor from '@/components/TestDataEditor';
 import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/lib/api';
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
+import type { RuleGroup, TestData } from '@/types/rule';
+import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 
 // Tab数据接口
 interface TabData {
@@ -50,6 +54,7 @@ interface TabData {
   materials?: MaterialInfo[];
   rawDraft?: Record<string, any> | null;
   materialCategories?: AllMaterialsResponse | null;
+  ruleGroups?: RuleGroup[] | null;
   // 文件差异相关字段
   filePath?: string;
   // 测试数据相关字段
@@ -63,6 +68,7 @@ interface TabData {
     rawMaterials?: any[];
     useRawSegmentsHint?: boolean;
     fullRequestPayload?: any;
+    initialTestData?: TestData;
   };
   // 通用字段
   loading: boolean;
@@ -70,6 +76,44 @@ interface TabData {
 }
 
 const DRAWER_WIDTH = 280;
+
+const cloneTestData = (data: TestData): TestData =>
+  JSON.parse(JSON.stringify(data)) as TestData;
+
+const TEST_DATA_PRESETS: Array<{
+  id: string;
+  label: string;
+  description: string;
+  data: TestData;
+}> = [
+  {
+    id: 'example',
+    label: '示例测试数据',
+    description: '包含基础轨道与素材条目，可用于快速演示测试流程',
+    data: cloneTestData(EXAMPLE_TEST_DATA),
+  },
+  {
+    id: 'audio-focus',
+    label: '音频轨道示例',
+    description: '包含独立的视频与音频轨道，便于校验音频规则',
+    data: {
+      tracks: [
+        { id: 'video_track', title: '视频轨道', type: 'video' },
+        { id: 'audio_track', title: '音频轨道', type: 'audio' },
+      ],
+      items: [
+        {
+          type: 'video_clip',
+          data: { track: 'video_track', start: 0, duration: 8, name: '视频片段' },
+        },
+        {
+          type: 'audio_clip',
+          data: { track: 'audio_track', start: 0, duration: 8, name: '背景音乐' },
+        },
+      ],
+    },
+  },
+];
 
 /**
  * 主页面 - 草稿编辑器
@@ -89,6 +133,82 @@ export default function Home() {
     tabId: string;
   } | null>(null);
 
+  const handleRuleGroupsUpdate = useCallback((tabId: string, groups: RuleGroup[]) => {
+    const normalized = groups.map(group => ({
+      ...group,
+      rules: Array.isArray(group.rules) ? group.rules.map(rule => ({ ...rule })) : [],
+    }));
+    setTabs(prev =>
+      prev.map(tab => (tab.id === tabId ? { ...tab, ruleGroups: normalized } : tab)),
+    );
+  }, []);
+
+  
+  // 处理测试数据视图选择
+  const handleTestDataSelect = useCallback((
+    testDataId: string,
+    label: string,
+    onTest: (testData: any) => Promise<void> | void,
+    context?: {
+      ruleGroupId?: string;
+      ruleGroup?: any;
+      materials?: MaterialInfo[];
+      rawSegments?: any[];
+      rawMaterials?: any[];
+      useRawSegmentsHint?: boolean;
+      fullRequestPayload?: any;
+      initialTestData?: TestData;
+    }
+  ) => {
+    // 检查是否已经打开
+    const existingTab = tabs.find(tab => tab.type === 'test_data' && tab.testDataId === testDataId);
+    if (existingTab) {
+      setActiveTabId(existingTab.id);
+      return;
+    }
+
+    const testDataContext = context
+      ? {
+          ...context,
+          initialTestData: context.initialTestData
+            ? cloneTestData(context.initialTestData)
+            : context.initialTestData,
+        }
+      : undefined;
+
+    // 创建新tab
+    const newTabId = `test-${Date.now()}`;
+    const newTab: TabData = {
+      id: newTabId,
+      label: `Test: ${label}`,
+      type: 'test_data',
+      testDataId,
+      onTestData: onTest,
+      testDataContext,
+      loading: false,
+      error: null,
+    };
+
+    setTabs(prev => [...prev, newTab]);
+    setActiveTabId(newTabId);
+  }, [tabs]);
+
+
+  const handleOpenTestDataPreset = useCallback(
+    (preset: (typeof TEST_DATA_PRESETS)[number]) => {
+      const presetId = `preset-${preset.id}-${Date.now()}`;
+      handleTestDataSelect(
+        presetId,
+        `预设: ${preset.label}`,
+        async () => Promise.resolve(),
+        {
+          initialTestData: cloneTestData(preset.data),
+        },
+      );
+    },
+    [handleTestDataSelect],
+  );
+
   // 处理文件差异视图选择
   const handleFileDiffSelect = useCallback((filePath: string) => {
     // 检查是否已经打开
@@ -105,45 +225,6 @@ export default function Home() {
       label: `Diff: ${filePath.split('/').pop()}`,
       type: 'file_diff',
       filePath,
-      loading: false,
-      error: null,
-    };
-
-    setTabs(prev => [...prev, newTab]);
-    setActiveTabId(newTabId);
-  }, [tabs]);
-
-  // 处理测试数据视图选择
-  const handleTestDataSelect = useCallback((
-    testDataId: string,
-    label: string,
-    onTest: (testData: any) => Promise<void> | void,
-    context?: {
-      ruleGroupId?: string;
-      ruleGroup?: any;
-      materials?: MaterialInfo[];
-      rawSegments?: any[];
-      rawMaterials?: any[];
-      useRawSegmentsHint?: boolean;
-      fullRequestPayload?: any;
-    }
-  ) => {
-    // 检查是否已经打开
-    const existingTab = tabs.find(tab => tab.type === 'test_data' && tab.testDataId === testDataId);
-    if (existingTab) {
-      setActiveTabId(existingTab.id);
-      return;
-    }
-
-    // 创建新tab
-    const newTabId = `test-${Date.now()}`;
-    const newTab: TabData = {
-      id: newTabId,
-      label: `Test: ${label}`,
-      type: 'test_data',
-      testDataId,
-      onTestData: onTest,
-      testDataContext: context,
       loading: false,
       error: null,
     };
@@ -220,7 +301,21 @@ export default function Home() {
         console.warn('获取素材信息失败:', err);
       }
 
+      // 4. 获取草稿规则组
+      let ruleGroups: RuleGroup[] = [];
+      try {
+        const response = await draftApi.getDraftRuleGroups(draftPath);
+        ruleGroups = Array.isArray(response.rule_groups) ? response.rule_groups : [];
+      } catch (err) {
+        console.warn('获取草稿规则组失败:', err);
+      }
+
       // 更新tab数据
+      const normalizedRuleGroups = ruleGroups.map(group => ({
+        ...group,
+        rules: Array.isArray(group.rules) ? group.rules.map(rule => ({ ...rule })) : [],
+      }));
+
       setTabs(prev => prev.map(tab =>
         tab.id === tabId
           ? {
@@ -230,6 +325,7 @@ export default function Home() {
               materials: flatMaterials,
               rawDraft: raw,
               materialCategories: mats,
+              ruleGroups: normalizedRuleGroups,
               loading: false,
               error: null,
             }
@@ -277,6 +373,7 @@ export default function Home() {
       materials: [],
       rawDraft: null,
       materialCategories: null,
+      ruleGroups: null,
       loading: false,
       error: null,
     };
@@ -578,6 +675,7 @@ export default function Home() {
               rawMaterials={activeTab.testDataContext?.rawMaterials}
               useRawSegmentsHint={activeTab.testDataContext?.useRawSegmentsHint}
               fullRequestPayload={activeTab.testDataContext?.fullRequestPayload}
+              initialTestData={activeTab.testDataContext?.initialTestData}
             />
           )}
 
@@ -700,6 +798,26 @@ export default function Home() {
                 </Grid>
               </Box>
 
+              {/* 测试数据预设 */}
+              <Box sx={{ mb: 3 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                  测试数据预设
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {TEST_DATA_PRESETS.map((preset) => (
+                    <Tooltip key={preset.id} title={preset.description}>
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        onClick={() => handleOpenTestDataPreset(preset)}
+                      >
+                        {preset.label}
+                      </Button>
+                    </Tooltip>
+                  ))}
+                </Box>
+              </Box>
+
               {/* 时间轴编辑器 */}
               {(activeTab.tracks || []).length > 0 && (
                 <TimelineEditor
@@ -712,6 +830,9 @@ export default function Home() {
                   canvasHeight={activeTab.draftInfo.height}
                   fps={activeTab.draftInfo.fps}
                   readOnly={true}
+                  draftPath={activeTab.draftPath}
+                  initialRuleGroups={activeTab.ruleGroups ?? undefined}
+                  onRuleGroupsChange={(groups) => handleRuleGroupsUpdate(activeTab.id, groups)}
                   handleTestDataSelect={handleTestDataSelect}
                 />
               )}

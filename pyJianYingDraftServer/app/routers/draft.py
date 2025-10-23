@@ -22,6 +22,11 @@ class RuleGroupsConfig(BaseModel):
     """规则组配置"""
     rule_groups: List[Dict[str, Any]]
 
+class DraftRulesRequest(BaseModel):
+    """草稿级规则组配置"""
+    draft_path: str
+    rule_groups: List[Dict[str, Any]]
+
 
 DRAFT_ROOT_CONFIG_KEY = "PYJY_DRAFT_ROOT"
 RULE_GROUPS_CONFIG_KEY = "PYJY_RULE_GROUPS"
@@ -209,3 +214,42 @@ async def set_rule_groups(config: RuleGroupsConfig):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新规则组配置失败: {str(e)}")
+
+
+@router.get("/rules")
+async def get_draft_rules(
+    draft_path: str = Query(..., description="草稿文件绝对路径或草稿目录")
+):
+    """
+    获取指定草稿绑定的规则组
+    """
+    try:
+        groups = DraftService.get_draft_rule_groups(draft_path)
+        return {
+            "rule_groups": groups
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"获取草稿规则组失败: {str(e)}")
+
+
+@router.post("/rules")
+async def set_draft_rules(payload: DraftRulesRequest):
+    """
+    保存指定草稿的规则组
+    """
+    try:
+        groups = DraftService.set_draft_rule_groups(payload.draft_path, payload.rule_groups)
+        return {
+            "rule_groups": groups,
+            "message": "草稿规则组已更新"
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"更新草稿规则组失败: {str(e)}")

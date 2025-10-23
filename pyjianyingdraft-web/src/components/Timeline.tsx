@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/react-timeline-editor';
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
-import { ruleTestApi, tasksApi, type AllMaterialsResponse } from '@/lib/api';
+import { draftApi, ruleTestApi, tasksApi, type AllMaterialsResponse } from '@/lib/api';
 import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText, Menu, MenuItem, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddBoxIcon from '@mui/icons-material/AddBox';
@@ -20,6 +20,7 @@ import { MaterialPreview } from './MaterialPreview';
 import { AddToRuleGroupDialog } from './AddToRuleGroupDialog';
 import { DownloadProgressBar } from './DownloadProgressBar';
 import './timeline.css';
+import { DEFAULT_RULES } from '@/config/defaultRules';
 
 /**
  * Tab 面板组件
@@ -58,7 +59,21 @@ const TRACK_COLORS: Record<string, string> = {
   sticker: '#0288d1',   // 青色
 };
 
-/**
+const buildDefaultRuleGroup = (): RuleGroup => ({
+  id: 'default',
+  title: '默认规则组',
+  rules: DEFAULT_RULES.map(rule => ({ ...rule })),
+  createdAt: '1970-01-01T00:00:00.000Z',
+  updatedAt: '1970-01-01T00:00:00.000Z',
+});
+
+const cloneRuleGroups = (groups: RuleGroup[]): RuleGroup[] =>
+  groups.map((group) => ({
+    ...group,
+    rules: Array.isArray(group.rules) ? group.rules.map(rule => ({ ...rule })) : [],
+  }));
+
+/** 
  * Timeline组件的Props
  */
 interface TimelineEditorProps {
@@ -84,6 +99,12 @@ interface TimelineEditorProps {
   canvasHeight?: number;
   /** 帧率 */
   fps?: number;
+  /** 草稿文件路径 */
+  draftPath?: string;
+  /** 规则组变化回调 */
+  onRuleGroupsChange?: (ruleGroups: RuleGroup[]) => void;
+  /** 初始规则组 */
+  initialRuleGroups?: RuleGroup[] | null;
   /** 处理测试数据选择回调(必需) */
   handleTestDataSelect: (
     testDataId: string,
@@ -97,6 +118,7 @@ interface TimelineEditorProps {
       rawMaterials?: any[];
       useRawSegmentsHint?: boolean;
       fullRequestPayload?: any;
+      initialTestData?: TestData;
     }
   ) => void;
 }
@@ -321,12 +343,20 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   canvasWidth,
   canvasHeight,
   fps,
+  draftPath,
+  onRuleGroupsChange,
+  initialRuleGroups,
   handleTestDataSelect,
 }) => {
   const [data, setData] = useState<TimelineRow[]>([]);
   const [scaleWidth, setScaleWidth] = useState(160); // 默认刻度宽度
   const [selectedActionId, setSelectedActionId] = useState<string | null>(null); // 选中的片段ID
   const [activeTab, setActiveTab] = useState(0); // 当前激活的Tab
+  const [ruleGroups, setRuleGroups] = useState<RuleGroup[]>([]);
+  const selectedRuleGroupIdRef = useRef<string | null>(null);
+  const [savingRuleGroups, setSavingRuleGroups] = useState(false);
+  const hasInitializedRuleGroups = useRef(false);
+  const initialRuleGroupsSignatureRef = useRef<string | null>(null);
   const timelineRef = useRef<any>(null);
   const trackListRef = useRef<HTMLDivElement>(null); // 左侧轨道列表引用
 
@@ -472,6 +502,125 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
     action: TimelineAction | null;
     row: TimelineRow | null;
   } | null>(null);
+
+  useEffect(() => {
+    selectedRuleGroupIdRef.current = selectedRuleGroup?.id ?? null;
+  }, [selectedRuleGroup]);
+
+  useEffect(() => {
+    hasInitializedRuleGroups.current = false;
+    initialRuleGroupsSignatureRef.current = null;
+  }, [draftPath]);
+
+  const applyRuleGroups = useCallback(
+    (groups: RuleGroup[]) => {
+      const normalized = cloneRuleGroups(groups);
+      setRuleGroups(normalized);
+      const desiredId = selectedRuleGroupIdRef.current;
+      const nextSelected =
+        (desiredId && normalized.find(group => group.id === desiredId)) || normalized[0] || null;
+      selectedRuleGroupIdRef.current = nextSelected?.id ?? null;
+      setSelectedRuleGroup(nextSelected);
+      initialRuleGroupsSignatureRef.current = JSON.stringify(normalized);
+      onRuleGroupsChange?.(cloneRuleGroups(normalized));
+    },
+    [onRuleGroupsChange],
+  );
+
+  const persistRuleGroups = useCallback(
+    async (nextGroups: RuleGroup[]) => {
+      const snapshot = cloneRuleGroups(ruleGroups);
+      const normalizedNext = cloneRuleGroups(nextGroups);
+      applyRuleGroups(normalizedNext);
+      if (!draftPath) {
+        return;
+      }
+      setSavingRuleGroups(true);
+      try {
+        await draftApi.setDraftRuleGroups(draftPath, normalizedNext);
+      } catch (error) {
+        console.error('保存草稿规则组失败:', error);
+        applyRuleGroups(snapshot);
+        const message = error instanceof Error ? error.message : String(error);
+        alert(`保存规则组失败: ${message}`);
+        throw error instanceof Error ? error : new Error(message);
+      } finally {
+        setSavingRuleGroups(false);
+      }
+    },
+    [applyRuleGroups, draftPath, ruleGroups],
+  );
+
+  const handleRuleGroupRuleSave = useCallback(
+    async (updatedRuleGroup: RuleGroup) => {
+      const exists = ruleGroups.some(group => group.id === updatedRuleGroup.id);
+      const nextGroups = exists
+        ? ruleGroups.map(group => (group.id === updatedRuleGroup.id ? updatedRuleGroup : group))
+        : [...ruleGroups, updatedRuleGroup];
+      selectedRuleGroupIdRef.current = updatedRuleGroup.id;
+      await persistRuleGroups(nextGroups);
+    },
+    [ruleGroups, persistRuleGroups],
+  );
+
+  useEffect(() => {
+    if (initialRuleGroups !== undefined && initialRuleGroups !== null) {
+      const signature = JSON.stringify(initialRuleGroups);
+      if (initialRuleGroupsSignatureRef.current === signature) {
+        hasInitializedRuleGroups.current = true;
+        return;
+      }
+      initialRuleGroupsSignatureRef.current = signature;
+      hasInitializedRuleGroups.current = true;
+      if (initialRuleGroups.length > 0) {
+        applyRuleGroups(initialRuleGroups);
+      } else {
+        applyRuleGroups([buildDefaultRuleGroup()]);
+      }
+      return;
+    }
+
+    if (hasInitializedRuleGroups.current) {
+      return;
+    }
+
+    if (!draftPath) {
+      hasInitializedRuleGroups.current = true;
+      applyRuleGroups([buildDefaultRuleGroup()]);
+      return;
+    }
+
+    let cancelled = false;
+    const fetchRuleGroups = async () => {
+      try {
+        const response = await draftApi.getDraftRuleGroups(draftPath);
+        if (cancelled) {
+          return;
+        }
+        hasInitializedRuleGroups.current = true;
+        initialRuleGroupsSignatureRef.current = null;
+        const groups = response.rule_groups ?? [];
+        if (groups.length > 0) {
+          applyRuleGroups(groups);
+        } else {
+          applyRuleGroups([buildDefaultRuleGroup()]);
+        }
+      } catch (error) {
+        console.error('加载草稿规则组失败:', error);
+        if (!cancelled) {
+          hasInitializedRuleGroups.current = true;
+          initialRuleGroupsSignatureRef.current = null;
+          applyRuleGroups([buildDefaultRuleGroup()]);
+        }
+      }
+    };
+
+    fetchRuleGroups();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftPath, initialRuleGroups, applyRuleGroups]);
 
   // 将轨道数据转换为Timeline格式，并过滤隐藏的轨道类型
   useEffect(() => {
@@ -1271,7 +1420,25 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           <TabPanel value={activeTab} index={1}>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {/* 规则组选择器 */}
-              <RuleGroupSelector value={selectedRuleGroup} onChange={setSelectedRuleGroup} />
+              <RuleGroupSelector
+                value={selectedRuleGroup}
+                onChange={setSelectedRuleGroup}
+                ruleGroups={ruleGroups}
+                onRuleGroupsChange={(groups) => {
+                  persistRuleGroups(groups).catch(() => {
+                    /* 错误已在 persistRuleGroups 中处理 */
+                  });
+                }}
+                onSaveToDraft={async (groups) => {
+                  await persistRuleGroups(groups).then(() => {
+                    setTestResult('规则组已保存到草稿目录');
+                    setActiveTab(1);
+                  }).catch(() => {
+                    /* 错误已在 persistRuleGroups 中处理 */
+                  });
+                }}
+                loading={savingRuleGroups}
+              />
 
               <Divider />
 
@@ -1448,12 +1615,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         })()}
         ruleGroup={selectedRuleGroup}
         editingRule={null}
+        onSaveRuleGroup={handleRuleGroupRuleSave}
         onSuccess={(updatedRuleGroup) => {
-          // 更新规则组
           setSelectedRuleGroup(updatedRuleGroup);
-          // 显示成功消息
-          setTestResult(`规则添加成功! 规则组"${updatedRuleGroup.title}"现在有 ${updatedRuleGroup.rules.length} 条规则`);
-          // 切换到规则组Tab
+          setTestResult(`规则添加成功！规则组 "${updatedRuleGroup.title}" 现在共有 ${updatedRuleGroup.rules.length} 条规则`);
           setActiveTab(1);
         }}
       />
