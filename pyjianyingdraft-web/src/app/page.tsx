@@ -5,6 +5,7 @@ import {
   Box,
   Drawer,
   Tabs,
+  List,
   Tab,
   Paper,
   Alert,
@@ -17,6 +18,8 @@ import {
   Divider,
   Menu,
   MenuItem,
+  ListItem,
+  ListItemButton,
   ListItemIcon,
   ListItemText,
   Button,
@@ -132,6 +135,9 @@ export default function Home() {
     mouseY: number;
     tabId: string;
   } | null>(null);
+  const [allRuleGroups, setAllRuleGroups] = useState<RuleGroup[]>([]);
+  const [loadingRuleGroups, setLoadingRuleGroups] = useState<boolean>(false);
+  const [ruleGroupsError, setRuleGroupsError] = useState<string | null>(null);
 
   const handleRuleGroupsUpdate = useCallback((tabId: string, groups: RuleGroup[]) => {
     const normalized = groups.map(group => ({
@@ -233,8 +239,26 @@ export default function Home() {
     setActiveTabId(newTabId);
   }, [tabs]);
 
-  // 从localStorage恢复tabs
+  // 从后端加载所有规则组
   useEffect(() => {
+    const loadRuleGroups = async () => {
+      setLoadingRuleGroups(true);
+      setRuleGroupsError(null);
+      try {
+        const response = await draftApi.getRuleGroups();
+        setAllRuleGroups(response.rule_groups || []);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : '加载规则组失败';
+        setRuleGroupsError(errorMessage);
+        console.error('加载规则组错误:', err);
+      } finally {
+        setLoadingRuleGroups(false);
+      }
+    };
+
+    loadRuleGroups();
+
+    // 从localStorage恢复tabs
     const savedTabs = localStorage.getItem('editorTabs');
     const savedActiveTabId = localStorage.getItem('activeTabId');
 
@@ -505,6 +529,7 @@ export default function Home() {
         >
           <Tab label="草稿列表" />
           <Tab label="文件版本" />
+          <Tab label="规则组" />
         </Tabs>
 
         {/* Tab内容 */}
@@ -520,6 +545,11 @@ export default function Home() {
           }}>
             <DraftList
               onDraftSelect={handleDraftSelect}
+              onRulesUpdated={() => {
+                if (activeTab?.draftPath) {
+                  loadDraftData(activeTab.id, activeTab.draftPath);
+                }
+              }}
               selectedDraftPath={activeTab?.draftPath}
             />
           </Box>
@@ -536,6 +566,64 @@ export default function Home() {
               selectedFilePath={tabs.find(t => t.id === activeTabId && t.type === 'file_diff')?.filePath}
               onFileSelect={handleFileDiffSelect}
             />
+          </Box>
+          <Box sx={{ 
+            display: leftTabValue === 2 ? 'block' : 'none',
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            overflow: 'auto',
+            p: 2
+          }}>
+            {loadingRuleGroups ? (
+              <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : ruleGroupsError ? (
+              <Alert severity="error" sx={{ m: 2 }}>
+                {ruleGroupsError}
+              </Alert>
+            ) : allRuleGroups.length ? (
+              <List dense>
+                {allRuleGroups.map((group) => (
+                  <ListItemButton 
+                    key={group.id}
+                    onClick={() => {
+                      handleTestDataSelect(
+                        `rule-group-${group.id}`,
+                        `规则组: ${group.title}`,
+                        async () => Promise.resolve(),
+                        {
+                          ruleGroupId: group.id,
+                          ruleGroup: group,
+                        }
+                      );
+                    }}
+                    sx={{
+                      mb: 1,
+                      borderRadius: 1,
+                      '&:hover': {
+                        backgroundColor: 'action.hover',
+                      }
+                    }}
+                  >
+                    <ListItemText
+                      primary={group.title}
+                      secondary={`${group.rules.length} 条规则`}
+                      primaryTypographyProps={{ fontWeight: 500 }}
+                    />
+                  </ListItemButton>
+                ))}
+              </List>
+            ) : (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <Typography variant="body2" color="text.secondary">
+                  当前没有可用的规则组
+                </Typography>
+              </Box>
+            )}
           </Box>
         </Box>
       </Drawer>

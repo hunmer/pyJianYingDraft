@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Box, Paper, Typography, IconButton, Slider, Alert } from '@mui/material';
+import Image from 'next/image';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import PauseIcon from '@mui/icons-material/Pause';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -353,10 +354,13 @@ export const MaterialPreview: React.FC<MaterialPreviewProps> = ({
   if (material.type === 'image' || material.type === 'photo') {
     return (
       <Paper elevation={1} sx={{ overflow: 'hidden', bgcolor: 'grey.100', textAlign: 'center' }}>
-        <img
+        <Image
           src={fileUrl || ''}
           alt={material.name || '图片'}
-          style={{ maxWidth: '100%', maxHeight: '200px', display: 'block', margin: '0 auto' }}
+          width={0}
+          height={0}
+          sizes="100vw"
+          style={{ width: '100%', height: 'auto', maxHeight: '200px', display: 'block', margin: '0 auto' }}
           onError={(e) => {
             setError('图片加载失败');
             (e.target as HTMLImageElement).style.display = 'none';

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -59,7 +59,7 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
   }, [open, material, ruleGroup]);
 
   // 重置表单
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     if (editingRule) {
       setRuleType(editingRule.type);
       setRuleTitle(editingRule.title);
@@ -68,14 +68,14 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
       setRuleTitle('');
     }
     setError('');
-  };
+  }, [editingRule]);
 
   // 当对话框打开/关闭时重置表单
   useEffect(() => {
     if (open) {
       resetForm();
     }
-  }, [open, editingRule]);
+  }, [open, editingRule, resetForm]);
 
   // 验证表单
   const validateForm = (): boolean => {

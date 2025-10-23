@@ -259,8 +259,12 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
     await onSaveToDraft(localRuleGroups);
   };
 
-  const handleChange = (event: React.ChangeEvent<{ value: unknown }>) => {
-    const selectedId = event.target.value as string;
+  const handleChange = (
+    event: React.ChangeEvent<{ value: unknown }> | 
+    (Event & { target: { value: string; name: string } })
+  ) => {
+    const value = 'target' in event ? event.target.value : event.value;
+    const selectedId = typeof value === 'string' ? value : String(value);
     const selectedGroup = localRuleGroups.find(group => group.id === selectedId) ?? null;
     onChange(selectedGroup);
   };
@@ -316,11 +320,10 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
       >
         <Tooltip title={isSaveDisabled ? '当前不可保存' : '保存到草稿目录'}>
           <MenuItem onClick={handleSaveToDraft} disabled={isSaveDisabled}>
-            {loading ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" />}
-            保存到草稿目录
+            {loading ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" sx={{ mr: 1 }} />}
+            保存到草稿
           </MenuItem>
         </Tooltip>
-        <Divider />
         <MenuItem onClick={handleNewRuleGroup} disabled={disabled}>
           <AddIcon fontSize="small" sx={{ mr: 1 }} />
           新建规则组
@@ -329,7 +332,6 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
           <CloudUploadIcon fontSize="small" sx={{ mr: 1 }} />
           导入规则组
         </MenuItem>
-        <Divider />
         <MenuItem onClick={handleDownloadRuleGroup} disabled={!value}>
           <CloudDownloadIcon fontSize="small" sx={{ mr: 1 }} />
           下载规则组

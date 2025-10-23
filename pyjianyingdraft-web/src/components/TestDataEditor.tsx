@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
+
 import {
   Box,
   Paper,
@@ -88,15 +89,8 @@ export default function TestDataEditor({
   const [datasetName, setDatasetName] = useState('');
   const [datasetDescription, setDatasetDescription] = useState('');
 
-  // 加载数据集列表
-  useEffect(() => {
-    if (ruleGroupId) {
-      loadDatasets();
-    }
-  }, [ruleGroupId]);
-
   // 从localStorage加载数据集
-  const loadDatasets = () => {
+  const loadDatasets = useCallback(() => {
     try {
       const stored = localStorage.getItem(`test-datasets-${ruleGroupId}`);
       if (stored) {
@@ -106,7 +100,16 @@ export default function TestDataEditor({
     } catch (err) {
       console.error('加载数据集失败:', err);
     }
-  };
+  }, [ruleGroupId]);
+
+  // 加载数据集列表
+  useEffect(() => {
+    if (ruleGroupId) {
+      loadDatasets();
+    }
+  }, [ruleGroupId, loadDatasets]);
+
+  
 
   // 保存数据集到localStorage
   const saveDatasets = (updatedDatasets: TestDataset[]) => {
