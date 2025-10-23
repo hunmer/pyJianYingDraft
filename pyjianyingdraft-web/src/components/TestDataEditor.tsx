@@ -298,12 +298,6 @@ export default function TestDataEditor({
       {/* 顶部标题栏 */}
       <Paper elevation={0} sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box>
-            <Typography variant="h6">测试规则数据</Typography>
-            <Typography variant="caption" color="text.secondary">
-              ID: {testDataId}
-            </Typography>
-          </Box>
           <Button size="small" onClick={handleReset} variant="outlined" startIcon={<RestartAltIcon />}>
             重置为示例数据
           </Button>

@@ -17,6 +17,14 @@ import {
   Alert,
   Tabs,
   Tab,
+  Menu,
+  MenuItem,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  TextField,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -24,6 +32,8 @@ import {
   Visibility as VisibilityIcon,
   ContentCopy as ContentCopyIcon,
   Edit as EditIcon,
+  Delete as DeleteIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import type { RuleGroup, Rule } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
@@ -79,6 +89,99 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
   // 编辑对话框状态
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingRule, setEditingRule] = useState<Rule | null>(null);
+
+  // 右键菜单状态
+  const [contextMenu, setContextMenu] = useState<{
+    mouseX: number;
+    mouseY: number;
+    ruleIndex: number;
+  } | null>(null);
+
+  // 删除确认对话框状态
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingRuleIndex, setDeletingRuleIndex] = useState<number | null>(null);
+
+  // 编辑规则组对话框状态
+  const [editRuleGroupDialogOpen, setEditRuleGroupDialogOpen] = useState(false);
+  const [editedRuleGroupTitle, setEditedRuleGroupTitle] = useState('');
+  const [editedRuleGroupDescription, setEditedRuleGroupDescription] = useState('');
+
+  // 处理右键菜单打开
+  const handleContextMenu = (event: React.MouseEvent, ruleIndex: number) => {
+    event.preventDefault();
+    setContextMenu({
+      mouseX: event.clientX + 2,
+      mouseY: event.clientY - 6,
+      ruleIndex,
+    });
+  };
+
+  // 关闭右键菜单
+  const handleCloseContextMenu = () => {
+    setContextMenu(null);
+  };
+
+  // 处理删除规则
+  const handleDeleteRule = (ruleIndex: number) => {
+    setDeletingRuleIndex(ruleIndex);
+    setDeleteDialogOpen(true);
+    handleCloseContextMenu();
+  };
+
+  // 确认删除规则
+  const confirmDeleteRule = async () => {
+    if (!ruleGroup || deletingRuleIndex === null) {
+      return;
+    }
+
+    const updatedRules = ruleGroup.rules.filter((_, index) => index !== deletingRuleIndex);
+    const updatedRuleGroup: RuleGroup = {
+      ...ruleGroup,
+      rules: updatedRules,
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      onSuccess(updatedRuleGroup);
+      setSnackbar({ open: true, message: '规则删除成功' });
+    } catch (error) {
+      console.error('删除规则失败:', error);
+      setSnackbar({ open: true, message: '删除规则失败' });
+    } finally {
+      setDeleteDialogOpen(false);
+      setDeletingRuleIndex(null);
+    }
+  };
+
+  // 打开编辑规则组对话框
+  const handleEditRuleGroup = () => {
+    if (ruleGroup) {
+      setEditedRuleGroupTitle(ruleGroup.title);
+      setEditedRuleGroupDescription(ruleGroup.description || '');
+      setEditRuleGroupDialogOpen(true);
+    }
+  };
+
+  // 保存规则组编辑
+  const handleSaveRuleGroup = () => {
+    if (!ruleGroup) return;
+
+    const updatedRuleGroup: RuleGroup = {
+      ...ruleGroup,
+      title: editedRuleGroupTitle.trim() || ruleGroup.title,
+      description: editedRuleGroupDescription.trim(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    try {
+      onSuccess(updatedRuleGroup);
+      setSnackbar({ open: true, message: '规则组更新成功' });
+      setEditRuleGroupDialogOpen(false);
+    } catch (error) {
+      console.error('更新规则组失败:', error);
+      setSnackbar({ open: true, message: '更新规则组失败' });
+    }
+  };
 
   // 复制到剪贴板
   const copyToClipboard = (text: string, label: string) => {
@@ -193,19 +296,30 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
       {showTitle && (
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
-            {customTitle ||ruleGroup.title}
+            {customTitle || ruleGroup.title}
           </Typography>
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<EditIcon />}
-            onClick={() => {
-              setEditingRule(null);
-              setEditDialogOpen(true);
-            }}
-          >
-            添加
-          </Button>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Tooltip title="编辑规则组">
+              <IconButton
+                size="small"
+                color="primary"
+                onClick={handleEditRuleGroup}
+              >
+                <SettingsIcon />
+              </IconButton>
+            </Tooltip>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<EditIcon />}
+              onClick={() => {
+                setEditingRule(null);
+                setEditDialogOpen(true);
+              }}
+            >
+              添加
+            </Button>
+          </Box>
         </Box>
       )}
 
@@ -219,15 +333,20 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
               <React.Fragment key={index}>
                 <ListItem
                   divider={index < ruleGroup.rules.length - 1 || isExpanded}
+                  onContextMenu={(e) => handleContextMenu(e, index)}
                   sx={{
                     flexDirection: 'column',
                     alignItems: 'stretch',
+                    cursor: 'context-menu',
+                    '&:hover': {
+                      backgroundColor: 'action.hover',
+                    },
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                     <ListItemText
                       primary={rule.title}
-                      secondary={`类型: ${rule.type} | 素材数: ${rule.material_ids.length}`}
+                      secondary={`类型: ${rule.type}`}
                       primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
                       secondaryTypographyProps={{ variant: 'caption' }}
                     />
@@ -285,16 +404,119 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
       {/* 编辑对话框 */}
       <AddToRuleGroupDialog
         open={editDialogOpen}
-        onClose={() => setEditDialogOpen(false)}
+        onClose={() => {
+          setEditDialogOpen(false);
+          setEditingRule(null);
+        }}
         material={null}
         ruleGroup={ruleGroup}
         onSuccess={onSuccess}
         editingRule={editingRule}
         onSaveRuleGroup={async (updatedRuleGroup) => {
-          // 这里需要实现保存规则组的逻辑
-          console.log('保存规则组:', updatedRuleGroup);
+          // 调用父组件的 onSuccess 回调来更新规则组
+          await onSuccess(updatedRuleGroup);
         }}
       />
+
+      {/* 右键菜单 */}
+      <Menu
+        open={contextMenu !== null}
+        onClose={handleCloseContextMenu}
+        anchorReference="anchorPosition"
+        anchorPosition={
+          contextMenu !== null
+            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
+            : undefined
+        }
+      >
+        <MenuItem
+          onClick={() => {
+            if (contextMenu !== null && ruleGroup) {
+              const rule = ruleGroup.rules[contextMenu.ruleIndex];
+              setEditingRule(rule);
+              setEditDialogOpen(true);
+              handleCloseContextMenu();
+            }
+          }}
+        >
+          <EditIcon sx={{ mr: 1 }} fontSize="small" />
+          编辑规则
+        </MenuItem>
+        <MenuItem
+          onClick={() => {
+            if (contextMenu !== null) {
+              handleDeleteRule(contextMenu.ruleIndex);
+            }
+          }}
+          sx={{ color: 'error.main' }}
+        >
+          <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
+          删除节点
+        </MenuItem>
+      </Menu>
+
+      {/* 删除确认对话框 */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => setDeleteDialogOpen(false)}
+      >
+        <DialogTitle>确认删除</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            {deletingRuleIndex !== null && ruleGroup
+              ? `确定要删除规则 "${ruleGroup.rules[deletingRuleIndex]?.title}" 吗?此操作不可撤销。`
+              : '确定要删除此规则吗?'}
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialogOpen(false)}>取消</Button>
+          <Button onClick={confirmDeleteRule} color="error" variant="contained">
+            删除
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 编辑规则组对话框 */}
+      <Dialog
+        open={editRuleGroupDialogOpen}
+        onClose={() => setEditRuleGroupDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>编辑规则组</DialogTitle>
+        <DialogContent>
+          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <TextField
+              label="规则组标题"
+              fullWidth
+              value={editedRuleGroupTitle}
+              onChange={(e) => setEditedRuleGroupTitle(e.target.value)}
+              placeholder="请输入规则组标题"
+              required
+            />
+            <TextField
+              label="规则组描述"
+              fullWidth
+              multiline
+              rows={3}
+              value={editedRuleGroupDescription}
+              onChange={(e) => setEditedRuleGroupDescription(e.target.value)}
+              placeholder="请输入规则组描述(可选)"
+            />
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditRuleGroupDialogOpen(false)}>取消</Button>
+          <Button
+            onClick={handleSaveRuleGroup}
+            variant="contained"
+            color="primary"
+            disabled={!editedRuleGroupTitle.trim()}
+          >
+            保存
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* 复制成功提示 */}
       <Snackbar
