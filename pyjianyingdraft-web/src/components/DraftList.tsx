@@ -30,13 +30,14 @@ import { draftApi, type DraftListItem } from '@/lib/api';
 
 interface DraftListProps {
   onDraftSelect: (draftPath: string, draftName: string) => void;
+  onRulesUpdated?: () => void;
   selectedDraftPath?: string;
 }
 
 /**
  * 草稿列表组件 - 显示剪映草稿目录中的所有草稿
  */
-export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftListProps) {
+export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraftPath }: DraftListProps) {
   const [basePath, setBasePath] = useState<string>('');
   const [drafts, setDrafts] = useState<DraftListItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -53,29 +54,7 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
   // 检查是否在 Electron 环境
   const isElectron = typeof window !== 'undefined' && (window as any).electron;
 
-  // 从后端加载草稿根目录配置
-  useEffect(() => {
-    const loadDraftRoot = async () => {
-      try {
-        const response = await draftApi.getDraftRoot();
-        const rootPath = response.draft_root;
-
-        if (rootPath) {
-          setBasePath(rootPath);
-          // 自动加载草稿列表
-          loadDrafts(rootPath);
-        } else {
-          setShowSettings(true);
-        }
-      } catch (err) {
-        console.error('加载草稿根目录配置失败:', err);
-        setShowSettings(true);
-      }
-    };
-
-    loadDraftRoot();
-  }, []);
-
+  
   /**
    * 加载草稿列表
    */
@@ -111,6 +90,30 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
     }
   }, [basePath]);
 
+  
+  // 从后端加载草稿根目录配置
+  useEffect(() => {
+    const loadDraftRoot = async () => {
+      try {
+        const response = await draftApi.getDraftRoot();
+        const rootPath = response.draft_root;
+
+        if (rootPath) {
+          setBasePath(rootPath);
+          // 自动加载草稿列表
+          loadDrafts(rootPath);
+        } else {
+          setShowSettings(true);
+        }
+      } catch (err) {
+        console.error('加载草稿根目录配置失败:', err);
+        setShowSettings(true);
+      }
+    };
+
+    loadDraftRoot();
+  }, [loadDrafts]);
+
   /**
    * 格式化时间戳
    */
@@ -136,6 +139,9 @@ export default function DraftList({ onDraftSelect, selectedDraftPath }: DraftLis
    */
   const handleDraftClick = (draft: DraftListItem) => {
     onDraftSelect(draft.path, draft.name);
+    if (draft.has_rules && typeof onRulesUpdated === 'function') {
+      onRulesUpdated();
+    }
   };
 
   /**

@@ -621,9 +621,9 @@ export const tasksApi = {
 };
 
 /**
- * 默认导出所有API
+ * 所有API集合
  */
-export default {
+const api = {
   draft: draftApi,
   subdrafts: subdraftsApi,
   materials: materialsApi,
@@ -632,3 +632,5 @@ export default {
   tracks: tracksApi,
   fileWatch: fileWatchApi,
 };
+
+export default api;

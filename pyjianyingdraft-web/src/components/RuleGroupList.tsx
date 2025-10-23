@@ -290,6 +290,10 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
         ruleGroup={ruleGroup}
         onSuccess={onSuccess}
         editingRule={editingRule}
+        onSaveRuleGroup={async (updatedRuleGroup) => {
+          // 这里需要实现保存规则组的逻辑
+          console.log('保存规则组:', updatedRuleGroup);
+        }}
       />
 
       {/* 复制成功提示 */}
