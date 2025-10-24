@@ -994,50 +994,7 @@ class ScriptFile:
 
             print()
 
-    def _download_remote_materials(
-        self,
-        draft_dir: str,
-        max_concurrent: int = 50,
-        proxy: Optional[str] = None,
-        verbose: bool = True
-    ) -> None:
-        """下载所有远程素材到草稿目录 (使用高并发异步下载)
 
-        Args:
-            draft_dir (str): 草稿文件所在目录的路径
-            max_concurrent (int): 最大并发下载数,默认50
-            proxy (str, optional): HTTP代理地址,如 "http://127.0.0.1:7890"
-            verbose (bool): 是否显示详细日志,默认True
-        """
-        from .remote_downloader import download_remote_materials
-
-        # 获取草稿ID
-        draft_id = self.content.get("id", "")
-        if not draft_id:
-            if verbose:
-                print("警告: 无法获取草稿ID, 跳过远程素材下载")
-            return
-
-        # 准备要下载的素材
-        # 先导出当前materials到content
-        self.content["materials"] = self.materials.export_json()
-
-        # 合并imported_materials
-        for material_type, material_list in self.imported_materials.items():
-            if material_type not in self.content["materials"]:
-                self.content["materials"][material_type] = material_list
-            else:
-                self.content["materials"][material_type].extend(material_list)
-
-        # 调用下载器
-        download_remote_materials(
-            materials=self.content["materials"],
-            draft_id=draft_id,
-            draft_dir=draft_dir,
-            max_concurrent=max_concurrent,
-            proxy=proxy,
-            verbose=verbose
-        )
 
     def dumps(self) -> str:
         """将草稿文件内容导出为JSON字符串"""
@@ -1063,28 +1020,28 @@ class ScriptFile:
     def dump(
         self,
         file_path: str,
-        download_remote: bool = True,
-        max_concurrent: int = 50,
+        download_remote: bool = None,
+        max_concurrent: int = None,
         proxy: Optional[str] = None,
-        download_verbose: bool = True
+        download_verbose: bool = None
     ) -> None:
         """将草稿文件内容写入文件
 
         Args:
             file_path (str): 保存文件的路径
-            download_remote (bool, optional): 是否下载远程素材. 默认为True.
-            max_concurrent (int, optional): 最大并发下载数. 默认50.
-            proxy (str, optional): HTTP代理地址,如 "http://127.0.0.1:7890"
-            download_verbose (bool, optional): 是否显示下载详细日志. 默认True.
+            download_remote (bool, optional): 已废弃，不再支持。请使用 aria2 进行下载。
+            max_concurrent (int, optional): 已废弃，不再支持。
+            proxy (str, optional): 已废弃，不再支持。
+            download_verbose (bool, optional): 已废弃，不再支持。
         """
-        # 在保存前下载远程素材
-        if download_remote:
-            draft_dir = os.path.dirname(file_path)
-            self._download_remote_materials(
-                draft_dir,
-                max_concurrent=max_concurrent,
-                proxy=proxy,
-                verbose=download_verbose
+        # 检查是否使用了废弃的参数
+        import warnings
+        if download_remote is not None or max_concurrent is not None or proxy is not None or download_verbose is not None:
+            warnings.warn(
+                "download_remote, max_concurrent, proxy, download_verbose 参数已废弃。"
+                "远程素材下载功能已移除，请使用 pyJianYingDraftServer 中的 aria2 下载功能。",
+                DeprecationWarning,
+                stacklevel=2
             )
 
         with open(file_path, "w", encoding="utf-8") as f:
@@ -1092,18 +1049,18 @@ class ScriptFile:
 
     def save(
         self,
-        download_remote: bool = True,
-        max_concurrent: int = 50,
+        download_remote: bool = None,
+        max_concurrent: int = None,
         proxy: Optional[str] = None,
-        download_verbose: bool = True
+        download_verbose: bool = None
     ) -> None:
         """保存草稿文件至打开时的路径
 
         Args:
-            download_remote (bool, optional): 是否下载远程素材. 默认为True.
-            max_concurrent (int, optional): 最大并发下载数. 默认50.
-            proxy (str, optional): HTTP代理地址,如 "http://127.0.0.1:7890"
-            download_verbose (bool, optional): 是否显示下载详细日志. 默认True.
+            download_remote (bool, optional): 已废弃，不再支持。请使用 aria2 进行下载。
+            max_concurrent (int, optional): 已废弃，不再支持。
+            proxy (str, optional): 已废弃，不再支持。
+            download_verbose (bool, optional): 已废弃，不再支持。
 
         Raises:
             `ValueError`: 没有设置保存路径
