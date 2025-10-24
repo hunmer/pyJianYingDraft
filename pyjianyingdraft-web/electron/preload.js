@@ -39,5 +39,19 @@ contextBridge.exposeInMainWorld('electron', {
      * @returns {Promise<void>}
      */
     openFolder: (folderPath) => ipcRenderer.invoke('fs:open-folder', folderPath),
+
+    /**
+     * 选择文件对话框
+     * @param {Object} options - 对话框选项
+     * @returns {Promise<Object>} - 包含 canceled 和 filePaths 的对象
+     */
+    selectFile: (options) => ipcRenderer.invoke('fs:select-file', options),
+
+    /**
+     * 选择目录对话框
+     * @param {Object} options - 对话框选项
+     * @returns {Promise<Object>} - 包含 canceled 和 filePaths 的对象
+     */
+    selectDirectory: (options) => ipcRenderer.invoke('fs:select-directory', options),
   }
 });

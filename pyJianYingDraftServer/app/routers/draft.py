@@ -28,6 +28,12 @@ class DraftRulesRequest(BaseModel):
     rule_groups: List[Dict[str, Any]]
 
 
+class ImportZipRequest(BaseModel):
+    """导入压缩包请求"""
+    draft_root: str
+    zip_path: str
+
+
 DRAFT_ROOT_CONFIG_KEY = "PYJY_DRAFT_ROOT"
 RULE_GROUPS_CONFIG_KEY = "PYJY_RULE_GROUPS"
 
@@ -253,3 +259,94 @@ async def set_draft_rules(payload: DraftRulesRequest):
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"更新草稿规则组失败: {str(e)}")
+
+
+@router.post("/import-zip")
+async def import_zip(payload: ImportZipRequest):
+    """
+    导入压缩包草稿
+
+    Args:
+        payload: 包含草稿根目录和压缩包路径的请求体
+
+    Returns:
+        导入结果，包含草稿名称
+    """
+    import os
+    import zipfile
+    import shutil
+    from pathlib import Path
+
+    try:
+        # 验证路径
+        if not os.path.exists(payload.draft_root):
+            raise HTTPException(status_code=400, detail=f"草稿根目录不存在: {payload.draft_root}")
+
+        if not os.path.exists(payload.zip_path):
+            raise HTTPException(status_code=400, detail=f"压缩包不存在: {payload.zip_path}")
+
+        # 检查文件扩展名
+        zip_ext = os.path.splitext(payload.zip_path)[1].lower()
+        if zip_ext not in ['.zip', '.rar', '.7z']:
+            raise HTTPException(status_code=400, detail=f"不支持的压缩格式: {zip_ext}")
+
+        # 目前只支持 zip 格式
+        if zip_ext != '.zip':
+            raise HTTPException(status_code=400, detail=f"当前仅支持 .zip 格式，后续将支持更多格式")
+
+        # 获取压缩包文件名（不含扩展名）作为草稿名称
+        draft_name = os.path.splitext(os.path.basename(payload.zip_path))[0]
+        target_dir = os.path.join(payload.draft_root, draft_name)
+
+        # 检查目标目录是否已存在
+        if os.path.exists(target_dir):
+            # 生成唯一名称
+            counter = 1
+            while os.path.exists(f"{target_dir}_{counter}"):
+                counter += 1
+            draft_name = f"{draft_name}_{counter}"
+            target_dir = f"{target_dir}_{counter}"
+
+        # 创建临时解压目录
+        temp_dir = os.path.join(payload.draft_root, f"_temp_{draft_name}")
+        os.makedirs(temp_dir, exist_ok=True)
+
+        try:
+            # 解压文件
+            with zipfile.ZipFile(payload.zip_path, 'r') as zip_ref:
+                zip_ref.extractall(temp_dir)
+
+            # 查找 draft_content.json 文件
+            draft_content_path = None
+            for root, dirs, files in os.walk(temp_dir):
+                if 'draft_content.json' in files:
+                    draft_content_path = os.path.join(root, 'draft_content.json')
+                    break
+
+            if not draft_content_path:
+                raise HTTPException(status_code=400, detail="压缩包中未找到 draft_content.json 文件")
+
+            # 获取包含 draft_content.json 的目录
+            draft_folder = os.path.dirname(draft_content_path)
+
+            # 移动到目标位置
+            shutil.move(draft_folder, target_dir)
+
+            # 清理临时目录
+            shutil.rmtree(temp_dir, ignore_errors=True)
+
+            return {
+                "message": "导入成功",
+                "draft_name": draft_name
+            }
+
+        except Exception as e:
+            # 清理临时目录
+            if os.path.exists(temp_dir):
+                shutil.rmtree(temp_dir, ignore_errors=True)
+            raise e
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"导入失败: {str(e)}")

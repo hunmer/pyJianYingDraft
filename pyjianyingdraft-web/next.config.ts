@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const isProd = process.env.NODE_ENV === 'production';
+
 const nextConfig: NextConfig = {
   /* config options here */
 
@@ -16,9 +18,9 @@ const nextConfig: NextConfig = {
 
   // 配置静态资源路径
   trailingSlash: true,
-  
-  // 使用相对路径以支持 Electron
-  assetPrefix: './',
+
+  // 使用相对路径以支持 Electron (仅在生产环境)
+  ...(isProd && { assetPrefix: './' }),
   
   typescript: {
     // !! 警告 !!

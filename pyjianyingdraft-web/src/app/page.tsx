@@ -34,6 +34,7 @@ import {
   Info,
   ClearAll,
   Refresh as RefreshIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 import DraftList from '@/components/DraftList';
 import FileVersionList from '@/components/FileVersionList';
@@ -674,6 +675,16 @@ export default function Home() {
           >
             <MenuIcon />
           </IconButton>
+
+          <Tooltip title="下载管理">
+            <IconButton
+              onClick={() => window.location.href = '/downloads'}
+              sx={{ mr: 2 }}
+              color="primary"
+            >
+              <DownloadIcon />
+            </IconButton>
+          </Tooltip>
 
           {/* Tabs */}
           {tabs.length > 0 && (

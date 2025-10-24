@@ -17,6 +17,8 @@ from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
+from app.path_utils import get_executable_dir
+
 
 class Aria2ProcessManager:
     """Aria2c进程管理器
@@ -95,7 +97,7 @@ class Aria2ProcessManager:
                 self.download_dir = user_dir / "Downloads/pyJianYingDraft"
             else:
                 # 开发环境
-                project_root = Path(__file__).resolve().parent.parent.parent
+                project_root = get_executable_dir()
                 self.download_dir = project_root / "downloads"
 
         self.download_dir.mkdir(parents=True, exist_ok=True)
@@ -140,7 +142,7 @@ class Aria2ProcessManager:
         Returns:
             aria2c可执行文件的绝对路径，未找到返回None
         """
-        project_root = Path(__file__).resolve().parent.parent.parent
+        project_root = get_executable_dir()
 
         # 1. 检查config.json中的ARIA2_PATH配置
         config_path = project_root / "config.json"
@@ -255,6 +257,30 @@ allow-overwrite=false
 
         self._log(f"已生成配置文件: {self.config_path}")
 
+    def _check_port_connectivity(self) -> bool:
+        """检查指定端口是否可以连接
+
+        使用socket检查端口是否已被占用且可连接
+
+        Returns:
+            bool: 端口可连接返回True，不可连接返回False
+        """
+        import socket
+
+        try:
+            # 尝试连接到指定端口
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(2)  # 2秒超时
+            result = sock.connect_ex(('localhost', self.rpc_port))
+            sock.close()
+
+            # connect_ex返回0表示连接成功
+            return result == 0
+        except Exception as e:
+            if self.verbose:
+                self._log(f"端口连通性检查出错: {e}")
+            return False
+
     def start(self, enable_debug_output: bool = False) -> bool:
         """启动aria2c进程
 
@@ -264,6 +290,19 @@ allow-overwrite=false
         Returns:
             bool: 启动成功返回True，失败返回False
         """
+        # 先检查端口是否已被占用且可连接
+        if self._check_port_connectivity():
+            self._log(f"检测到端口 {self.rpc_port} 已有Aria2服务运行")
+            # 验证RPC连接是否可用
+            if self._verify_rpc_connection():
+                self._log("✓ 使用现有的Aria2服务")
+                return True
+            else:
+                self._log("⚠ 端口已被占用但RPC连接失败，可能是其他服务占用了该端口")
+                # 不尝试重启，因为可能不是我们管理的进程
+                return False
+
+        # 检查自己管理的进程是否在运行
         if self.is_running():
             self._log("Aria2进程已在运行")
             # 即使进程在运行，也要验证RPC连接

@@ -9,19 +9,17 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
+from app.path_utils import get_executable_dir
+
 
 CONFIG_FILE_NAMES = ("config.json",)
 
 
 def _candidate_paths() -> list[Path]:
     """按优先级返回可能的配置文件路径列表。"""
-    base_dir = Path(__file__).resolve().parent.parent
-    project_root = base_dir.parent
+    exec_dir = get_executable_dir()
     return [
-        base_dir / name
-        for name in CONFIG_FILE_NAMES
-    ] + [
-        project_root / name
+        exec_dir / name
         for name in CONFIG_FILE_NAMES
     ]
 
@@ -30,6 +28,7 @@ def _get_config_file_path() -> Optional[Path]:
     """获取实际使用的配置文件路径"""
     for path in _candidate_paths():
         if path.exists():
+            print(path)
             return path
     # 如果没有找到，返回第一个候选路径（用于创建新配置）
     return _candidate_paths()[0]

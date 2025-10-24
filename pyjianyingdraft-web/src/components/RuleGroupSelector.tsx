@@ -243,10 +243,6 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
       alert('请先选择一个规则组');
       return;
     }
-    if (value.id === 'default') {
-      alert('无法删除默认规则组');
-      return;
-    }
     if (confirm(`确定要删除规则组 "${value.title}" 吗？此操作不可恢复。`)) {
       handleDeleteRuleGroup(value.id);
     }
@@ -343,7 +339,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
         <Divider />
         <MenuItem
           onClick={handleDeleteCurrentRuleGroup}
-          disabled={!value || value.id === 'default' || disabled}
+          disabled={!value || disabled}
           sx={{ color: 'error.main' }}
         >
           <DeleteIcon fontSize="small" sx={{ mr: 1 }} />

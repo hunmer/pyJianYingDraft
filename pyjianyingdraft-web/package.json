@@ -1,6 +1,8 @@
 {
   "name": "pyjianyingdraft-web",
   "version": "0.1.0",
+  "description": "jianyinX",
+  "author": "hunmer",
   "private": true,
   "main": "electron/main.js",
   "scripts": {
