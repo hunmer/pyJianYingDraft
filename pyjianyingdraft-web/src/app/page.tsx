@@ -43,7 +43,7 @@ import TimelineEditor from '@/components/Timeline';
 import TestDataEditor from '@/components/TestDataEditor';
 import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/lib/api';
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
-import type { RuleGroup, TestData } from '@/types/rule';
+import type { RuleGroup, TestData, RuleGroupTestRequest } from '@/types/rule';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 
 // Tab数据接口
@@ -63,10 +63,10 @@ interface TabData {
   filePath?: string;
   // 测试数据相关字段
   testDataId?: string;
-  onTestData?: (testData: any) => Promise<void> | void;
+  onTestData?: (testData: TestData) => Promise<RuleGroupTestRequest | void> | RuleGroupTestRequest | void;
   testDataContext?: {
     ruleGroupId?: string;
-    ruleGroup?: any;
+    ruleGroup?: RuleGroup;
     materials?: MaterialInfo[];
     rawSegments?: any[];
     rawMaterials?: any[];
@@ -269,12 +269,48 @@ export default function Home() {
         // 为test_data类型的tab恢复onTestData回调函数(因为函数无法序列化)
         const restoredTabs = parsedTabs.map(tab => {
           if (tab.type === 'test_data' && !tab.onTestData) {
+            // 创建一个使用保存的元数据的回调函数
+            const onTestData = async (testData: TestData) => {
+              console.log('[恢复的tab] 执行测试回调,testDataId:', tab.testDataId);
+
+              // 检查是否有必要的元数据
+              if (!tab.testDataContext?.ruleGroup) {
+                throw new Error('缺少规则组信息，无法提交测试');
+              }
+
+              // 使用保存的元数据构建请求载荷
+              const requestPayload = {
+                ruleGroup: tab.testDataContext.ruleGroup,
+                materials: tab.testDataContext.materials || [],
+                testData,
+                segment_styles: undefined,
+                use_raw_segments: tab.testDataContext.useRawSegmentsHint || false,
+                raw_segments: tab.testDataContext.rawSegments,
+                raw_materials: tab.testDataContext.rawMaterials,
+                draft_config: {
+                  canvas_config: {
+                    canvas_width: 1920,
+                    canvas_height: 1080,
+                  },
+                  config: {
+                    maintrack_adsorb: false,
+                  },
+                  fps: 30,
+                },
+              };
+
+              // 提交异步任务
+              const { tasksApi } = await import('@/lib/api');
+              const response = await tasksApi.submit(requestPayload);
+              console.log('[恢复的tab] 任务已提交:', response.task_id);
+
+              // 返回完整的请求载荷供下载使用
+              return requestPayload;
+            };
+
             return {
               ...tab,
-              onTestData: async () => {
-                console.log('[恢复的tab] 执行测试回调,testDataId:', tab.testDataId);
-                return Promise.resolve();
-              }
+              onTestData,
             };
           }
           return tab;
@@ -297,7 +333,13 @@ export default function Home() {
   // 保存tabs到localStorage
   useEffect(() => {
     if (tabs.length > 0) {
-      localStorage.setItem('editorTabs', JSON.stringify(tabs));
+      // 序列化tabs时，需要处理不可序列化的字段
+      const serializableTabs = tabs.map(tab => {
+        // 移除函数字段，保留其他可序列化的数据
+        const { onTestData, ...rest } = tab;
+        return rest;
+      });
+      localStorage.setItem('editorTabs', JSON.stringify(serializableTabs));
     } else {
       localStorage.removeItem('editorTabs');
     }

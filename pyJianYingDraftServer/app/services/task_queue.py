@@ -321,7 +321,13 @@ class TaskQueue:
 
                 # 如果无法从URL获取有效文件名，生成一个
                 if not filename or '.' not in filename:
-                    ext = self._guess_extension(path)
+                    # 优先使用 data.ext 字段，如果没有则从URL猜测
+                    ext = data.get("ext")
+                    if not ext:
+                        ext = self._guess_extension(path)
+                    # 确保扩展名以点开头
+                    if ext and not ext.startswith('.'):
+                        ext = f'.{ext}'
                     filename = f"{uuid.uuid4().hex}{ext}"
 
                 # 保存路径

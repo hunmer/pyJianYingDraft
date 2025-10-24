@@ -844,8 +844,8 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       setAsyncDialogOpen(true);
       setTestResult(`✅ 异步任务已提交\n任务ID: ${response.task_id}\n\n提示: 你可以在下载管理页面查看实时下载进度`);
 
-      // 返回完整的请求载荷供下载使用
-      return requestPayload;
+      // 保存完整载荷供下载使用
+      setFullRequestPayload(requestPayload);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '异步任务提交失败';
       setTestResult(`异步任务提交失败: ${message}`);
@@ -993,8 +993,8 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       const extra = response.message ? ` | ${response.message}` : '';
       setTestResult(`状态码: ${status} | 草稿目录: ${path}${extra}`);
 
-      // 返回完整的请求载荷供下载使用
-      return requestPayload;
+      // 保存完整载荷供下载使用
+      setFullRequestPayload(requestPayload);
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '测试失败';
       setTestResult(`测试失败: ${message}`);
@@ -1431,31 +1431,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               />
 
               <Divider />
-
-              {/* 测试按钮 */}
-              <Button
-                variant="contained"
-                startIcon={<PlayArrowIcon />}
-                onClick={() => {
-                  const testDataId = `test_data_${Date.now()}`;
-                  handleTestDataSelect(
-                    testDataId,
-                    '测试数据',
-                    handleTestData,
-                    {
-                      ruleGroupId: selectedRuleGroup?.id,
-                      ruleGroup: selectedRuleGroup,
-                      materials: materials,
-                      rawSegments: rawSegmentPayloads,
-                      rawMaterials: rawMaterialPayloads,
-                      useRawSegmentsHint: Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0),
-                    }
-                  );
-                }}
-                fullWidth
-              >
-                测试规则数据
-              </Button>
 
               {/* 异步提交按钮 */}
               <Button
