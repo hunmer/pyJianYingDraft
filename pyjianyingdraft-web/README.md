@@ -17,6 +17,7 @@
 - **Material-UI 7**: UI 组件库
 - **TypeScript**: 类型安全
 - **react-timeline-editor**: 时间轴编辑器组件
+- **Monaco Editor**: 代码编辑器(本地加载,支持离线使用)
 
 ## 快速开始
 
@@ -25,6 +26,8 @@
 ```bash
 npm install
 ```
+
+> **注意**: 安装过程中会自动复制 Monaco Editor 文件到 `public/monaco-editor/` 目录,以支持离线使用。详见 [Monaco Editor 本地加载配置](./MONACO_LOCAL_LOADING.md)。
 
 ### 2. 配置环境变量
 
@@ -142,6 +145,21 @@ pyjianyingdraft-web/
 npm run build
 npm start
 ```
+
+## 特性说明
+
+### Monaco Editor 本地加载
+
+本项目已配置 Monaco Editor 从本地加载,而不是从 CDN 加载,具有以下优势:
+
+- ✅ **离线可用**: 无需网络连接即可使用代码编辑器
+- ✅ **加载速度快**: 本地文件加载比网络请求快
+- ✅ **稳定性高**: 不受网络波动影响
+
+详细配置说明请参考:
+- [Monaco Editor 本地加载配置](./MONACO_LOCAL_LOADING.md)
+- [更改说明](./CHANGES_MONACO_LOCAL.md)
+- [测试步骤](./TESTING_MONACO_LOCAL.md)
 
 ## 已知问题
 
