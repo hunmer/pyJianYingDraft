@@ -22,16 +22,22 @@ import {
   Alert,
   CircularProgress,
   Tooltip,
+  Card,
+  CardMedia,
+  CardContent,
+  CardActions,
+  Grid,
 } from '@mui/material';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import SettingsIcon from '@mui/icons-material/Settings';
 import PauseIcon from '@mui/icons-material/Pause';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import DeleteIcon from '@mui/icons-material/Delete';
-import DownloadIcon from '@mui/icons-material/Download';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import FolderIcon from '@mui/icons-material/Folder';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import ImageIcon from '@mui/icons-material/Image';
+import VideoFileIcon from '@mui/icons-material/VideoFile';
+import AudioFileIcon from '@mui/icons-material/AudioFile';
+import DescriptionIcon from '@mui/icons-material/Description';
 import { useAria2WebSocket } from '@/hooks/useAria2WebSocket';
 import type { Aria2DownloadGroup, Aria2Download } from '@/types/aria2';
 
@@ -97,6 +103,43 @@ function getStatusText(status: string): string {
     removed: '已移除',
   };
   return statusMap[status] || status;
+}
+
+/**
+ * 判断文件是否为图片格式
+ */
+function isImageFile(filePath: string): boolean {
+  const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp', '.svg', '.ico'];
+  const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+  return imageExtensions.includes(ext);
+}
+
+/**
+ * 判断文件是否为视频格式
+ */
+function isVideoFile(filePath: string): boolean {
+  const videoExtensions = ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v'];
+  const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+  return videoExtensions.includes(ext);
+}
+
+/**
+ * 判断文件是否为音频格式
+ */
+function isAudioFile(filePath: string): boolean {
+  const audioExtensions = ['.mp3', '.wav', '.flac', '.aac', '.ogg', '.m4a', '.wma'];
+  const ext = filePath.toLowerCase().substring(filePath.lastIndexOf('.'));
+  return audioExtensions.includes(ext);
+}
+
+/**
+ * 获取文件类型图标
+ */
+function getFileIcon(filePath: string) {
+  if (isImageFile(filePath)) return <ImageIcon sx={{ fontSize: 80, color: 'primary.main' }} />;
+  if (isVideoFile(filePath)) return <VideoFileIcon sx={{ fontSize: 80, color: 'secondary.main' }} />;
+  if (isAudioFile(filePath)) return <AudioFileIcon sx={{ fontSize: 80, color: 'success.main' }} />;
+  return <DescriptionIcon sx={{ fontSize: 80, color: 'text.secondary' }} />;
 }
 
 /**
@@ -323,9 +366,9 @@ export function Aria2DownloadManager() {
           </Alert>
         )}
 
-        {/* 任务列表 */}
+        {/* 任务列表 - 卡片网格布局 */}
         {selectedGroupId && (
-          <List sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
             {displayDownloads.length === 0 ? (
               <Box sx={{ textAlign: 'center', p: 4 }}>
                 <Typography variant="body2" color="text.secondary">
@@ -333,96 +376,170 @@ export function Aria2DownloadManager() {
                 </Typography>
               </Box>
             ) : (
-              displayDownloads.map((download) => {
-                const progress = download.totalLength > 0
-                  ? (download.completedLength / download.totalLength) * 100
-                  : 0;
+              <Grid container spacing={2}>
+                {displayDownloads.map((download) => {
+                  const progress = download.totalLength > 0
+                    ? (download.completedLength / download.totalLength) * 100
+                    : 0;
 
-                // 获取文件路径
-                const filePath = download.files && download.files.length > 0
-                  ? download.files[0].path
-                  : '';
+                  // 获取文件路径
+                  const filePath = download.files && download.files.length > 0
+                    ? download.files[0].path
+                    : '';
 
-                return (
-                  <Paper key={download.gid} sx={{ p: 2, mb: 2 }}>
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', mb: 1 }}>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="subtitle2">
-                          {filePath ? filePath.split(/[/\\]/).pop() : `GID: ${download.gid}`}
-                        </Typography>
-                        <Chip
-                          label={getStatusText(download.status)}
-                          color={getStatusColor(download.status)}
-                          size="small"
-                          sx={{ mt: 0.5 }}
-                        />
-                      </Box>
+                  const fileName = filePath ? filePath.split(/[/\\]/).pop() : `GID: ${download.gid}`;
+                  const isImage = filePath && isImageFile(filePath);
+                  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                  const previewUrl = isImage ? `${apiUrl}/api/files/preview?file_path=${encodeURIComponent(filePath)}` : '';
 
-                      {/* 控制按钮 */}
-                      <Box>
-                        {download.status === 'complete' && filePath && (
-                          <>
-                            <Tooltip title="打开文件">
-                              <IconButton size="small" onClick={() => handleOpenFile(filePath)}>
-                                <InsertDriveFileIcon />
-                              </IconButton>
-                            </Tooltip>
-                            <Tooltip title="打开文件位置">
-                              <IconButton size="small" onClick={() => handleShowInFolder(filePath)}>
-                                <FolderIcon />
-                              </IconButton>
-                            </Tooltip>
-                          </>
-                        )}
-                        {download.status === 'active' && (
-                          <IconButton size="small" onClick={() => pauseDownload(download.gid)}>
-                            <PauseIcon />
-                          </IconButton>
-                        )}
-                        {download.status === 'paused' && (
-                          <IconButton size="small" onClick={() => resumeDownload(download.gid)}>
-                            <PlayArrowIcon />
-                          </IconButton>
-                        )}
-                        <IconButton size="small" onClick={() => removeDownload(download.gid)} color="error">
-                          <DeleteIcon />
-                        </IconButton>
-                      </Box>
-                    </Box>
+                  return (
+                    <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={download.gid}>
+                      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                        {/* 卡片封面 */}
+                        <Box
+                          sx={{
+                            height: 200,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            bgcolor: 'grey.100',
+                            position: 'relative',
+                            overflow: 'hidden',
+                          }}
+                        >
+                          {isImage && previewUrl ? (
+                            <CardMedia
+                              component="img"
+                              image={previewUrl}
+                              alt={fileName}
+                              sx={{
+                                width: '100%',
+                                height: '100%',
+                                objectFit: 'cover',
+                              }}
+                              onError={(e) => {
+                                // 图片加载失败时显示图标
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                                const parent = target.parentElement;
+                                if (parent) {
+                                  parent.innerHTML = '';
+                                  const iconContainer = document.createElement('div');
+                                  iconContainer.style.display = 'flex';
+                                  iconContainer.style.alignItems = 'center';
+                                  iconContainer.style.justifyContent = 'center';
+                                  iconContainer.style.height = '100%';
+                                  parent.appendChild(iconContainer);
+                                }
+                              }}
+                            />
+                          ) : (
+                            <Box sx={{ textAlign: 'center' }}>
+                              {getFileIcon(filePath)}
+                            </Box>
+                          )}
 
-                    {/* 进度条 */}
-                    <LinearProgress variant="determinate" value={progress} sx={{ my: 1 }} />
+                          {/* 状态标签 */}
+                          <Chip
+                            label={getStatusText(download.status)}
+                            color={getStatusColor(download.status)}
+                            size="small"
+                            sx={{
+                              position: 'absolute',
+                              top: 8,
+                              right: 8,
+                            }}
+                          />
+                        </Box>
 
-                    {/* 详细信息 */}
-                    <Box sx={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-                      <Typography variant="caption">
-                        {formatFileSize(download.completedLength)} / {formatFileSize(download.totalLength)} ({progress.toFixed(1)}%)
-                      </Typography>
-                      {download.downloadSpeed > 0 && (
-                        <Typography variant="caption">
-                          速度: {formatSpeed(download.downloadSpeed)}
-                        </Typography>
-                      )}
-                    </Box>
+                        {/* 卡片内容 */}
+                        <CardContent sx={{ flex: 1, pb: 1 }}>
+                          <Typography
+                            variant="subtitle2"
+                            sx={{
+                              mb: 1,
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              display: '-webkit-box',
+                              WebkitLineClamp: 2,
+                              WebkitBoxOrient: 'vertical',
+                            }}
+                            title={fileName}
+                          >
+                            {fileName}
+                          </Typography>
 
-                    {/* 文件路径 */}
-                    {filePath && (
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1, wordBreak: 'break-all' }}>
-                        {filePath}
-                      </Typography>
-                    )}
+                          {/* 进度条 */}
+                          <LinearProgress variant="determinate" value={progress} sx={{ mb: 1 }} />
 
-                    {/* 错误信息 */}
-                    {download.errorCode && download.errorCode !== '0' && (
-                      <Alert severity="error" sx={{ mt: 1 }}>
-                        {download.errorMessage || `错误代码: ${download.errorCode}`}
-                      </Alert>
-                    )}
-                  </Paper>
-                );
-              })
+                          {/* 下载信息 */}
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            {formatFileSize(download.completedLength)} / {formatFileSize(download.totalLength)}
+                          </Typography>
+                          <Typography variant="caption" display="block" color="text.secondary">
+                            {progress.toFixed(1)}%
+                          </Typography>
+                          {download.downloadSpeed > 0 && (
+                            <Typography variant="caption" display="block" color="primary">
+                              {formatSpeed(download.downloadSpeed)}
+                            </Typography>
+                          )}
+
+                          {/* 错误信息 */}
+                          {download.errorCode && download.errorCode !== '0' && (
+                            <Alert severity="error" sx={{ mt: 1, py: 0 }}>
+                              <Typography variant="caption">
+                                {download.errorMessage || `错误: ${download.errorCode}`}
+                              </Typography>
+                            </Alert>
+                          )}
+                        </CardContent>
+
+                        {/* 卡片操作按钮 */}
+                        <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
+                          <Box>
+                            {download.status === 'active' && (
+                              <Tooltip title="暂停">
+                                <IconButton size="small" onClick={() => pauseDownload(download.gid)}>
+                                  <PauseIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {download.status === 'paused' && (
+                              <Tooltip title="继续">
+                                <IconButton size="small" onClick={() => resumeDownload(download.gid)}>
+                                  <PlayArrowIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {download.status === 'complete' && filePath && (
+                              <>
+                                <Tooltip title="打开文件">
+                                  <IconButton size="small" onClick={() => handleOpenFile(filePath)}>
+                                    <InsertDriveFileIcon />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="打开文件位置">
+                                  <IconButton size="small" onClick={() => handleShowInFolder(filePath)}>
+                                    <FolderIcon />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            )}
+                          </Box>
+                          <Tooltip title="删除">
+                            <IconButton size="small" onClick={() => removeDownload(download.gid)} color="error">
+                              <DeleteIcon />
+                            </IconButton>
+                          </Tooltip>
+                        </CardActions>
+                      </Card>
+                    </Grid>
+                  );
+                })}
+              </Grid>
             )}
-          </List>
+          </Box>
         )}
       </Box>
 
