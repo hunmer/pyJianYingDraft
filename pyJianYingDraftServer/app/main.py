@@ -353,6 +353,17 @@ async def get_group_downloads(sid, data):
         # 转换下载信息
         downloads = []
         for download in batch_progress.downloads:
+            # 构建文件信息（包含真实路径）
+            files = []
+            if download.file_path:
+                files.append({
+                    'path': download.file_path,
+                    'length': download.total_length,
+                    'completedLength': download.completed_length,
+                    'selected': 'true',
+                    'uris': []
+                })
+
             downloads.append({
                 'gid': download.gid,
                 'status': download.status,
@@ -361,7 +372,7 @@ async def get_group_downloads(sid, data):
                 'uploadLength': 0,
                 'downloadSpeed': download.download_speed,
                 'uploadSpeed': download.upload_speed,
-                'files': [],  # aria2p没有提供详细文件信息，这里简化
+                'files': files,
                 'errorCode': download.error_code,
                 'errorMessage': download.error_message
             })

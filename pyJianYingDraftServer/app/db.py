@@ -38,6 +38,9 @@ class TaskModel(Base):
     materials = Column(Text, nullable=True)  # JSON
     test_data = Column(Text, nullable=True)  # JSON
 
+    # 下载路径映射（JSON存储）
+    gid_to_path_map = Column(Text, nullable=True)  # JSON: {gid: file_path}
+
     # 进度信息（JSON存储）
     progress_json = Column(Text, nullable=True)  # JSON
 
@@ -56,6 +59,7 @@ class TaskModel(Base):
         draft_config = json.loads(self.draft_config) if self.draft_config else None
         materials = json.loads(self.materials) if self.materials else None
         test_data = json.loads(self.test_data) if self.test_data else None
+        gid_to_path_map = json.loads(self.gid_to_path_map) if self.gid_to_path_map else None
 
         # 解析进度信息
         progress = None
@@ -71,6 +75,7 @@ class TaskModel(Base):
             draft_config=draft_config,
             materials=materials,
             test_data=test_data,
+            gid_to_path_map=gid_to_path_map,
             progress=progress,
             draft_path=self.draft_path,
             error_message=self.error_message,
@@ -86,6 +91,7 @@ class TaskModel(Base):
         draft_config_json = json.dumps(task.draft_config) if task.draft_config else None
         materials_json = json.dumps(task.materials) if task.materials else None
         test_data_json = json.dumps(task.test_data) if task.test_data else None
+        gid_to_path_map_json = json.dumps(task.gid_to_path_map) if task.gid_to_path_map else None
 
         # 序列化进度信息
         progress_json = None
@@ -100,6 +106,7 @@ class TaskModel(Base):
             draft_config=draft_config_json,
             materials=materials_json,
             test_data=test_data_json,
+            gid_to_path_map=gid_to_path_map_json,
             progress_json=progress_json,
             draft_path=task.draft_path,
             error_message=task.error_message,

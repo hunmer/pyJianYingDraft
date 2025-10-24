@@ -33,7 +33,8 @@ class DownloadProgress:
         num_pieces: int,
         connections: int,
         error_code: Optional[str] = None,
-        error_message: Optional[str] = None
+        error_message: Optional[str] = None,
+        file_path: Optional[str] = None
     ):
         self.gid = gid
         self.status = status  # active, waiting, paused, error, complete, removed
@@ -45,6 +46,7 @@ class DownloadProgress:
         self.connections = connections
         self.error_code = error_code
         self.error_message = error_message
+        self.file_path = file_path  # 下载文件的完整路径
 
     @property
     def progress_percent(self) -> float:
@@ -75,7 +77,8 @@ class DownloadProgress:
             "num_pieces": self.num_pieces,
             "connections": self.connections,
             "error_code": self.error_code,
-            "error_message": self.error_message
+            "error_message": self.error_message,
+            "file_path": self.file_path
         }
 
 
@@ -211,6 +214,9 @@ class Aria2Client:
         self.batches: Dict[str, List[str]] = {}  # batch_id -> [gid, gid, ...]
         self.batch_metadata: Dict[str, datetime] = {}  # batch_id -> created_at
 
+        # GID → 文件路径映射表（用于查询下载文件的真实路径）
+        self.gid_to_path: Dict[str, str] = {}  # gid -> file_path
+
     def _log(self, message: str) -> None:
         """输出日志"""
         if self.verbose:
@@ -246,7 +252,13 @@ class Aria2Client:
             download = self.api.add_uris([url], options=opts)
             gid = download.gid
 
-            self._log(f"✓ 添加下载任务: {url} -> GID: {gid}")
+            # 保存GID → 文件路径映射
+            if save_path:
+                self.gid_to_path[gid] = save_path
+                self._log(f"✓ 添加下载任务: {url} -> GID: {gid}, 保存路径: {save_path}")
+            else:
+                self._log(f"✓ 添加下载任务: {url} -> GID: {gid}")
+
             return gid
 
         except Exception as e:
@@ -303,6 +315,9 @@ class Aria2Client:
         try:
             download = self.api.get_download(gid)
 
+            # 从映射表获取文件路径
+            file_path = self.gid_to_path.get(gid)
+
             return DownloadProgress(
                 gid=download.gid,
                 status=download.status,
@@ -313,7 +328,8 @@ class Aria2Client:
                 num_pieces=download.num_pieces,
                 connections=download.connections,
                 error_code=download.error_code if hasattr(download, 'error_code') else None,
-                error_message=download.error_message if hasattr(download, 'error_message') else None
+                error_message=download.error_message if hasattr(download, 'error_message') else None,
+                file_path=file_path
             )
 
         except Exception as e:
@@ -401,6 +417,9 @@ class Aria2Client:
             active_downloads = self.api.get_downloads()
 
             for download in active_downloads:
+                # 从映射表获取文件路径
+                file_path = self.gid_to_path.get(download.gid)
+
                 downloads.append(DownloadProgress(
                     gid=download.gid,
                     status=download.status,
@@ -409,7 +428,8 @@ class Aria2Client:
                     download_speed=int(download.download_speed),
                     upload_speed=int(download.upload_speed),
                     num_pieces=download.num_pieces,
-                    connections=download.connections
+                    connections=download.connections,
+                    file_path=file_path
                 ))
 
         except Exception as e:
@@ -486,6 +506,25 @@ class Aria2Client:
         except Exception as e:
             self._log(f"✗ 获取全局统计失败: {e}")
             return {}
+
+    def get_file_path(self, gid: str) -> Optional[str]:
+        """获取指定GID的下载文件路径
+
+        Args:
+            gid: 下载任务GID
+
+        Returns:
+            Optional[str]: 文件路径，不存在返回None
+        """
+        return self.gid_to_path.get(gid)
+
+    def get_all_file_paths(self) -> Dict[str, str]:
+        """获取所有GID到文件路径的映射
+
+        Returns:
+            Dict[str, str]: GID → 文件路径的字典
+        """
+        return self.gid_to_path.copy()
 
 
 # 全局单例

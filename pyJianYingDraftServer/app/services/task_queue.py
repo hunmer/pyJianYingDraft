@@ -80,7 +80,13 @@ class TaskQueue:
         Returns:
             bool: 是否成功启动
         """
-        return self._ensure_aria2_running()
+        success = self._ensure_aria2_running()
+
+        # 恢复GID到路径的映射（从内存中的任务）
+        if success and self.aria2_client:
+            self._restore_gid_path_mappings()
+
+        return success
 
     def _ensure_aria2_running(self) -> bool:
         """确保Aria2进程运行中
@@ -109,6 +115,25 @@ class TaskQueue:
             )
 
         return True
+
+    def _restore_gid_path_mappings(self) -> None:
+        """从内存中的任务恢复GID到路径的映射到Aria2客户端
+
+        在服务器重启后，从数据库加载的任务中恢复GID→文件路径的映射
+        """
+        if not self.aria2_client:
+            return
+
+        restored_count = 0
+        for task in self.tasks.values():
+            if task.gid_to_path_map:
+                # 将任务中的映射恢复到Aria2客户端
+                for gid, path in task.gid_to_path_map.items():
+                    self.aria2_client.gid_to_path[gid] = path
+                    restored_count += 1
+
+        if restored_count > 0:
+            self._log(f"✓ 已恢复 {restored_count} 个GID→路径映射")
 
     async def create_task(self, request: TaskSubmitRequest) -> str:
         """创建新任务
@@ -180,6 +205,9 @@ class TaskQueue:
                 urls_with_paths=urls_with_paths,
                 batch_id=task_id  # 使用task_id作为batch_id
             )
+
+            # 保存GID到路径的映射到任务中
+            task.gid_to_path_map = self.aria2_client.get_all_file_paths()
 
             # 更新任务状态
             task.batch_id = batch_id
@@ -463,7 +491,7 @@ class TaskQueue:
             if ext in url_lower:
                 return ext
 
-        return '.mp4'  # 默认视频扩展名
+        return '.jpg'  # 默认扩展名
 
     async def _wait_for_download_completion(self, task_id: str) -> None:
         """等待下载完成

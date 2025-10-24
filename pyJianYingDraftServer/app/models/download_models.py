@@ -67,6 +67,9 @@ class DownloadTask(BaseModel):
     raw_segments: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始片段数据")
     raw_materials: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始素材数据")
 
+    # 下载路径映射（GID → 文件路径）
+    gid_to_path_map: Optional[Dict[str, str]] = Field(default=None, description="GID到文件路径的映射")
+
     # 进度信息
     progress: Optional[DownloadProgressInfo] = Field(default=None, description="下载进度")
 

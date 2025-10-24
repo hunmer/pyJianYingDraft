@@ -373,8 +373,8 @@ class RemoteMaterialDownloader:
             if ext in url_lower:
                 return ext
 
-        # 默认视频扩展名
-        return '.mp4'
+        # 默认扩展名
+        return '.jpg'
 
 
 def download_remote_materials(
