@@ -63,7 +63,7 @@ interface TabData {
   filePath?: string;
   // 测试数据相关字段
   testDataId?: string;
-  onTestData?: (testData: TestData) => Promise<RuleGroupTestRequest | void> | RuleGroupTestRequest | void;
+  onTestData?: (testData: TestData) => Promise<any> | any;
   testDataContext?: {
     ruleGroupId?: string;
     ruleGroup?: RuleGroup;
@@ -154,7 +154,7 @@ export default function Home() {
   const handleTestDataSelect = useCallback((
     testDataId: string,
     label: string,
-    onTest: (testData: any) => Promise<void> | void,
+    onTest: (testData: any) => Promise<any> | any,
     context?: {
       ruleGroupId?: string;
       ruleGroup?: any;
@@ -304,8 +304,8 @@ export default function Home() {
               const response = await tasksApi.submit(requestPayload);
               console.log('[恢复的tab] 任务已提交:', response.task_id);
 
-              // 返回完整的请求载荷供下载使用
-              return requestPayload;
+              // 返回包含task_id的响应，供TestDataEditor显示进度
+              return response;
             };
 
             return {

@@ -30,12 +30,16 @@ import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPa
 import type { MaterialInfo } from '@/types/draft';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 import { RuleGroupList } from './RuleGroupList';
+import { DownloadProgressBar } from './DownloadProgressBar';
+
+// 测试回调的返回类型：可以是请求载荷，也可以是包含task_id的响应
+type TestCallbackResult = RuleGroupTestRequest | { task_id: string; [key: string]: any } | void;
 
 interface TestDataEditorProps {
   /** 测试数据ID */
   testDataId: string;
-  /** 测试回调(必需) - 返回完整的请求载荷 */
-  onTest: (testData: TestData) => Promise<RuleGroupTestRequest | void> | RuleGroupTestRequest | void;
+  /** 测试回调(必需) - 返回完整的请求载荷或包含task_id的响应 */
+  onTest: (testData: TestData) => Promise<TestCallbackResult> | TestCallbackResult;
   /** 当前规则组ID(用于关联数据集) */
   ruleGroupId?: string;
   /** 当前规则组(用于转换数据) */
@@ -81,6 +85,10 @@ export default function TestDataEditor({
   const [testing, setTesting] = useState(false);
   const [fullRequestPayload, setFullRequestPayload] = useState<RuleGroupTestRequest | null>(null);
   const [editorKey, setEditorKey] = useState(0); // 用于强制重新渲染编辑器
+
+  // 异步任务进度相关状态
+  const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
+  const [showProgressInline, setShowProgressInline] = useState(false);
 
   // 当testDataId变化时,强制重新加载对应的测试数据
   useEffect(() => {
@@ -181,12 +189,26 @@ export default function TestDataEditor({
       setTesting(true);
       const result = await onTest(testData);
 
-      // 如果回调返回了完整的请求载荷,保存它以供下载
-      if (result && typeof result === 'object' && 'testData' in result) {
-        setFullRequestPayload(result);
+      // 检查返回结果类型
+      if (result && typeof result === 'object') {
+        // 检查是否是异步任务提交的响应（包含task_id）
+        if ('task_id' in result && typeof result.task_id === 'string') {
+          const taskId = result.task_id;
+          console.log('[TestDataEditor] 异步任务已提交, task_id:', taskId);
+          setCurrentTaskId(taskId);
+          setShowProgressInline(true);
+          setSuccess(`✅ 异步任务已提交\n任务ID: ${taskId}`);
+        }
+        // 检查是否是完整的请求载荷
+        else if ('testData' in result) {
+          setFullRequestPayload(result as RuleGroupTestRequest);
+          setSuccess('测试请求已发送');
+        } else {
+          setSuccess('测试请求已发送');
+        }
+      } else {
+        setSuccess('测试请求已发送');
       }
-
-      setSuccess('测试请求已发送');
     } catch (err: any) {
       setError(err.message || '无效的JSON格式');
     } finally {
@@ -401,6 +423,27 @@ export default function TestDataEditor({
               <Alert severity="success" onClose={() => setSuccess('')}>
                 {success}
               </Alert>
+            )}
+
+            {/* 异步任务下载进度 */}
+            {showProgressInline && currentTaskId && (
+              <Box>
+                <DownloadProgressBar
+                  taskId={currentTaskId}
+                  onComplete={(draftPath) => {
+                    console.log('草稿生成完成:', draftPath);
+                    setSuccess(`✅ 任务完成！草稿路径: ${draftPath}`);
+                    setShowProgressInline(false);
+                    setCurrentTaskId(null);
+                  }}
+                  onError={(error) => {
+                    console.error('任务失败:', error);
+                    setError(`❌ 任务失败: ${error}`);
+                    setShowProgressInline(false);
+                  }}
+                  showDetails
+                />
+              </Box>
             )}
           </Box>
 

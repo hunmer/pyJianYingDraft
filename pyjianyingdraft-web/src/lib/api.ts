@@ -541,7 +541,14 @@ export const fileWatchApi = {
  */
 export interface TaskSubmitResponse {
   task_id: string;
+  status: 'pending' | 'downloading' | 'processing' | 'completed' | 'failed' | 'cancelled';
   message: string;
+  progress: TaskProgress | null;
+  draft_path: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
 }
 
 export interface TaskProgress {
