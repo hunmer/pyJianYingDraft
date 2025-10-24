@@ -7,6 +7,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 
+// API基础URL配置
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+
 export enum TaskStatus {
   PENDING = 'pending',
   DOWNLOADING = 'downloading',
@@ -134,7 +137,7 @@ export function useTaskProgress(
     }
 
     // 创建Socket.IO连接
-    const socket = io(serverUrl || window.location.origin, {
+    const socket = io(serverUrl || API_BASE_URL, {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionDelay: 1000,

@@ -100,7 +100,7 @@ interface TimelineEditorProps {
   handleTestDataSelect: (
     testDataId: string,
     label: string,
-    onTest: (testData: any) => Promise<void> | void,
+    onTest: (testData: any) => Promise<any> | any,
     context?: {
       ruleGroupId?: string;
       ruleGroup?: any;
@@ -840,12 +840,17 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
       // 提交异步任务
       const response = await tasksApi.submit(requestPayload);
+      console.log('[Timeline] 异步任务已提交, task_id:', response.task_id);
+
       setCurrentTaskId(response.task_id);
       setAsyncDialogOpen(true);
       setTestResult(`✅ 异步任务已提交\n任务ID: ${response.task_id}\n\n提示: 你可以在下载管理页面查看实时下载进度`);
 
       // 保存完整载荷供下载使用
       setFullRequestPayload(requestPayload);
+
+      // 返回包含task_id的响应，供TestDataEditor使用
+      return response;
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '异步任务提交失败';
       setTestResult(`异步任务提交失败: ${message}`);
