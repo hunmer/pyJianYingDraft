@@ -17,6 +17,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
 from app.models.download_models import TaskStatus, DownloadTask, DownloadProgressInfo
+from app.path_utils import get_app_dir
 
 
 # SQLAlchemy Base
@@ -119,9 +120,9 @@ class Database:
             use_async: 是否使用异步引擎
         """
         if db_path is None:
-            # 默认路径：项目根目录/tasks.db
-            project_root = Path(__file__).resolve().parent.parent
-            db_path = str(project_root / "tasks.db")
+            # 默认路径：应用目录/tasks.db (打包后为exe目录,开发时为pyJianYingDraftServer目录)
+            app_dir = get_app_dir()
+            db_path = str(app_dir / "tasks.db")
 
         self.db_path = db_path
         self.use_async = use_async

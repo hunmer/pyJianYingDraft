@@ -18,6 +18,7 @@ import {
   Menu,
   MenuItem,
   Chip,
+  ListItemIcon,
 } from '@mui/material';
 import {
   Folder,
@@ -25,6 +26,8 @@ import {
   Settings,
   FolderOpen,
   ContentCopy,
+  MoreVert,
+  Upload,
 } from '@mui/icons-material';
 import { draftApi, type DraftListItem } from '@/lib/api';
 
@@ -51,10 +54,41 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
     draft: DraftListItem | null;
   } | null>(null);
 
+  // 下拉菜单状态
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const dropdownOpen = Boolean(anchorEl);
+
   // 检查是否在 Electron 环境
   const isElectron = typeof window !== 'undefined' && (window as any).electron;
 
-  
+  /**
+   * 选择草稿根目录
+   */
+  const handleSelectDirectory = async () => {
+    if (!isElectron) {
+      alert('此功能仅在 Electron 环境下可用');
+      return;
+    }
+
+    try {
+      const result = await (window as any).electron.fs.selectDirectory({
+        title: '选择草稿根目录',
+      });
+
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return;
+      }
+
+      const selectedPath = result.filePaths[0];
+      setBasePath(selectedPath);
+      // 立即加载草稿
+      loadDrafts(selectedPath);
+    } catch (err) {
+      console.error('选择目录失败:', err);
+      alert(`选择目录失败: ${err instanceof Error ? err.message : '未知错误'}`);
+    }
+  };
+
   /**
    * 加载草稿列表
    */
@@ -90,8 +124,8 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
     }
   }, [basePath]);
 
-  
-  // 从后端加载草稿根目录配置
+
+  // 从后端加载草稿根目录配置(只在组件挂载时运行一次)
   useEffect(() => {
     const loadDraftRoot = async () => {
       try {
@@ -101,7 +135,14 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
         if (rootPath) {
           setBasePath(rootPath);
           // 自动加载草稿列表
-          loadDrafts(rootPath);
+          try {
+            const draftsResponse = await draftApi.list(rootPath);
+            setDrafts(draftsResponse.drafts);
+          } catch (err) {
+            const errorMessage = err instanceof Error ? err.message : '加载草稿列表失败';
+            setError(errorMessage);
+            console.error('加载草稿列表错误:', err);
+          }
         } else {
           setShowSettings(true);
         }
@@ -112,7 +153,8 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
     };
 
     loadDraftRoot();
-  }, [loadDrafts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 空依赖数组,只在组件挂载时运行一次
 
   /**
    * 格式化时间戳
@@ -229,6 +271,88 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
     } else {
       alert('此功能仅在 Electron 环境下可用');
     }
+    setAnchorEl(null);
+  };
+
+  /**
+   * 打开下拉菜单
+   */
+  const handleOpenDropdown = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  /**
+   * 关闭下拉菜单
+   */
+  const handleCloseDropdown = () => {
+    setAnchorEl(null);
+  };
+
+  /**
+   * 导入压缩包草稿
+   */
+  const handleImportZip = async () => {
+    setAnchorEl(null);
+
+    if (!isElectron) {
+      alert('此功能仅在 Electron 环境下可用');
+      return;
+    }
+
+    if (!basePath) {
+      alert('请先设置草稿根目录');
+      setShowSettings(true);
+      return;
+    }
+
+    try {
+      // 打开文件选择对话框
+      const result = await (window as any).electron.fs.selectFile({
+        filters: [
+          { name: '压缩文件', extensions: ['zip', 'rar', '7z'] }
+        ],
+        properties: ['openFile']
+      });
+
+      if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
+        return;
+      }
+
+      const zipPath = result.filePaths[0];
+      setLoading(true);
+      setError(null);
+
+      // 调用后端API解压文件
+      await draftApi.importZip(basePath, zipPath);
+
+      // 刷新草稿列表
+      await loadDrafts();
+
+      alert('导入成功!');
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '导入失败';
+      setError(errorMessage);
+      console.error('导入压缩包失败:', err);
+      alert(`导入失败: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * 处理刷新
+   */
+  const handleRefresh = () => {
+    setAnchorEl(null);
+    loadDrafts();
+  };
+
+  /**
+   * 处理设置
+   */
+  const handleSettings = () => {
+    setAnchorEl(null);
+    setShowSettings(!showSettings);
   };
 
   return (
@@ -240,21 +364,14 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
             草稿列表
           </Typography>
           <Box>
-            {isElectron && basePath && (
-              <Tooltip title="打开草稿文件夹">
-                <IconButton size="small" onClick={handleOpenDraftRootFolder}>
-                  <FolderOpen />
-                </IconButton>
-              </Tooltip>
-            )}
             <Tooltip title="刷新">
               <IconButton size="small" onClick={() => loadDrafts()} disabled={loading}>
                 <Refresh />
               </IconButton>
             </Tooltip>
-            <Tooltip title="设置目录">
-              <IconButton size="small" onClick={() => setShowSettings(!showSettings)}>
-                <Settings />
+            <Tooltip title="更多操作">
+              <IconButton size="small" onClick={handleOpenDropdown}>
+                <MoreVert />
               </IconButton>
             </Tooltip>
           </Box>
@@ -263,24 +380,60 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
         {/* 设置面板 */}
         {showSettings && (
           <Box sx={{ mt: 2 }}>
-            <TextField
-              fullWidth
-              size="small"
-              label="草稿根目录"
-              placeholder="例: D:\JianyingPro Drafts"
-              value={basePath}
-              onChange={(e) => setBasePath(e.target.value)}
-              sx={{ mb: 1 }}
-            />
-            <Button
-              fullWidth
-              variant="contained"
-              size="small"
-              onClick={() => loadDrafts()}
-              disabled={loading || !basePath.trim()}
-            >
-              加载草稿
-            </Button>
+            {isElectron ? (
+              // Electron 环境:显示选择目录按钮
+              <>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="草稿根目录"
+                  value={basePath}
+                  InputProps={{
+                    readOnly: true,
+                  }}
+                  placeholder="点击下方按钮选择目录"
+                  sx={{ mb: 1 }}
+                />
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="small"
+                  onClick={handleSelectDirectory}
+                  disabled={loading}
+                  startIcon={<FolderOpen />}
+                >
+                  选择草稿根目录
+                </Button>
+              </>
+            ) : (
+              // 浏览器环境:显示输入框
+              <>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="草稿根目录"
+                  placeholder="例: D:\JianyingPro Drafts"
+                  value={basePath}
+                  onChange={(e) => setBasePath(e.target.value)}
+                  onKeyDown={(e) => {
+                    // 支持回车键快速加载
+                    if (e.key === 'Enter' && basePath.trim() && !loading) {
+                      loadDrafts();
+                    }
+                  }}
+                  sx={{ mb: 1 }}
+                />
+                <Button
+                  fullWidth
+                  variant="contained"
+                  size="small"
+                  onClick={() => loadDrafts()}
+                  disabled={loading || !basePath.trim()}
+                >
+                  保存并加载草稿
+                </Button>
+              </>
+            )}
           </Box>
         )}
       </Box>
@@ -378,12 +531,48 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
         }
       >
         <MenuItem onClick={handleCopyPath}>
-          <ContentCopy sx={{ mr: 1 }} fontSize="small" />
-          复制完整路径
+          <ListItemIcon>
+            <ContentCopy fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>复制完整路径</ListItemText>
         </MenuItem>
         <MenuItem onClick={handleOpenInFolder}>
-          <FolderOpen sx={{ mr: 1 }} fontSize="small" />
-          打开文件夹位置
+          <ListItemIcon>
+            <FolderOpen fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>打开文件夹位置</ListItemText>
+        </MenuItem>
+      </Menu>
+
+      {/* 下拉菜单 */}
+      <Menu
+        anchorEl={anchorEl}
+        open={dropdownOpen}
+        onClose={handleCloseDropdown}
+        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+      >
+        {isElectron && basePath && (
+          <MenuItem onClick={handleOpenDraftRootFolder}>
+            <ListItemIcon>
+              <FolderOpen fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>打开草稿文件夹</ListItemText>
+          </MenuItem>
+        )}
+        {isElectron && (
+          <MenuItem onClick={handleImportZip}>
+            <ListItemIcon>
+              <Upload fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>导入压缩包草稿</ListItemText>
+          </MenuItem>
+        )}
+        <MenuItem onClick={handleSettings}>
+          <ListItemIcon>
+            <Settings fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>设置草稿目录</ListItemText>
         </MenuItem>
       </Menu>
     </Box>

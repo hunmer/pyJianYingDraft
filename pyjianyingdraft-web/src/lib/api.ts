@@ -184,6 +184,23 @@ export const draftApi = {
     });
     return handleResponse<{ rule_groups: RuleGroup[]; message: string }>(response);
   },
+
+  /**
+   * 导入压缩包草稿
+   * @param draftRoot - 草稿根目录路径
+   * @param zipPath - 压缩包文件路径
+   */
+  async importZip(draftRoot: string, zipPath: string): Promise<{ message: string; draft_name: string }> {
+    const url = `${API_BASE_URL}/api/draft/import-zip`;
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ draft_root: draftRoot, zip_path: zipPath }),
+    });
+    return handleResponse<{ message: string; draft_name: string }>(response);
+  },
 };
 
 /**

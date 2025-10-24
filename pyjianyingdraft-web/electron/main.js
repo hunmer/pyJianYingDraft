@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, clipboard, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
@@ -91,18 +91,23 @@ function startBackendService() {
     // 启动后端进程
     backendProcess = spawn(backendExePath, [], {
       cwd: path.dirname(backendExePath),
-      stdio: ['ignore', 'pipe', 'pipe']
+      stdio: ['ignore', 'pipe', 'pipe'],
+      // Windows下设置环境变量强制UTF-8输出
+      env: {
+        ...process.env,
+        PYTHONIOENCODING: 'utf-8'
+      }
     });
 
-    // 记录输出
+    // 记录输出 - 使用UTF-8解码
     backendProcess.stdout.on('data', (data) => {
-      const message = data.toString();
+      const message = data.toString('utf8');
       console.log(`[Backend STDOUT] ${message}`);
       backendLogStream.write(`[STDOUT] ${message}`);
     });
 
     backendProcess.stderr.on('data', (data) => {
-      const message = data.toString();
+      const message = data.toString('utf8');
       console.error(`[Backend STDERR] ${message}`);
       backendLogStream.write(`[STDERR] ${message}`);
     });
@@ -300,6 +305,39 @@ ipcMain.handle('fs:open-folder', async (event, folderPath) => {
     return { success: true };
   } catch (error) {
     console.error('[IPC] 打开文件夹失败:', error);
+    throw error;
+  }
+});
+
+/**
+ * 选择文件对话框
+ */
+ipcMain.handle('fs:select-file', async (event, options) => {
+  try {
+    console.log('[IPC] 打开文件选择对话框:', options);
+    const result = await dialog.showOpenDialog(mainWindow, options);
+    console.log('[IPC] 文件选择结果:', result);
+    return result;
+  } catch (error) {
+    console.error('[IPC] 文件选择失败:', error);
+    throw error;
+  }
+});
+
+/**
+ * 选择目录对话框
+ */
+ipcMain.handle('fs:select-directory', async (event, options) => {
+  try {
+    console.log('[IPC] 打开目录选择对话框:', options);
+    const result = await dialog.showOpenDialog(mainWindow, {
+      ...options,
+      properties: ['openDirectory']
+    });
+    console.log('[IPC] 目录选择结果:', result);
+    return result;
+  } catch (error) {
+    console.error('[IPC] 目录选择失败:', error);
     throw error;
   }
 });

@@ -18,8 +18,8 @@ import {
   Tooltip,
   ButtonGroup,
   Button,
+  Grid, // MUI v7 中默认的 Grid 组件已经是 Grid v2 架构
 } from '@mui/material';
-import Grid from '@mui/material/Grid'; // 始终使用Grid，不使用Grid2
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
@@ -301,7 +301,7 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
 
         <Grid container spacing={2}>
           {/* 版本1选择 */}
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>版本 1 (旧版本)</InputLabel>
               <Select
@@ -329,7 +329,7 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
           </Grid>
 
           {/* 版本2选择 */}
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Grid xs={12} md={6}>
             <FormControl fullWidth>
               <InputLabel>版本 2 (新版本)</InputLabel>
               <Select

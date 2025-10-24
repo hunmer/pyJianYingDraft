@@ -74,6 +74,14 @@ class TaskQueue:
             timestamp = datetime.now().strftime("%H:%M:%S")
             print(f"[TaskQueue {timestamp}] {message}")
 
+    def start(self) -> bool:
+        """启动任务队列,初始化Aria2客户端
+
+        Returns:
+            bool: 是否成功启动
+        """
+        return self._ensure_aria2_running()
+
     def _ensure_aria2_running(self) -> bool:
         """确保Aria2进程运行中
 

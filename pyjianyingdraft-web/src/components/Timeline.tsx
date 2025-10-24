@@ -58,15 +58,6 @@ const TRACK_COLORS: Record<string, string> = {
   filter: '#d32f2f',    // 红色
   sticker: '#0288d1',   // 青色
 };
-
-const buildDefaultRuleGroup = (): RuleGroup => ({
-  id: 'default',
-  title: '默认规则组',
-  rules: DEFAULT_RULES.map(rule => ({ ...rule })),
-  createdAt: '1970-01-01T00:00:00.000Z',
-  updatedAt: '1970-01-01T00:00:00.000Z',
-});
-
 const cloneRuleGroups = (groups: RuleGroup[]): RuleGroup[] =>
   groups.map((group) => ({
     ...group,
@@ -573,8 +564,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       hasInitializedRuleGroups.current = true;
       if (initialRuleGroups.length > 0) {
         applyRuleGroups(initialRuleGroups);
-      } else {
-        applyRuleGroups([buildDefaultRuleGroup()]);
       }
       return;
     }
@@ -585,7 +574,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
     if (!draftPath) {
       hasInitializedRuleGroups.current = true;
-      applyRuleGroups([buildDefaultRuleGroup()]);
       return;
     }
 
@@ -601,15 +589,12 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         const groups = response.rule_groups ?? [];
         if (groups.length > 0) {
           applyRuleGroups(groups);
-        } else {
-          applyRuleGroups([buildDefaultRuleGroup()]);
-        }
+        } 
       } catch (error) {
         console.error('加载草稿规则组失败:', error);
         if (!cancelled) {
           hasInitializedRuleGroups.current = true;
           initialRuleGroupsSignatureRef.current = null;
-          applyRuleGroups([buildDefaultRuleGroup()]);
         }
       }
     };
@@ -857,7 +842,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       const response = await tasksApi.submit(requestPayload);
       setCurrentTaskId(response.task_id);
       setAsyncDialogOpen(true);
-      setTestResult(`异步任务已提交: ${response.task_id}`);
+      setTestResult(`✅ 异步任务已提交\n任务ID: ${response.task_id}\n\n提示: 你可以在下载管理页面查看实时下载进度`);
 
       // 返回完整的请求载荷供下载使用
       return requestPayload;
