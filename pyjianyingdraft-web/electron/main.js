@@ -1,8 +1,9 @@
-const { app, BrowserWindow, ipcMain, shell, clipboard, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, shell, clipboard, dialog, protocol, net } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 const http = require('http');
 const fs = require('fs');
+const { pathToFileURL } = require('url');
 
 // 开发环境配置
 const isDev = process.env.NODE_ENV === 'development';
@@ -13,6 +14,53 @@ const BACKEND_HOST = 'localhost';
 let mainWindow;
 let backendProcess = null;
 let backendLogStream = null;
+
+// ==================== Monaco Editor 本地加载配置 ====================
+
+/**
+ * 注册自定义协议以支持 Monaco Editor 本地加载
+ * 必须在 app.whenReady() 之前调用
+ */
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'app-asset',
+    privileges: {
+      standard: true,
+      supportFetchAPI: true,
+      bypassCSP: true,
+      corsEnabled: true,
+    },
+  },
+]);
+
+/**
+ * 处理 app-asset:// 协议请求
+ * 用于从 node_modules 或 public 目录加载资源
+ */
+function handleAssetProtocol(request) {
+  const url = new URL(request.url);
+  let filePath;
+
+  // 解析路径
+  if (url.pathname.startsWith('/monaco-editor/')) {
+    // Monaco Editor 文件:从 node_modules 加载
+    const relativePath = url.pathname.replace('/monaco-editor/', 'monaco-editor/');
+    try {
+      filePath = require.resolve(relativePath);
+    } catch (error) {
+      console.error('[Monaco] 无法解析文件:', relativePath, error);
+      return new Response('File not found', { status: 404 });
+    }
+  } else {
+    // 其他资源:从 public 目录加载
+    const relativePath = url.pathname.replace(/^\//, '');
+    filePath = path.join(app.getAppPath(), 'out', relativePath);
+  }
+
+  // 转换为 file:// URL 并使用 net.fetch 加载
+  const fileUrl = pathToFileURL(filePath).toString();
+  return net.fetch(fileUrl, { bypassCustomProtocolHandlers: true });
+}
 
 /**
  * 检查后端服务是否运行
@@ -186,7 +234,10 @@ async function createWindow() {
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
-      preload: path.join(__dirname, 'preload.js')
+      preload: path.join(__dirname, 'preload.js'),
+      // 开发环境禁用 webSecurity 以允许跨域加载 Monaco Editor
+      // 生产环境保持启用以确保安全性
+      webSecurity: !isDev,
     },
     icon: path.join(__dirname, '../public/icon.png') // 如果有图标
   });
@@ -216,6 +267,10 @@ async function createWindow() {
 
 // 当 Electron 完成初始化时创建窗口
 app.whenReady().then(() => {
+  // 注册自定义协议处理器
+  protocol.handle('app-asset', handleAssetProtocol);
+  console.log('[Monaco] 已注册 app-asset:// 协议处理器');
+
   createWindow();
 
   app.on('activate', () => {

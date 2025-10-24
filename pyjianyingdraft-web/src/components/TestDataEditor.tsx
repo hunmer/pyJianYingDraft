@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogActions,
   TextField,
+  CircularProgress,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SaveIcon from '@mui/icons-material/Save';
@@ -457,6 +458,14 @@ export default function TestDataEditor({
                 value={testDataJson}
                 onChange={(value) => setTestDataJson(value || '')}
                 theme="vs-light"
+                loading={
+                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                    <CircularProgress />
+                  </Box>
+                }
+                onMount={(editor, monaco) => {
+                  console.log('[Monaco] 编辑器已挂载', { editor, monaco });
+                }}
                 options={{
                   minimap: { enabled: false },
                   fontSize: 13,
