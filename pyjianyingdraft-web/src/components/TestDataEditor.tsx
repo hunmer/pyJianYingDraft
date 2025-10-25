@@ -363,7 +363,6 @@ export default function TestDataEditor({
   // 构建请求载荷(提取公共逻辑)
   const buildRequestPayload = (includeItems: boolean): any => {
     if (!fullRequestPayload) return null;
-
     const payload: any = {
       ruleGroup: fullRequestPayload.ruleGroup,
       materials: fullRequestPayload.materials,
@@ -385,14 +384,34 @@ export default function TestDataEditor({
     if (fullRequestPayload.raw_materials) {
       payload.raw_materials = fullRequestPayload.raw_materials;
     }
+
+    // 构建 draft_config 对象
+    const draftConfig: any = {};
+    let hasDraftConfig = false;
+
+    // canvas_config (画布配置)
+    const canvasConfig: any = {};
     if (fullRequestPayload.canvas_width !== undefined) {
-      payload.canvas_width = fullRequestPayload.canvas_width;
+      canvasConfig.canvas_width = fullRequestPayload.canvas_width;
+      hasDraftConfig = true;
     }
     if (fullRequestPayload.canvas_height !== undefined) {
-      payload.canvas_height = fullRequestPayload.canvas_height;
+      canvasConfig.canvas_height = fullRequestPayload.canvas_height;
+      hasDraftConfig = true;
     }
+    if (Object.keys(canvasConfig).length > 0) {
+      draftConfig.canvas_config = canvasConfig;
+    }
+
+    // fps
     if (fullRequestPayload.fps !== undefined) {
-      payload.fps = fullRequestPayload.fps;
+      draftConfig.fps = fullRequestPayload.fps;
+      hasDraftConfig = true;
+    }
+
+    // 只在有配置时才添加 draft_config
+    if (hasDraftConfig) {
+      payload.draft_config = draftConfig;
     }
 
     return payload;

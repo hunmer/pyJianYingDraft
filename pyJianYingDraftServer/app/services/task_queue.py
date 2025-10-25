@@ -568,6 +568,22 @@ class TaskQueue:
             from app.services.rule_test_service import RuleTestService
             from app.models.rule_models import RuleGroupTestRequest
 
+            # 清理raw_segments数据,确保extra_materials中的字段不为None
+            cleaned_raw_segments = None
+            if task.raw_segments:
+                cleaned_raw_segments = []
+                for seg in task.raw_segments:
+                    cleaned_seg = seg.copy() if isinstance(seg, dict) else seg
+                    # 处理extra_materials字段
+                    if isinstance(cleaned_seg, dict) and 'extra_materials' in cleaned_seg:
+                        extra_materials = cleaned_seg['extra_materials']
+                        if extra_materials is not None and isinstance(extra_materials, dict):
+                            # 将None值的嵌套字段转换为空列表
+                            for key in extra_materials:
+                                if extra_materials[key] is None:
+                                    extra_materials[key] = []
+                    cleaned_raw_segments.append(cleaned_seg)
+
             # 构建请求对象
             request = RuleGroupTestRequest(
                 ruleGroup=task.rule_group or {},  # 使用完整的规则组对象
@@ -576,7 +592,7 @@ class TaskQueue:
                 draft_config=task.draft_config or {},
                 segment_styles=task.segment_styles,
                 use_raw_segments=task.use_raw_segments,
-                raw_segments=task.raw_segments,
+                raw_segments=cleaned_raw_segments,
                 raw_materials=task.raw_materials
             )
 

@@ -122,12 +122,30 @@ export interface RawSegmentPayload {
 }
 
 /**
- * ԭʼ�ز����
+ * 原始素材载荷
  */
 export interface RawMaterialPayload {
   id: string;
   category: string;
   data: Record<string, any>;
+}
+
+/**
+ * 草稿配置信息
+ */
+export interface DraftConfig {
+  /** 画布配置 (canvas_width, canvas_height等) */
+  canvas_config?: {
+    canvas_width?: number;
+    canvas_height?: number;
+    [key: string]: any;
+  };
+  /** 通用配置 (maintrack_adsorb等) */
+  config?: Record<string, any>;
+  /** 帧率 */
+  fps?: number;
+  /** 其他自定义配置 */
+  [key: string]: any;
 }
 
 export interface RuleGroupTestRequest {
@@ -138,8 +156,13 @@ export interface RuleGroupTestRequest {
   use_raw_segments?: boolean;
   raw_segments?: RawSegmentPayload[];
   raw_materials?: RawMaterialPayload[];
+  /** 草稿配置(会覆盖草稿JSON的对应字段) */
+  draft_config?: DraftConfig;
+  /** @deprecated 已废弃,使用 draft_config.canvas_config.canvas_width */
   canvas_width?: number;
+  /** @deprecated 已废弃,使用 draft_config.canvas_config.canvas_height */
   canvas_height?: number;
+  /** @deprecated 已废弃,使用 draft_config.fps */
   fps?: number;
 }
 
