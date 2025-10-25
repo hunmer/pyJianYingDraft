@@ -115,78 +115,6 @@ interface TimelineEditorProps {
 const cloneDeep = <T,>(value: T): T =>
   value === undefined ? (value as T) : JSON.parse(JSON.stringify(value));
 
-const inferMaterialCategory = (material: Record<string, any>, trackType?: string): string => {
-  const normalizedType = typeof material?.type === 'string' ? material.type.toLowerCase() : '';
-  const trackMapping: Record<string, string> = {
-    video: 'videos',
-    audio: 'audios',
-    text: 'texts',
-    effect: 'effects',
-    filter: 'filters',
-    sticker: 'stickers',
-  };
-  if (trackType && trackMapping[trackType]) {
-    return trackMapping[trackType];
-  }
-  if (normalizedType === 'speed') return 'speeds';
-  if (normalizedType === 'canvas_color' || normalizedType === 'canvas_blur') return 'canvases';
-  if (normalizedType === 'mask') return 'masks';
-  if (normalizedType === 'material_animation') return 'material_animations';
-  if (normalizedType === 'sound_channel_mapping') return 'sound_channel_mappings';
-  if (normalizedType.includes('effect')) return 'effects';
-  if (normalizedType.includes('filter')) return 'filters';
-  if (normalizedType.includes('sticker')) return 'stickers';
-  if (normalizedType.includes('text') || normalizedType === 'subtitle') return 'texts';
-  if (normalizedType.includes('audio') || normalizedType === 'music' || normalizedType === 'sound') {
-    return 'audios';
-  }
-  return trackMapping.video;
-};
-
-const buildSegmentJson = (segment: SegmentInfo, track: TrackInfo): Record<string, any> => {
-  const base = segment.style ? cloneDeep(segment.style) : {};
-  const targetRange =
-    typeof base.target_timerange === 'object'
-      ? { ...base.target_timerange }
-      : {};
-  targetRange.start = segment.target_timerange.start;
-  targetRange.duration = segment.target_timerange.duration;
-  base.target_timerange = targetRange;
-
-  if (segment.source_timerange) {
-    const sourceRange =
-      typeof base.source_timerange === 'object'
-        ? { ...base.source_timerange }
-        : {};
-    sourceRange.start = segment.source_timerange.start;
-    sourceRange.duration = segment.source_timerange.duration;
-    base.source_timerange = sourceRange;
-  }
-
-  base.id = segment.id;
-  base.material_id = segment.material_id;
-
-  if (segment.speed !== undefined) {
-    base.speed = segment.speed;
-  }
-  if (segment.volume !== undefined) {
-    base.volume = segment.volume;
-  }
-  if (segment.name && base.name === undefined) {
-    base.name = segment.name;
-  }
-  if (base.track_render_index === undefined && typeof track.render_index === 'number') {
-    base.track_render_index = track.render_index;
-  }
-  if (base.render_index === undefined && typeof track.render_index === 'number') {
-    base.render_index = track.render_index;
-  }
-
-  return base;
-};
-
-
-
 /**
  * 将剪映片段转换为Timeline编辑器的Action格式
  */
@@ -849,8 +777,11 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       // 保存完整载荷供下载使用
       setFullRequestPayload(requestPayload);
 
-      // 返回包含task_id的响应，供TestDataEditor使用
-      return response;
+      // 返回包含task_id和完整请求载荷的响应，供TestDataEditor显示进度和下载
+      return {
+        ...response,
+        ...requestPayload,
+      };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '异步任务提交失败';
       setTestResult(`异步任务提交失败: ${message}`);
@@ -1443,7 +1374,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 color="secondary"
                 startIcon={<CloudUploadIcon />}
                 onClick={() => {
-                  const testDataId = `test_data_${Date.now()}`;
+                  const testDataId = selectedRuleGroup?.id ?? `test_data_${Date.now()}`;
                   handleTestDataSelect(
                     testDataId,
                     '异步测试数据',

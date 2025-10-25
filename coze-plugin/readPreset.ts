@@ -1,5 +1,5 @@
 import { Args } from '@/runtime';
-import { Input, Output } from "@/typings/connect/connect";
+import { Input, Output } from "@/typings/readPreset/readPreset";
 
 /**
  * 读取预设节点 - 校验并返回剪映草稿预设数据
@@ -29,21 +29,17 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
 
     // 2. 解析 preset_data 字符串为 JSON 对象
     let parsedPresetData;
-    if (typeof preset_data === 'string') {
-      try {
-        parsedPresetData = JSON.parse(preset_data);
-      } catch (parseError: any) {
-        return {
-          valid: false,
-          error: `preset_data JSON 解析失败: ${parseError.message}`
-        };
-      }
-    } else {
-      // 如果已经是对象,直接使用
-      parsedPresetData = preset_data;
+    try {
+      parsedPresetData = JSON.parse(preset_data);
+    } catch (parseError: any) {
+      return {
+        valid: false,
+        error: `preset_data JSON 解析失败: ${parseError.message}`
+      };
     }
 
     // 3. 校验必需字段
+    // 必需字段: ruleGroup, materials, testData
     const requiredFields = ['ruleGroup', 'materials', 'testData'];
     const missingFields: string[] = [];
 
@@ -57,6 +53,47 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
       return {
         valid: false,
         error: `缺少必需字段: ${missingFields.join(', ')}`
+      };
+    }
+
+    // 校验可选字段的类型(如果提供)
+    if (parsedPresetData.segment_styles !== undefined &&
+        typeof parsedPresetData.segment_styles !== 'object') {
+      return {
+        valid: false,
+        error: "segment_styles 必须是对象类型"
+      };
+    }
+
+    if (parsedPresetData.use_raw_segments !== undefined &&
+        typeof parsedPresetData.use_raw_segments !== 'boolean') {
+      return {
+        valid: false,
+        error: "use_raw_segments 必须是布尔值"
+      };
+    }
+
+    if (parsedPresetData.canvas_width !== undefined &&
+        typeof parsedPresetData.canvas_width !== 'number') {
+      return {
+        valid: false,
+        error: "canvas_width 必须是数字"
+      };
+    }
+
+    if (parsedPresetData.canvas_height !== undefined &&
+        typeof parsedPresetData.canvas_height !== 'number') {
+      return {
+        valid: false,
+        error: "canvas_height 必须是数字"
+      };
+    }
+
+    if (parsedPresetData.fps !== undefined &&
+        typeof parsedPresetData.fps !== 'number') {
+      return {
+        valid: false,
+        error: "fps 必须是数字"
       };
     }
 

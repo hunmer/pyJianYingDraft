@@ -226,6 +226,76 @@ class DraftService:
         return rule_groups
 
     @staticmethod
+    def get_all_rule_groups(base_path: str) -> List[Dict[str, Any]]:
+        """从所有草稿目录收集规则组
+
+        Args:
+            base_path: 剪映草稿根目录路径
+
+        Returns:
+            所有规则组列表,每个规则组会添加 draft_name 字段标识来源
+        """
+        if not os.path.exists(base_path):
+            raise FileNotFoundError(f"目录不存在: {base_path}")
+
+        if not os.path.isdir(base_path):
+            raise ValueError(f"路径不是目录: {base_path}")
+
+        all_groups: List[Dict[str, Any]] = []
+        seen_group_ids: set[str] = set()
+
+        try:
+            # 遍历所有草稿目录
+            for item in os.listdir(base_path):
+                item_path = os.path.join(base_path, item)
+
+                # 只处理目录
+                if not os.path.isdir(item_path):
+                    continue
+
+                # 检查是否有规则
+                if not DraftService._draft_has_rules(item_path):
+                    continue
+
+                # 尝试读取该草稿的规则组
+                try:
+                    groups = DraftService.get_draft_rule_groups(item_path)
+
+                    # 为每个规则组添加来源信息和去重
+                    for group in groups:
+                        if not isinstance(group, dict):
+                            continue
+
+                        group_id = group.get('id', '')
+                        if not group_id:
+                            continue
+
+                        # 去重:如果已经存在相同ID的规则组,跳过
+                        if group_id in seen_group_ids:
+                            continue
+
+                        seen_group_ids.add(group_id)
+
+                        # 添加来源草稿名称
+                        group_with_source = {
+                            **group,
+                            'draft_name': item,
+                            'draft_path': item_path,
+                        }
+                        all_groups.append(group_with_source)
+
+                except (FileNotFoundError, ValueError, json.JSONDecodeError):
+                    # 跳过解析失败的草稿
+                    continue
+
+        except PermissionError:
+            raise PermissionError(f"没有权限访问目录: {base_path}")
+        except Exception as e:
+            raise Exception(f"收集规则组失败: {str(e)}")
+
+        return all_groups
+
+    @staticmethod
     def get_raw_content(file_path: str) -> Dict[str, Any]:
         """获取草稿完整原始JSON内容"""
         script = DraftService.load_draft(file_path)

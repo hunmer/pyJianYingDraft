@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Box,
   List,
@@ -19,6 +19,8 @@ import {
   MenuItem,
   Chip,
   ListItemIcon,
+  FormControlLabel,
+  Switch,
 } from '@mui/material';
 import {
   Folder,
@@ -46,6 +48,7 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
+  const [showOnlyWithRules, setShowOnlyWithRules] = useState<boolean>(false);
 
   // 右键菜单状态
   const [contextMenu, setContextMenu] = useState<{
@@ -355,6 +358,16 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
     setShowSettings(!showSettings);
   };
 
+  /**
+   * 过滤后的草稿列表
+   */
+  const filteredDrafts = useMemo(() => {
+    if (!showOnlyWithRules) {
+      return drafts;
+    }
+    return drafts.filter(draft => draft.has_rules);
+  }, [drafts, showOnlyWithRules]);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* 头部 */}
@@ -376,6 +389,23 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
             </Tooltip>
           </Box>
         </Box>
+
+        {/* 过滤开关 */}
+        <FormControlLabel
+          control={
+            <Switch
+              checked={showOnlyWithRules}
+              onChange={(e) => setShowOnlyWithRules(e.target.checked)}
+              size="small"
+            />
+          }
+          label={
+            <Typography variant="body2" color="text.secondary">
+              只显示有规则的草稿
+            </Typography>
+          }
+          sx={{ mb: 0 }}
+        />
 
         {/* 设置面板 */}
         {showSettings && (
@@ -453,9 +483,9 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
       )}
 
       {/* 草稿列表 */}
-      {!loading && drafts.length > 0 && (
+      {!loading && filteredDrafts.length > 0 && (
         <List sx={{ flex: 1, overflow: 'auto', py: 0 }}>
-          {drafts.map((draft, index) => (
+          {filteredDrafts.map((draft, index) => (
             <React.Fragment key={draft.path}>
               <ListItem disablePadding>
                 <ListItemButton
@@ -504,17 +534,19 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
                   </Box>
                 </ListItemButton>
               </ListItem>
-              {index < drafts.length - 1 && <Divider />}
+              {index < filteredDrafts.length - 1 && <Divider />}
             </React.Fragment>
           ))}
         </List>
       )}
 
       {/* 空状态 */}
-      {!loading && !error && drafts.length === 0 && basePath && (
+      {!loading && !error && filteredDrafts.length === 0 && basePath && (
         <Box sx={{ p: 4, textAlign: 'center' }}>
           <Typography variant="body2" color="text.secondary">
-            未找到草稿文件
+            {showOnlyWithRules && drafts.length > 0
+              ? '没有符合条件的草稿'
+              : '未找到草稿文件'}
           </Typography>
         </Box>
       )}

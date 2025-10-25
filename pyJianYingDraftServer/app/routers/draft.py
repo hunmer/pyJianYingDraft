@@ -199,6 +199,46 @@ async def get_rule_groups():
         raise HTTPException(status_code=500, detail=f"获取规则组配置失败: {str(e)}")
 
 
+@router.get("/all-rule-groups")
+async def get_all_rule_groups(
+    base_path: Optional[str] = Query(None, description="草稿根目录路径,不提供则使用配置的根目录")
+):
+    """
+    从所有草稿目录收集规则组
+
+    Args:
+        base_path: 草稿根目录路径,如果不提供则使用配置的根目录
+
+    Returns:
+        所有规则组列表,每个规则组包含 draft_name 和 draft_path 字段标识来源
+    """
+    try:
+        # 如果没有提供base_path,尝试从配置中获取
+        if not base_path:
+            base_path = get_config(DRAFT_ROOT_CONFIG_KEY, "")
+            if not base_path:
+                raise HTTPException(
+                    status_code=400,
+                    detail="未提供草稿根目录,且配置中也没有设置草稿根目录"
+                )
+
+        groups = DraftService.get_all_rule_groups(base_path)
+        return {
+            "rule_groups": groups,
+            "count": len(groups)
+        }
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except PermissionError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"收集规则组失败: {str(e)}")
+
+
 @router.post("/config/rule-groups")
 async def set_rule_groups(config: RuleGroupsConfig):
     """
