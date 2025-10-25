@@ -207,7 +207,7 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
 
     return {
       valid: true,
-      preset_data: parsedPresetData,
+      preset_data: preset_data,  // 返回原始输入参数,不修改
       api_base: api_base,
       stats: stats,
       message: "预设数据校验通过"
