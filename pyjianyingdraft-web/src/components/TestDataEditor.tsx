@@ -25,7 +25,7 @@ import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SaveIcon from '@mui/icons-material/Save';
 import DeleteIcon from '@mui/icons-material/Delete';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
-import Editor from '@monaco-editor/react';
+import MonacoEditor from '@/components/MonacoEditor';
 import DownloadIcon from '@mui/icons-material/Download';
 import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
@@ -451,7 +451,7 @@ export default function TestDataEditor({
           {/* Monaco 编辑器 */}
           <Box sx={{ flex: 1, p: 2, pt: 0, overflow: 'hidden' }}>
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden', height: '100%' }}>
-              <Editor
+              <MonacoEditor
                 key={editorKey}
                 height="100%"
                 defaultLanguage="json"
