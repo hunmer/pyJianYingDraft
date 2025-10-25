@@ -4,8 +4,10 @@
 提供任务提交、查询、取消等REST API
 """
 
+import httpx
 from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import RedirectResponse
 
 from app.models.download_models import (
     TaskSubmitRequest,
@@ -69,6 +71,117 @@ async def submit_task(request: TaskSubmitRequest):
 
         return _task_to_response(task)
 
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"提交任务失败: {str(e)}")
+
+
+@router.api_route("/submit_with_url", methods=["GET", "POST"])
+async def submit_task_with_url(url: str = Query(..., description="远程 JSON 数据的 URL 地址")):
+    """通过 URL 提交草稿生成任务并重定向到状态页面
+
+    从指定的 URL 获取 JSON 数据,验证后提交任务,然后重定向到任务状态展示页面
+
+    支持 GET 和 POST 请求,方便在浏览器中直接访问
+
+    Args:
+        url: 远程 JSON 数据的 URL 地址,必须包含 ruleGroup, materials, testData 等字段
+
+    Returns:
+        RedirectResponse: 重定向到任务状态页面
+
+    Raises:
+        HTTPException: 当 URL 无效、获取失败或数据格式不正确时
+    """
+    try:
+        # 1. 验证 URL 格式
+        if not url:
+            raise HTTPException(status_code=400, detail="url 参数不能为空")
+
+        if not url.startswith(('http://', 'https://')):
+            raise HTTPException(status_code=400, detail="url 必须是有效的 HTTP/HTTPS 地址")
+
+        # 2. 获取远程 JSON 数据
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                response = await client.get(url)
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"无法获取 URL 内容: HTTP {e.response.status_code}"
+                )
+            except httpx.RequestError as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"请求 URL 失败: {str(e)}"
+                )
+
+            # 3. 解析 JSON 数据
+            try:
+                json_data = response.json()
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"URL 返回的内容不是有效的 JSON: {str(e)}"
+                )
+
+        # 4. 验证必需字段
+        required_fields = ['ruleGroup', 'materials', 'testData']
+        missing_fields = [field for field in required_fields if field not in json_data]
+
+        if missing_fields:
+            raise HTTPException(
+                status_code=400,
+                detail=f"JSON 数据缺少必需字段: {', '.join(missing_fields)}"
+            )
+
+        # 5. 验证字段类型
+        if not isinstance(json_data.get('ruleGroup'), dict):
+            raise HTTPException(
+                status_code=400,
+                detail="ruleGroup 字段必须是对象类型"
+            )
+
+        if not isinstance(json_data.get('materials'), list):
+            raise HTTPException(
+                status_code=400,
+                detail="materials 字段必须是数组类型"
+            )
+
+        if not isinstance(json_data.get('testData'), dict):
+            raise HTTPException(
+                status_code=400,
+                detail="testData 字段必须是对象类型"
+            )
+
+        # 6. 构建任务提交请求
+        task_request = TaskSubmitRequest(
+            ruleGroup=json_data['ruleGroup'],
+            materials=json_data['materials'],
+            testData=json_data['testData'],
+            segment_styles=json_data.get('segment_styles'),
+            use_raw_segments=json_data.get('use_raw_segments', False),
+            raw_segments=json_data.get('raw_segments'),
+            raw_materials=json_data.get('raw_materials'),
+            draft_config=json_data.get('draft_config', {})
+        )
+
+        # 7. 提交任务
+        queue = get_task_queue()
+        task_id = await queue.create_task(task_request)
+        task = queue.get_task(task_id)
+
+        if not task:
+            raise HTTPException(status_code=500, detail="任务创建失败")
+
+        # 8. 重定向到任务状态页面
+        return RedirectResponse(
+            url=f"/static/task_status.html?task_id={task_id}",
+            status_code=303  # 303 See Other - POST 后重定向到 GET
+        )
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"提交任务失败: {str(e)}")
 

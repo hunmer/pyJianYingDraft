@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务状态 - 剪映草稿生成</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .content {
+            padding: 40px;
+        }
+
+        .task-info {
+            margin-bottom: 30px;
+        }
+
+        .info-item {
+            display: flex;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: 600;
+            color: #666;
+            width: 120px;
+            flex-shrink: 0;
+        }
+
+        .info-value {
+            color: #333;
+            flex: 1;
+            word-break: break-all;
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status-pending {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-downloading {
+            background: #cce5ff;
+            color: #004085;
+        }
+
+        .status-processing {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .status-completed {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-failed {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-cancelled {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+
+        .progress-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        .progress-bar-container {
+            background: #e9ecef;
+            height: 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            margin: 15px 0;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 13px;
+        }
+
+        .progress-details {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+
+        .progress-item {
+            text-align: center;
+            padding: 10px;
+            background: white;
+            border-radius: 6px;
+        }
+
+        .progress-item-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .progress-item-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(102, 126, 234, 0.3);
+            border-radius: 50%;
+            border-top-color: #667eea;
+            animation: spin 1s linear infinite;
+            vertical-align: middle;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .success-message {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .draft-path {
+            background: #f8f9fa;
+            padding: 12px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-family: monospace;
+            font-size: 13px;
+            word-break: break-all;
+        }
+
+        .footer {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            color: #666;
+            font-size: 13px;
+        }
+
+        .auto-refresh {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 15px;
+            background: #e7f3ff;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .refresh-icon {
+            animation: spin 2s linear infinite;
+        }
+
+        .timestamp {
+            font-size: 12px;
+            color: #999;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #5a6268;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📹 剪映草稿生成任务</h1>
+            <p>实时监控任务状态和进度</p>
+        </div>
+
+        <div class="content">
+            <div class="auto-refresh" id="autoRefreshIndicator">
+                <span class="refresh-icon">🔄</span>
+                <span>自动刷新中...</span>
+                <span class="timestamp" id="lastUpdate"></span>
+            </div>
+
+            <div class="task-info">
+                <div class="info-item">
+                    <div class="info-label">任务 ID:</div>
+                    <div class="info-value" id="taskId">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">状态:</div>
+                    <div class="info-value">
+                        <span class="status-badge" id="taskStatus">-</span>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">消息:</div>
+                    <div class="info-value" id="taskMessage">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">创建时间:</div>
+                    <div class="info-value" id="createdAt">-</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">更新时间:</div>
+                    <div class="info-value" id="updatedAt">-</div>
+                </div>
+            </div>
+
+            <div id="progressSection" class="progress-section" style="display: none;">
+                <h3 style="margin-bottom: 15px; color: #333;">下载进度</h3>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progressBar" style="width: 0%">0%</div>
+                </div>
+                <div class="progress-details" id="progressDetails"></div>
+            </div>
+
+            <div id="errorMessage" class="error-message" style="display: none;"></div>
+            <div id="successMessage" class="success-message" style="display: none;"></div>
+
+            <div class="action-buttons">
+                <button class="btn btn-primary" id="refreshBtn" onclick="refreshStatus()">🔄 立即刷新</button>
+                <button class="btn btn-secondary" id="cancelBtn" onclick="cancelTask()" style="display: none;">❌ 取消任务</button>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>pyJianYingDraft - 自动化剪映草稿生成工具</p>
+        </div>
+    </div>
+
+    <script>
+        // 从 URL 参数获取任务 ID
+        const urlParams = new URLSearchParams(window.location.search);
+        const taskId = urlParams.get('task_id');
+
+        let refreshInterval = null;
+        let isCompleted = false;
+
+        // 页面加载时初始化
+        window.onload = function() {
+            if (!taskId) {
+                showError('未提供任务 ID');
+                return;
+            }
+
+            document.getElementById('taskId').textContent = taskId;
+            refreshStatus();
+            startAutoRefresh();
+        };
+
+        // 开始自动刷新
+        function startAutoRefresh() {
+            refreshInterval = setInterval(() => {
+                if (!isCompleted) {
+                    refreshStatus();
+                }
+            }, 2000); // 每 2 秒刷新一次
+        }
+
+        // 停止自动刷新
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+            document.getElementById('autoRefreshIndicator').style.display = 'none';
+        }
+
+        // 刷新任务状态
+        async function refreshStatus() {
+            try {
+                const response = await fetch(`/api/tasks/${taskId}`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                updateUI(data);
+                updateLastUpdateTime();
+
+            } catch (error) {
+                console.error('刷新失败:', error);
+                showError(`刷新失败: ${error.message}`);
+            }
+        }
+
+        // 更新 UI
+        function updateUI(data) {
+            // 更新基本信息
+            updateStatus(data.status, data.message);
+            document.getElementById('createdAt').textContent = formatTime(data.created_at);
+            document.getElementById('updatedAt').textContent = formatTime(data.updated_at);
+
+            // 显示/隐藏取消按钮
+            const cancelBtn = document.getElementById('cancelBtn');
+            if (data.status === 'pending' || data.status === 'downloading') {
+                cancelBtn.style.display = 'block';
+            } else {
+                cancelBtn.style.display = 'none';
+            }
+
+            // 更新进度信息
+            if (data.progress && data.status === 'downloading') {
+                updateProgress(data.progress);
+            } else {
+                document.getElementById('progressSection').style.display = 'none';
+            }
+
+            // 处理完成状态
+            if (data.status === 'completed') {
+                isCompleted = true;
+                stopAutoRefresh();
+                showSuccess(data.draft_path);
+            }
+
+            // 处理失败状态
+            if (data.status === 'failed') {
+                isCompleted = true;
+                stopAutoRefresh();
+                showError(data.error_message || '任务失败');
+            }
+
+            // 处理取消状态
+            if (data.status === 'cancelled') {
+                isCompleted = true;
+                stopAutoRefresh();
+                showError('任务已取消');
+            }
+        }
+
+        // 更新状态显示
+        function updateStatus(status, message) {
+            const statusBadge = document.getElementById('taskStatus');
+            const messageEl = document.getElementById('taskMessage');
+
+            statusBadge.textContent = getStatusText(status);
+            statusBadge.className = 'status-badge status-' + status;
+
+            messageEl.textContent = message;
+
+            // 添加加载动画
+            if (['pending', 'downloading', 'processing'].includes(status)) {
+                if (!messageEl.querySelector('.spinner')) {
+                    const spinner = document.createElement('span');
+                    spinner.className = 'spinner';
+                    messageEl.appendChild(spinner);
+                }
+            }
+        }
+
+        // 获取状态文本
+        function getStatusText(status) {
+            const statusMap = {
+                'pending': '等待中',
+                'downloading': '下载中',
+                'processing': '处理中',
+                'completed': '已完成',
+                'failed': '失败',
+                'cancelled': '已取消'
+            };
+            return statusMap[status] || status;
+        }
+
+        // 更新进度显示
+        function updateProgress(progress) {
+            const section = document.getElementById('progressSection');
+            section.style.display = 'block';
+
+            const percent = progress.progress_percent || 0;
+            const progressBar = document.getElementById('progressBar');
+            progressBar.style.width = percent + '%';
+            progressBar.textContent = percent.toFixed(1) + '%';
+
+            // 更新进度详情
+            const detailsHTML = `
+                <div class="progress-item">
+                    <div class="progress-item-value">${progress.completed_files || 0}/${progress.total_files || 0}</div>
+                    <div class="progress-item-label">已完成/总文件</div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-item-value">${formatBytes(progress.downloaded_size || 0)}</div>
+                    <div class="progress-item-label">已下载</div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-item-value">${formatBytes(progress.download_speed || 0)}/s</div>
+                    <div class="progress-item-label">下载速度</div>
+                </div>
+                <div class="progress-item">
+                    <div class="progress-item-value">${formatSeconds(progress.eta_seconds)}</div>
+                    <div class="progress-item-label">预计剩余</div>
+                </div>
+            `;
+            document.getElementById('progressDetails').innerHTML = detailsHTML;
+        }
+
+        // 显示错误消息
+        function showError(message) {
+            const errorDiv = document.getElementById('errorMessage');
+            errorDiv.textContent = '❌ ' + message;
+            errorDiv.style.display = 'block';
+            document.getElementById('successMessage').style.display = 'none';
+        }
+
+        // 显示成功消息
+        function showSuccess(draftPath) {
+            const successDiv = document.getElementById('successMessage');
+            successDiv.innerHTML = `
+                <strong>✅ 草稿生成成功！</strong>
+                <div class="draft-path">📁 ${draftPath || '(路径未提供)'}</div>
+            `;
+            successDiv.style.display = 'block';
+            document.getElementById('errorMessage').style.display = 'none';
+        }
+
+        // 取消任务
+        async function cancelTask() {
+            if (!confirm('确定要取消这个任务吗？')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/tasks/${taskId}/cancel`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    alert('任务已取消');
+                    refreshStatus();
+                } else {
+                    alert('取消失败: ' + data.message);
+                }
+            } catch (error) {
+                alert('取消失败: ' + error.message);
+            }
+        }
+
+        // 更新最后更新时间
+        function updateLastUpdateTime() {
+            const now = new Date();
+            document.getElementById('lastUpdate').textContent =
+                '最后更新: ' + now.toLocaleTimeString('zh-CN');
+        }
+
+        // 格式化时间
+        function formatTime(timestamp) {
+            if (!timestamp) return '-';
+            const date = new Date(timestamp);
+            return date.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        // 格式化字节大小
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i];
+        }
+
+        // 格式化秒数
+        function formatSeconds(seconds) {
+            if (!seconds || seconds < 0) return '-';
+            if (seconds < 60) return seconds.toFixed(0) + '秒';
+            if (seconds < 3600) return Math.floor(seconds / 60) + '分钟';
+            return Math.floor(seconds / 3600) + '小时';
+        }
+
+        // 页面卸载时停止刷新
+        window.onbeforeunload = function() {
+            stopAutoRefresh();
+        };
+    </script>
+</body>
+</html>

@@ -25,6 +25,7 @@ if str(parent_dir) not in sys.path:
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 import socketio
 
 from app.routers import draft, subdrafts, materials, tracks, files, rules, file_watch, tasks, aria2
@@ -157,6 +158,12 @@ app.include_router(rules.router, prefix="/api/rules", tags=["规则测试"])
 app.include_router(file_watch.router, prefix="/api/file-watch", tags=["文件监控"])
 app.include_router(tasks.router, tags=["异步任务"])
 app.include_router(aria2.router, prefix="/api/aria2", tags=["Aria2下载管理"])
+
+# 挂载静态文件目录
+static_dir = Path(__file__).parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    print(f"✓ 静态文件目录已挂载: {static_dir}")
 
 # 注入Socket.IO实例到文件版本管理器
 from app.services.file_watch_service import get_file_version_manager
