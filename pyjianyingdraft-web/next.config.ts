@@ -37,6 +37,10 @@ const nextConfig: NextConfig = {
   webpack: (config, { isServer }) => {
     // Monaco Editor 只在客户端使用
     if (!isServer) {
+      // 配置公共路径，确保 Monaco Editor 的 worker 文件能正确加载
+      config.output = config.output || {};
+      config.output.publicPath = isProd ? './_next/' : '/_next/';
+
       config.plugins.push(
         new MonacoWebpackPlugin({
           // 指定需要的语言
@@ -58,6 +62,8 @@ const nextConfig: NextConfig = {
             'wordOperations',
             'wordPartOperations',
           ],
+          // 自定义 worker 文件名，避免与 Next.js 的路径冲突
+          filename: '[name].worker.js',
         })
       );
     }

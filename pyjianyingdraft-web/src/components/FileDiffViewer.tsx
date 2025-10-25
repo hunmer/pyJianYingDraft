@@ -301,7 +301,7 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
 
         <Grid container spacing={2}>
           {/* 版本1选择 */}
-          <Grid xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth>
               <InputLabel>版本 1 (旧版本)</InputLabel>
               <Select
@@ -329,7 +329,7 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
           </Grid>
 
           {/* 版本2选择 */}
-          <Grid xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <FormControl fullWidth>
               <InputLabel>版本 2 (新版本)</InputLabel>
               <Select
