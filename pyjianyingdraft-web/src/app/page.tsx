@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import {
   Box,
   Drawer,
@@ -45,6 +46,12 @@ import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, RuleGroupTestRequest } from '@/types/rule';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
+
+// 异步加载下载管理器 Dialog
+const DownloadManagerDialog = dynamic(
+  () => import('@/components/DownloadManagerDialog').then((mod) => ({ default: mod.DownloadManagerDialog })),
+  { ssr: false }
+);
 
 // Tab数据接口
 interface TabData {
@@ -125,6 +132,9 @@ export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
   const [tabs, setTabs] = useState<TabData[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+
+  // 下载管理器 Dialog 状态
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState<boolean>(false);
 
   // 左侧栏Tab状态 (0: 草稿列表, 1: 文件版本)
   const [leftTabValue, setLeftTabValue] = useState<number>(0);
@@ -742,7 +752,7 @@ export default function Home() {
 
           <Tooltip title="下载管理">
             <IconButton
-              onClick={() => window.location.href = '/downloads'}
+              onClick={() => setDownloadDialogOpen(true)}
               sx={{ mr: 2 }}
               color="primary"
             >
@@ -1068,6 +1078,12 @@ export default function Home() {
           <ListItemText>关闭其他</ListItemText>
         </MenuItem>
       </Menu>
+
+      {/* 下载管理器 Dialog */}
+      <DownloadManagerDialog
+        open={downloadDialogOpen}
+        onClose={() => setDownloadDialogOpen(false)}
+      />
     </Box>
   );
 }

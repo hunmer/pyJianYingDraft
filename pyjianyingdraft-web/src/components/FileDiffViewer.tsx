@@ -18,8 +18,8 @@ import {
   Tooltip,
   ButtonGroup,
   Button,
-  Grid, // MUI v7 中默认的 Grid 组件已经是 Grid v2 架构
 } from '@mui/material';
+import Grid from '@mui/material/Grid';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
