@@ -16,7 +16,7 @@ import { Input, Output } from "@/typings/importDraft/importDraft";
  *   - canvas_width (可选): 画布宽度
  *   - canvas_height (可选): 画布高度
  *   - fps (可选): 帧率
- *   - draft_config (可选): 草稿配置(兼容旧格式)
+ *   - draft_config (可选): 草稿配置
  * - draft_title: (可选) 自定义草稿标题,默认使用 ruleGroup.title
  * - api_base: (可选) API服务器基础地址,默认 http://localhost:8000
  *
@@ -31,7 +31,7 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
   const {
     preset_data,
     draft_title,
-    api_base = "http://localhost:8000"
+    api_base = "http://127.0.0.1:8000"
   } = input;
 
   logger.info("开始保存草稿...", { api_base, has_draft_title: !!draft_title });
@@ -81,34 +81,15 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
       } : parsedPresetData.ruleGroup,
       materials: parsedPresetData.materials,
       testData: parsedPresetData.testData,
+      use_raw_segments: true,
+      segment_styles: parsedPresetData.segment_styles || {},
+      raw_segments: parsedPresetData.raw_segments || [],
+      raw_materials: parsedPresetData.raw_materials || [],
+      canvas_width: parsedPresetData.canvas_width || undefined,
+      canvas_height: parsedPresetData.canvas_height || undefined,
+      fps: parsedPresetData.fps || undefined,
+      draft_config: parsedPresetData.draft_config || {},
     };
-
-    // 添加可选字段(如果存在)
-    if (parsedPresetData.segment_styles) {
-      requestPayload.segment_styles = parsedPresetData.segment_styles;
-    }
-    if (parsedPresetData.use_raw_segments !== undefined) {
-      requestPayload.use_raw_segments = parsedPresetData.use_raw_segments;
-    }
-    if (parsedPresetData.raw_segments) {
-      requestPayload.raw_segments = parsedPresetData.raw_segments;
-    }
-    if (parsedPresetData.raw_materials) {
-      requestPayload.raw_materials = parsedPresetData.raw_materials;
-    }
-    if (parsedPresetData.canvas_width !== undefined) {
-      requestPayload.canvas_width = parsedPresetData.canvas_width;
-    }
-    if (parsedPresetData.canvas_height !== undefined) {
-      requestPayload.canvas_height = parsedPresetData.canvas_height;
-    }
-    if (parsedPresetData.fps !== undefined) {
-      requestPayload.fps = parsedPresetData.fps;
-    }
-    // 兼容旧格式 draft_config
-    if (parsedPresetData.draft_config) {
-      requestPayload.draft_config = parsedPresetData.draft_config;
-    }
 
     // 5. 调用 API - 使用异步任务提交端点
     const apiUrl = `${api_base}/api/tasks/submit`;
@@ -130,7 +111,7 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
         const errorData = await response.json();
         if (errorData.detail) {
           errorMessage = `API 错误: ${errorData.detail}`;
-          logger.info(errorMessage);
+          logger.info(errorData)
         }
       } catch {
         // 无法解析错误响应,使用默认错误消息

@@ -653,7 +653,7 @@ export default function Home() {
                     key={group.id}
                     onClick={() => {
                       handleTestDataSelect(
-                        `rule-group-${group.id}`,
+                        `${group.id}`,
                         `规则组: ${group.title}`,
                         async () => Promise.resolve(),
                         {
