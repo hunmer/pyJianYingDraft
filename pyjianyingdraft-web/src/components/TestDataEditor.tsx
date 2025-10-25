@@ -20,6 +20,10 @@ import {
   DialogActions,
   TextField,
   CircularProgress,
+  ButtonGroup,
+  Menu,
+  MenuItem as MuiMenuItem,
+  ListItemText,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import SaveIcon from '@mui/icons-material/Save';
@@ -27,6 +31,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import MonacoEditor from '@/components/MonacoEditor';
 import DownloadIcon from '@mui/icons-material/Download';
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
@@ -90,6 +95,10 @@ export default function TestDataEditor({
   // 异步任务进度相关状态
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [showProgressInline, setShowProgressInline] = useState(false);
+
+  // 下载菜单状态
+  const [downloadMenuAnchor, setDownloadMenuAnchor] = useState<null | HTMLElement>(null);
+  const downloadMenuOpen = Boolean(downloadMenuAnchor);
 
   // 当testDataId变化时,强制重新加载对应的测试数据
   useEffect(() => {
@@ -201,7 +210,7 @@ export default function TestDataEditor({
           setSuccess(`✅ 异步任务已提交\n任务ID: ${taskId}`);
         }
         // 检查是否是完整的请求载荷
-        else if ('testData' in result) {
+        if ('testData' in result) {
           setFullRequestPayload(result as RuleGroupTestRequest);
           setSuccess('测试请求已发送');
         } else {
@@ -320,14 +329,97 @@ export default function TestDataEditor({
     }
   };
 
-  // 下载完整请求数据
-  const handleDownloadRequestData = () => {
+  // 下载基础请求数据(items为空)
+  const handleDownloadBaseRequestData = () => {
     if (!fullRequestPayload) {
       setError('没有可下载的请求数据');
       return;
     }
 
-    const fileContent = JSON.stringify(fullRequestPayload, null, 2);
+    // 提取所有必需和可选字段,testData 中的 items 设置为空数组
+    const baseRequestPayload: any = {
+      ruleGroup: fullRequestPayload.ruleGroup,
+      materials: fullRequestPayload.materials,
+      testData: {
+        ...fullRequestPayload.testData,
+        items: [],
+      },
+    };
+
+    // 添加可选字段(如果存在)
+    if (fullRequestPayload.segment_styles) {
+      baseRequestPayload.segment_styles = fullRequestPayload.segment_styles;
+    }
+    if (fullRequestPayload.use_raw_segments !== undefined) {
+      baseRequestPayload.use_raw_segments = fullRequestPayload.use_raw_segments;
+    }
+    if (fullRequestPayload.raw_segments) {
+      baseRequestPayload.raw_segments = fullRequestPayload.raw_segments;
+    }
+    if (fullRequestPayload.raw_materials) {
+      baseRequestPayload.raw_materials = fullRequestPayload.raw_materials;
+    }
+    if (fullRequestPayload.canvas_width !== undefined) {
+      baseRequestPayload.canvas_width = fullRequestPayload.canvas_width;
+    }
+    if (fullRequestPayload.canvas_height !== undefined) {
+      baseRequestPayload.canvas_height = fullRequestPayload.canvas_height;
+    }
+    if (fullRequestPayload.fps !== undefined) {
+      baseRequestPayload.fps = fullRequestPayload.fps;
+    }
+
+    const fileContent = JSON.stringify(baseRequestPayload, null, 2);
+    const blob = new Blob([fileContent], { type: 'application/json' });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = `base-request-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
+    anchor.click();
+    URL.revokeObjectURL(objectUrl);
+    setSuccess('基础请求数据已下载');
+    setTimeout(() => setSuccess(''), 2000);
+    setDownloadMenuAnchor(null);
+  };
+
+  // 下载完整请求数据
+  const handleDownloadFullRequestData = () => {
+    if (!fullRequestPayload) {
+      setError('没有可下载的请求数据');
+      return;
+    }
+
+    // 提取所有必需和可选字段
+    const filteredPayload: any = {
+      ruleGroup: fullRequestPayload.ruleGroup,
+      materials: fullRequestPayload.materials,
+      testData: fullRequestPayload.testData,
+    };
+
+    // 添加可选字段(如果存在)
+    if (fullRequestPayload.segment_styles) {
+      filteredPayload.segment_styles = fullRequestPayload.segment_styles;
+    }
+    if (fullRequestPayload.use_raw_segments !== undefined) {
+      filteredPayload.use_raw_segments = fullRequestPayload.use_raw_segments;
+    }
+    if (fullRequestPayload.raw_segments) {
+      filteredPayload.raw_segments = fullRequestPayload.raw_segments;
+    }
+    if (fullRequestPayload.raw_materials) {
+      filteredPayload.raw_materials = fullRequestPayload.raw_materials;
+    }
+    if (fullRequestPayload.canvas_width !== undefined) {
+      filteredPayload.canvas_width = fullRequestPayload.canvas_width;
+    }
+    if (fullRequestPayload.canvas_height !== undefined) {
+      filteredPayload.canvas_height = fullRequestPayload.canvas_height;
+    }
+    if (fullRequestPayload.fps !== undefined) {
+      filteredPayload.fps = fullRequestPayload.fps;
+    }
+
+    const fileContent = JSON.stringify(filteredPayload, null, 2);
     const blob = new Blob([fileContent], { type: 'application/json' });
     const objectUrl = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -335,8 +427,9 @@ export default function TestDataEditor({
     anchor.download = `full-request-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
     anchor.click();
     URL.revokeObjectURL(objectUrl);
-    setSuccess('请求数据已下载');
+    setSuccess('完整请求数据已下载');
     setTimeout(() => setSuccess(''), 2000);
+    setDownloadMenuAnchor(null);
   };
 
   return (
@@ -485,14 +578,41 @@ export default function TestDataEditor({
           {/* 底部操作按钮 */}
           <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1, justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', gap: 1 }}>
-              <Button
-                variant="outlined"
-                onClick={handleDownloadRequestData}
-                disabled={!fullRequestPayload}
-                startIcon={<DownloadIcon />}
+              <ButtonGroup variant="outlined" disabled={!fullRequestPayload}>
+                <Button
+                  onClick={handleDownloadBaseRequestData}
+                  startIcon={<DownloadIcon />}
+                >
+                  下载基础数据
+                </Button>
+                <Button
+                  size="small"
+                  onClick={(e) => setDownloadMenuAnchor(e.currentTarget)}
+                  aria-controls={downloadMenuOpen ? 'download-menu' : undefined}
+                  aria-expanded={downloadMenuOpen ? 'true' : undefined}
+                  aria-haspopup="menu"
+                >
+                  <ArrowDropDownIcon />
+                </Button>
+              </ButtonGroup>
+
+              {/* 下载选项菜单 */}
+              <Menu
+                id="download-menu"
+                anchorEl={downloadMenuAnchor}
+                open={downloadMenuOpen}
+                onClose={() => setDownloadMenuAnchor(null)}
+                MenuListProps={{
+                  'aria-labelledby': 'download-split-button',
+                }}
               >
-                下载完整请求数据
-              </Button>
+                <MuiMenuItem onClick={handleDownloadFullRequestData}>
+                  <ListItemText
+                    primary="下载完整数据"
+                    secondary="包含请求的items"
+                  />
+                </MuiMenuItem>
+              </Menu>
             </Box>
             <Box sx={{ display: 'flex', gap: 1 }}>
               <Button

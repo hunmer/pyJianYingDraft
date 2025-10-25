@@ -134,12 +134,24 @@ export const draftApi = {
   },
 
   /**
-   * 获取规则组配置
+   * 获取规则组配置 (全局配置,已废弃,建议使用 getAllRuleGroups)
    */
   async getRuleGroups(): Promise<{ rule_groups: any[] }> {
     const url = `${API_BASE_URL}/api/draft/config/rule-groups`;
     const response = await fetch(url);
     return handleResponse<{ rule_groups: any[] }>(response);
+  },
+
+  /**
+   * 从所有草稿目录收集规则组
+   * @param basePath - 可选的草稿根目录路径,不提供则使用配置的根目录
+   */
+  async getAllRuleGroups(basePath?: string): Promise<{ rule_groups: RuleGroup[]; count: number }> {
+    const url = basePath
+      ? buildUrl('/api/draft/all-rule-groups', { base_path: basePath })
+      : `${API_BASE_URL}/api/draft/all-rule-groups`;
+    const response = await fetch(url);
+    return handleResponse<{ rule_groups: RuleGroup[]; count: number }>(response);
   },
 
   /**

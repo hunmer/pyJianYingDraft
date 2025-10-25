@@ -239,13 +239,13 @@ export default function Home() {
     setActiveTabId(newTabId);
   }, [tabs]);
 
-  // 从后端加载所有规则组
+  // 从后端加载所有规则组(从所有草稿目录收集)
   useEffect(() => {
     const loadRuleGroups = async () => {
       setLoadingRuleGroups(true);
       setRuleGroupsError(null);
       try {
-        const response = await draftApi.getRuleGroups();
+        const response = await draftApi.getAllRuleGroups();
         setAllRuleGroups(response.rule_groups || []);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : '加载规则组失败';
@@ -279,7 +279,7 @@ export default function Home() {
               }
 
               // 使用保存的元数据构建请求载荷
-              const requestPayload = {
+              const requestPayload: RuleGroupTestRequest = {
                 ruleGroup: tab.testDataContext.ruleGroup,
                 materials: tab.testDataContext.materials || [],
                 testData,
@@ -304,8 +304,11 @@ export default function Home() {
               const response = await tasksApi.submit(requestPayload);
               console.log('[恢复的tab] 任务已提交:', response.task_id);
 
-              // 返回包含task_id的响应，供TestDataEditor显示进度
-              return response;
+              // 返回包含task_id和完整请求载荷的响应，供TestDataEditor显示进度和下载
+              return {
+                ...response,
+                ...requestPayload,
+              };
             };
 
             return {
@@ -645,8 +648,8 @@ export default function Home() {
               </Alert>
             ) : allRuleGroups.length ? (
               <List dense>
-                {allRuleGroups.map((group) => (
-                  <ListItemButton 
+                {allRuleGroups.map((group: any) => (
+                  <ListItemButton
                     key={group.id}
                     onClick={() => {
                       handleTestDataSelect(
@@ -669,7 +672,26 @@ export default function Home() {
                   >
                     <ListItemText
                       primary={group.title}
-                      secondary={`${group.rules.length} 条规则`}
+                      secondary={
+                        <>
+                          {group.rules.length} 条规则
+                          {group.draft_name && (
+                            <>
+                              {' • '}
+                              <Typography
+                                component="span"
+                                variant="caption"
+                                sx={{
+                                  color: 'text.secondary',
+                                  fontStyle: 'italic'
+                                }}
+                              >
+                                来自: {group.draft_name}
+                              </Typography>
+                            </>
+                          )}
+                        </>
+                      }
                       primaryTypographyProps={{ fontWeight: 500 }}
                     />
                   </ListItemButton>

@@ -1,19 +1,30 @@
 import { Args } from '@/runtime';
-import { Input, Output } from "@/typings/connect/connect";
+import { Input, Output } from "@/typings/importDraft/importDraft";
 
 /**
- * 保存草稿节点 - 调用 API 将预设数据保存为剪映草稿
+ * 保存草稿节点 - 调用 API 将预设数据提交为异步任务
  *
  * 输入参数:
- * - preset_data: JSON字符串,包含完整的 full-request.json 信息
+ * - preset_data: JSON字符串,必须包含以下字段:
+ *   - ruleGroup (必需): 规则组配置
+ *   - materials (必需): 素材列表
+ *   - testData (必需): 测试数据(包含 tracks 和 items)
+ *   - segment_styles (可选): 片段样式映射
+ *   - use_raw_segments (可选): 是否使用原始片段模式
+ *   - raw_segments (可选): 原始片段数组
+ *   - raw_materials (可选): 原始素材数组
+ *   - canvas_width (可选): 画布宽度
+ *   - canvas_height (可选): 画布高度
+ *   - fps (可选): 帧率
+ *   - draft_config (可选): 草稿配置(兼容旧格式)
  * - draft_title: (可选) 自定义草稿标题,默认使用 ruleGroup.title
  * - api_base: (可选) API服务器基础地址,默认 http://localhost:8000
  *
  * 输出:
- * - success: 布尔值,是否成功保存
- * - draft_path: 保存的草稿路径
- * - draft_name: 草稿名称
+ * - success: 布尔值,任务是否成功提交
+ * - task_id: 异步任务ID(成功时返回)
  * - message: 结果消息
+ * - api_response: API原始响应
  * - error: 错误信息(失败时返回)
  */
 export async function handler({ input, logger }: Args<Input>): Promise<Output> {
@@ -36,40 +47,71 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
 
     // 2. 解析 preset_data 字符串为 JSON 对象
     let parsedPresetData;
-    if (typeof preset_data === 'string') {
-      try {
-        parsedPresetData = JSON.parse(preset_data);
-      } catch (parseError: any) {
-        return {
-          success: false,
-          error: `preset_data JSON 解析失败: ${parseError.message}`
-        };
-      }
-    } else {
-      // 如果已经是对象,直接使用
-      parsedPresetData = preset_data;
-    }
-
-    // 3. 验证必需字段
-    if (!parsedPresetData.ruleGroup || !parsedPresetData.materials || !parsedPresetData.testData) {
+    try {
+      parsedPresetData = JSON.parse(preset_data);
+    } catch (parseError: any) {
       return {
         success: false,
-        error: "preset_data 缺少必需字段 (ruleGroup, materials, testData)"
+        error: `preset_data JSON 解析失败: ${parseError.message}`
       };
     }
 
-    // 4. 准备请求数据
-    const requestPayload = {
-      ...parsedPresetData,
-      // 如果提供了自定义标题,更新 ruleGroup.title
+    // 3. 验证必需字段
+    const requiredFields = ['ruleGroup', 'materials', 'testData'];
+    const missingFields: string[] = [];
+
+    for (const field of requiredFields) {
+      if (!parsedPresetData[field]) {
+        missingFields.push(field);
+      }
+    }
+
+    if (missingFields.length > 0) {
+      return {
+        success: false,
+        error: `preset_data 缺少必需字段: ${missingFields.join(', ')}`
+      };
+    }
+
+    // 4. 准备请求数据 - 包含所有字段
+    const requestPayload: any = {
       ruleGroup: draft_title ? {
         ...parsedPresetData.ruleGroup,
         title: draft_title
-      } : parsedPresetData.ruleGroup
+      } : parsedPresetData.ruleGroup,
+      materials: parsedPresetData.materials,
+      testData: parsedPresetData.testData,
     };
 
-    // 5. 调用 API
-    const apiUrl = `${api_base}/api/rules/test`;
+    // 添加可选字段(如果存在)
+    if (parsedPresetData.segment_styles) {
+      requestPayload.segment_styles = parsedPresetData.segment_styles;
+    }
+    if (parsedPresetData.use_raw_segments !== undefined) {
+      requestPayload.use_raw_segments = parsedPresetData.use_raw_segments;
+    }
+    if (parsedPresetData.raw_segments) {
+      requestPayload.raw_segments = parsedPresetData.raw_segments;
+    }
+    if (parsedPresetData.raw_materials) {
+      requestPayload.raw_materials = parsedPresetData.raw_materials;
+    }
+    if (parsedPresetData.canvas_width !== undefined) {
+      requestPayload.canvas_width = parsedPresetData.canvas_width;
+    }
+    if (parsedPresetData.canvas_height !== undefined) {
+      requestPayload.canvas_height = parsedPresetData.canvas_height;
+    }
+    if (parsedPresetData.fps !== undefined) {
+      requestPayload.fps = parsedPresetData.fps;
+    }
+    // 兼容旧格式 draft_config
+    if (parsedPresetData.draft_config) {
+      requestPayload.draft_config = parsedPresetData.draft_config;
+    }
+
+    // 5. 调用 API - 使用异步任务提交端点
+    const apiUrl = `${api_base}/api/tasks/submit`;
     logger.info(`调用 API: ${apiUrl}`);
 
     const response = await fetch(apiUrl, {
@@ -88,6 +130,7 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
         const errorData = await response.json();
         if (errorData.detail) {
           errorMessage = `API 错误: ${errorData.detail}`;
+          logger.info(errorMessage);
         }
       } catch {
         // 无法解析错误响应,使用默认错误消息
@@ -102,28 +145,24 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
 
     const result = await response.json();
 
-    // 7. 检查响应数据
-    if (result.status_code !== 200 || !result.draft_path) {
+    // 7. 检查响应数据 - 异步任务端点返回 task_id
+    if (!result.task_id) {
       return {
         success: false,
-        error: result.message || "保存草稿失败,未返回草稿路径"
+        error: result.message || "任务提交失败,未返回任务ID"
       };
     }
 
-    // 8. 提取草稿名称(从路径中获取最后一部分)
-    const pathParts = result.draft_path.split(/[\\/]/);
-    const draftName = pathParts[pathParts.length - 1] || "未知草稿";
-
-    logger.info("草稿保存成功", {
-      draft_path: result.draft_path,
-      draft_name: draftName
+    // 8. 返回任务ID,用户需要使用此ID轮询任务状态
+    logger.info("异步任务已提交", {
+      task_id: result.task_id,
+      message: result.message
     });
 
     return {
       success: true,
-      draft_path: result.draft_path,
-      draft_name: draftName,
-      message: result.message || "草稿保存成功",
+      task_id: result.task_id,
+      message: result.message || "异步任务已提交,请使用 task_id 查询任务状态",
       api_response: result
     };
 
