@@ -40,6 +40,7 @@ a = Analysis(
         'uvicorn.lifespan.on',
         # FastAPI 核心和中间件
         'fastapi',
+        'fastapi.staticfiles',
         'fastapi.middleware',
         'fastapi.middleware.cors',
         'fastapi.middleware.trustedhost',
@@ -119,9 +120,13 @@ exe = EXE(
     name='pyJianYingDraftServer',
     debug=False,
     bootloader_ignore_signals=False,
-    strip=False,
-    upx=True,
-    upx_exclude=[],
+    strip=True,  # 启用 strip 移除调试符号
+    upx=True,  # 启用 UPX 压缩
+    upx_exclude=[
+        # 排除可能导致 UPX 压缩问题的文件
+        'vcruntime140.dll',
+        'python*.dll',
+    ],
     runtime_tmpdir=None,
     console=True,  # 保留控制台窗口以便查看日志
     disable_windowed_traceback=False,

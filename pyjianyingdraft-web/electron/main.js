@@ -14,6 +14,7 @@ const BACKEND_HOST = 'localhost';
 let mainWindow;
 let backendProcess = null;
 let backendLogStream = null;
+let isQuitting = false; // 标记是否正在退出,避免重复清理
 
 // ==================== Monaco Editor 本地加载配置 ====================
 
@@ -33,34 +34,6 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 
-/**
- * 处理 app-asset:// 协议请求
- * 用于从 node_modules 或 public 目录加载资源
- */
-function handleAssetProtocol(request) {
-  const url = new URL(request.url);
-  let filePath;
-
-  // 解析路径
-  if (url.pathname.startsWith('/monaco-editor/')) {
-    // Monaco Editor 文件:从 node_modules 加载
-    const relativePath = url.pathname.replace('/monaco-editor/', 'monaco-editor/');
-    try {
-      filePath = require.resolve(relativePath);
-    } catch (error) {
-      console.error('[Monaco] 无法解析文件:', relativePath, error);
-      return new Response('File not found', { status: 404 });
-    }
-  } else {
-    // 其他资源:从 public 目录加载
-    const relativePath = url.pathname.replace(/^\//, '');
-    filePath = path.join(app.getAppPath(), 'out', relativePath);
-  }
-
-  // 转换为 file:// URL 并使用 net.fetch 加载
-  const fileUrl = pathToFileURL(filePath).toString();
-  return net.fetch(fileUrl, { bypassCustomProtocolHandlers: true });
-}
 
 /**
  * 检查后端服务是否运行
@@ -199,13 +172,107 @@ function startBackendService() {
 /**
  * 停止后端服务
  */
-function stopBackendService() {
-  if (backendProcess) {
-    console.log('[Backend] 正在停止后端服务...');
-    backendProcess.kill();
-    backendProcess = null;
+async function stopBackendService() {
+  if (!backendProcess || isQuitting) {
+    return;
   }
 
+  isQuitting = true;
+  console.log('[Backend] 正在停止后端服务...');
+
+  try {
+    // 1. 先尝试通过 HTTP 请求优雅关闭后端(让后端自己清理 aria2 等子进程)
+    const shutdownPromise = new Promise((resolve) => {
+      const options = {
+        host: BACKEND_HOST,
+        port: BACKEND_PORT,
+        path: '/shutdown',
+        method: 'POST',
+        timeout: 3000
+      };
+
+      const req = http.request(options, (res) => {
+        console.log('[Backend] 收到关闭响应,状态码:', res.statusCode);
+        resolve(true);
+      });
+
+      req.on('error', (err) => {
+        console.log('[Backend] 关闭请求失败(进程可能已停止):', err.message);
+        resolve(false);
+      });
+
+      req.on('timeout', () => {
+        console.log('[Backend] 关闭请求超时');
+        req.destroy();
+        resolve(false);
+      });
+
+      req.end();
+    });
+
+    // 等待后端响应或超时
+    await Promise.race([
+      shutdownPromise,
+      new Promise(resolve => setTimeout(() => resolve(false), 3000))
+    ]);
+
+    // 给后端一些时间来清理子进程
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+  } catch (error) {
+    console.error('[Backend] 优雅关闭失败:', error.message);
+  }
+
+  // 2. 终止后端进程
+  if (backendProcess && backendProcess.pid) {
+    try {
+      // 在 Windows 上使用 taskkill 杀死进程树(包括所有子进程)
+      if (process.platform === 'win32') {
+        console.log('[Backend] 使用 taskkill 终止进程树...');
+        const { execSync } = require('child_process');
+        try {
+          // /F 强制终止, /T 终止进程树(包括子进程)
+          execSync(`taskkill /F /T /PID ${backendProcess.pid}`, {
+            stdio: 'ignore',
+            windowsHide: true
+          });
+          console.log('[Backend] 进程树已终止');
+        } catch (killError) {
+          // 进程可能已经退出,忽略错误
+          console.log('[Backend] taskkill 执行完成');
+        }
+      } else {
+        // 在 Unix 系统上,发送 SIGTERM 信号
+        backendProcess.kill('SIGTERM');
+
+        // 等待进程退出
+        await new Promise((resolve) => {
+          const timeout = setTimeout(() => {
+            // 如果 5 秒后还没退出,强制 kill
+            if (backendProcess && backendProcess.pid) {
+              console.log('[Backend] 进程未响应 SIGTERM,发送 SIGKILL...');
+              backendProcess.kill('SIGKILL');
+            }
+            resolve();
+          }, 5000);
+
+          backendProcess.once('exit', () => {
+            clearTimeout(timeout);
+            resolve();
+          });
+        });
+      }
+
+      backendProcess = null;
+      console.log('[Backend] 后端服务已停止');
+
+    } catch (error) {
+      console.error('[Backend] 停止进程时出错:', error.message);
+      backendProcess = null;
+    }
+  }
+
+  // 3. 关闭日志流
   if (backendLogStream) {
     backendLogStream.end();
     backendLogStream = null;
@@ -267,9 +334,6 @@ async function createWindow() {
 
 // 当 Electron 完成初始化时创建窗口
 app.whenReady().then(() => {
-  // 注册自定义协议处理器
-  protocol.handle('app-asset', handleAssetProtocol);
-  console.log('[Monaco] 已注册 app-asset:// 协议处理器');
 
   createWindow();
 
@@ -281,9 +345,9 @@ app.whenReady().then(() => {
 });
 
 // 当所有窗口关闭时退出应用 (macOS 除外)
-app.on('window-all-closed', () => {
+app.on('window-all-closed', async () => {
   // 停止后端服务
-  stopBackendService();
+  await stopBackendService();
 
   if (process.platform !== 'darwin') {
     app.quit();
@@ -291,8 +355,19 @@ app.on('window-all-closed', () => {
 });
 
 // 应用退出前清理
-app.on('before-quit', () => {
-  stopBackendService();
+app.on('before-quit', async (event) => {
+  // 如果已经在清理中,允许退出
+  if (isQuitting) {
+    return;
+  }
+
+  // 阻止默认退出,等待清理完成
+  event.preventDefault();
+
+  await stopBackendService();
+
+  // 清理完成后真正退出
+  app.exit(0);
 });
 
 // 安全设置:禁止导航到外部 URL

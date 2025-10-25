@@ -540,35 +540,23 @@ export default function TestDataEditor({
             )}
           </Box>
 
-          {/* Monaco 编辑器 */}
+          {/* CodeMirror 编辑器 */}
           <Box sx={{ flex: 1, p: 2, pt: 0, overflow: 'hidden' }}>
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden', height: '100%' }}>
               <MonacoEditor
                 key={editorKey}
                 height="100%"
-                defaultLanguage="json"
+                language="json"
                 value={testDataJson}
                 onChange={(value) => setTestDataJson(value || '')}
-                theme="vs-light"
-                loading={
-                  <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-                    <CircularProgress />
-                  </Box>
-                }
-                onMount={(editor, monaco) => {
-                  console.log('[Monaco] 编辑器已挂载', { editor, monaco });
+                theme="light"
+                onMount={(view) => {
+                  console.log('[CodeMirror] 编辑器已挂载', { view });
                 }}
                 options={{
-                  minimap: { enabled: false },
-                  fontSize: 13,
-                  lineNumbers: 'on',
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
+                  lineNumbers: true,
+                  lineWrapping: true,
                   tabSize: 2,
-                  formatOnPaste: true,
-                  formatOnType: true,
-                  wordWrap: 'on',
-                  wrappingIndent: 'indent',
                 }}
               />
             </Box>

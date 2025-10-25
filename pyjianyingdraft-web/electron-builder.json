@@ -2,20 +2,16 @@
   "appId": "com.jianyinX.app",
   "productName": "jianyinX",
   "nsis": false,
-  "compression": "store",
+  "compression": "maximum",
   "publish": null,
   "asar": true,
   "directories": {
     "output": "dist"
   },
   "files": [
-    "**/*",
-    "!**/temp_extract",
-    "!**/dist",
-    "!**/.next",
-    "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
-    "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
-    "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+    "out/**/*",
+    "electron/**/*",
+    "package.json",
     ".env"
   ],
   "extraResources": [
@@ -28,8 +24,15 @@
       "to": "aria2"
     }
   ],
+  "npmRebuild": false,
+  "nodeGypRebuild": false,
+  "buildDependenciesFromSource": false,
+  "asarUnpack": [
+    "**/*.node"
+  ],
   "win": {
-    "target": "dir"
+    "target": "dir",
+    "electronLanguages": ["zh-CN", "zh-TW", "en-US", "en-GB"]
   },
   "mac": {
     "target": "dir"

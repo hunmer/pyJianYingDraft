@@ -27,8 +27,6 @@
 npm install
 ```
 
-> **注意**: 安装过程中会自动复制 Monaco Editor 文件到 `public/monaco-editor/` 目录,以支持离线使用。详见 [Monaco Editor 本地加载配置](./MONACO_LOCAL_LOADING.md)。
-
 ### 2. 配置环境变量
 
 复制 `.env.example` 为 `.env.local`:

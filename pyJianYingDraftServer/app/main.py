@@ -541,3 +541,51 @@ async def root():
 async def health():
     """健康检查"""
     return {"status": "ok"}
+
+
+@app.post("/shutdown")
+async def shutdown():
+    """优雅关闭服务器和所有子进程"""
+    import asyncio
+    import signal
+
+    print("\n" + "=" * 60)
+    print("📥 收到关闭请求,正在执行优雅关闭...")
+    print("=" * 60)
+
+    # 在后台执行关闭流程
+    async def shutdown_sequence():
+        # 给一点时间让响应返回
+        await asyncio.sleep(0.5)
+
+        # 停止任务队列进度监控
+        try:
+            from app.services.task_queue import get_task_queue
+            queue = get_task_queue()
+            await queue.stop_progress_monitor()
+            print("✓ 任务队列进度监控已停止")
+        except Exception as e:
+            print(f"✗ 停止任务队列失败: {e}")
+
+        # 停止 Aria2 进程
+        try:
+            from app.services.aria2_manager import get_aria2_manager
+            manager = get_aria2_manager()
+            manager.stop_health_check()
+            manager.stop()
+            print("✓ Aria2进程已停止")
+        except Exception as e:
+            print(f"✗ 停止Aria2失败: {e}")
+
+        print("=" * 60)
+        print("✅ 优雅关闭完成,服务器即将退出")
+        print("=" * 60)
+
+        # 发送退出信号
+        import os
+        os.kill(os.getpid(), signal.SIGTERM)
+
+    # 异步启动关闭序列
+    asyncio.create_task(shutdown_sequence())
+
+    return {"status": "shutting down", "message": "服务器正在关闭..."}
