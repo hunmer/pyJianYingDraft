@@ -100,6 +100,14 @@ export default function TestDataEditor({
   const [downloadMenuAnchor, setDownloadMenuAnchor] = useState<null | HTMLElement>(null);
   const downloadMenuOpen = Boolean(downloadMenuAnchor);
 
+  // 下载确认对话框状态
+  const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
+  const [pendingDownloadData, setPendingDownloadData] = useState<{
+    data: any;
+    filename: string;
+    type: 'base' | 'full';
+  } | null>(null);
+
   // 当testDataId变化时,强制重新加载对应的测试数据
   useEffect(() => {
     const stored = localStorage.getItem(`test-data-json-${testDataId}`);
@@ -329,107 +337,107 @@ export default function TestDataEditor({
     }
   };
 
-  // 下载基础请求数据(items为空)
-  const handleDownloadBaseRequestData = () => {
+  // 通用下载函数
+  const downloadJSON = (data: any, filename: string, compress: boolean) => {
+    let fileContent: string;
+
+    if (compress) {
+      // 压缩并转义:先序列化为JSON字符串,再转义为可嵌入的字符串(转义反斜杠和双引号)
+      const jsonString = JSON.stringify(data);
+      // 转义反斜杠和双引号,使其可以安全嵌入到另一个JSON字符串中
+      fileContent = jsonString.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    } else {
+      // 普通格式:紧凑的JSON,无换行
+      fileContent = JSON.stringify(data);
+    }
+
+    const blob = new Blob([fileContent], { type: 'text/plain' });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = filename;
+    anchor.click();
+    URL.revokeObjectURL(objectUrl);
+  };
+
+  // 构建请求载荷(提取公共逻辑)
+  const buildRequestPayload = (includeItems: boolean): any => {
+    if (!fullRequestPayload) return null;
+
+    const payload: any = {
+      ruleGroup: fullRequestPayload.ruleGroup,
+      materials: fullRequestPayload.materials,
+      testData: includeItems
+        ? fullRequestPayload.testData
+        : { ...fullRequestPayload.testData, items: [] },
+    };
+
+    // 添加可选字段(如果存在)
+    if (fullRequestPayload.segment_styles) {
+      payload.segment_styles = fullRequestPayload.segment_styles;
+    }
+    if (fullRequestPayload.use_raw_segments !== undefined) {
+      payload.use_raw_segments = fullRequestPayload.use_raw_segments;
+    }
+    if (fullRequestPayload.raw_segments) {
+      payload.raw_segments = fullRequestPayload.raw_segments;
+    }
+    if (fullRequestPayload.raw_materials) {
+      payload.raw_materials = fullRequestPayload.raw_materials;
+    }
+    if (fullRequestPayload.canvas_width !== undefined) {
+      payload.canvas_width = fullRequestPayload.canvas_width;
+    }
+    if (fullRequestPayload.canvas_height !== undefined) {
+      payload.canvas_height = fullRequestPayload.canvas_height;
+    }
+    if (fullRequestPayload.fps !== undefined) {
+      payload.fps = fullRequestPayload.fps;
+    }
+
+    return payload;
+  };
+
+  // 打开下载确认对话框
+  const openDownloadDialog = (type: 'base' | 'full') => {
     if (!fullRequestPayload) {
       setError('没有可下载的请求数据');
       return;
     }
 
-    // 提取所有必需和可选字段,testData 中的 items 设置为空数组
-    const baseRequestPayload: any = {
-      ruleGroup: fullRequestPayload.ruleGroup,
-      materials: fullRequestPayload.materials,
-      testData: {
-        ...fullRequestPayload.testData,
-        items: [],
-      },
-    };
+    const includeItems = type === 'full';
+    const data = buildRequestPayload(includeItems);
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `${type}-request-${timestamp}.txt`; // 使用txt后缀保存
 
-    // 添加可选字段(如果存在)
-    if (fullRequestPayload.segment_styles) {
-      baseRequestPayload.segment_styles = fullRequestPayload.segment_styles;
-    }
-    if (fullRequestPayload.use_raw_segments !== undefined) {
-      baseRequestPayload.use_raw_segments = fullRequestPayload.use_raw_segments;
-    }
-    if (fullRequestPayload.raw_segments) {
-      baseRequestPayload.raw_segments = fullRequestPayload.raw_segments;
-    }
-    if (fullRequestPayload.raw_materials) {
-      baseRequestPayload.raw_materials = fullRequestPayload.raw_materials;
-    }
-    if (fullRequestPayload.canvas_width !== undefined) {
-      baseRequestPayload.canvas_width = fullRequestPayload.canvas_width;
-    }
-    if (fullRequestPayload.canvas_height !== undefined) {
-      baseRequestPayload.canvas_height = fullRequestPayload.canvas_height;
-    }
-    if (fullRequestPayload.fps !== undefined) {
-      baseRequestPayload.fps = fullRequestPayload.fps;
-    }
-
-    const fileContent = JSON.stringify(baseRequestPayload, null, 2);
-    const blob = new Blob([fileContent], { type: 'application/json' });
-    const objectUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = objectUrl;
-    anchor.download = `base-request-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    anchor.click();
-    URL.revokeObjectURL(objectUrl);
-    setSuccess('基础请求数据已下载');
-    setTimeout(() => setSuccess(''), 2000);
+    setPendingDownloadData({ data, filename, type });
+    setDownloadDialogOpen(true);
     setDownloadMenuAnchor(null);
+  };
+
+  // 确认下载
+  const handleConfirmDownload = (compress: boolean) => {
+    if (!pendingDownloadData) return;
+
+    downloadJSON(pendingDownloadData.data, pendingDownloadData.filename, compress);
+
+    const typeText = pendingDownloadData.type === 'base' ? '基础' : '完整';
+    const compressText = compress ? '(压缩并转义)' : '';
+    setSuccess(`${typeText}请求数据已下载${compressText}`);
+    setTimeout(() => setSuccess(''), 2000);
+
+    setDownloadDialogOpen(false);
+    setPendingDownloadData(null);
+  };
+
+  // 下载基础请求数据(items为空)
+  const handleDownloadBaseRequestData = () => {
+    openDownloadDialog('base');
   };
 
   // 下载完整请求数据
   const handleDownloadFullRequestData = () => {
-    if (!fullRequestPayload) {
-      setError('没有可下载的请求数据');
-      return;
-    }
-
-    // 提取所有必需和可选字段
-    const filteredPayload: any = {
-      ruleGroup: fullRequestPayload.ruleGroup,
-      materials: fullRequestPayload.materials,
-      testData: fullRequestPayload.testData,
-    };
-
-    // 添加可选字段(如果存在)
-    if (fullRequestPayload.segment_styles) {
-      filteredPayload.segment_styles = fullRequestPayload.segment_styles;
-    }
-    if (fullRequestPayload.use_raw_segments !== undefined) {
-      filteredPayload.use_raw_segments = fullRequestPayload.use_raw_segments;
-    }
-    if (fullRequestPayload.raw_segments) {
-      filteredPayload.raw_segments = fullRequestPayload.raw_segments;
-    }
-    if (fullRequestPayload.raw_materials) {
-      filteredPayload.raw_materials = fullRequestPayload.raw_materials;
-    }
-    if (fullRequestPayload.canvas_width !== undefined) {
-      filteredPayload.canvas_width = fullRequestPayload.canvas_width;
-    }
-    if (fullRequestPayload.canvas_height !== undefined) {
-      filteredPayload.canvas_height = fullRequestPayload.canvas_height;
-    }
-    if (fullRequestPayload.fps !== undefined) {
-      filteredPayload.fps = fullRequestPayload.fps;
-    }
-
-    const fileContent = JSON.stringify(filteredPayload, null, 2);
-    const blob = new Blob([fileContent], { type: 'application/json' });
-    const objectUrl = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = objectUrl;
-    anchor.download = `full-request-${new Date().toISOString().replace(/[:.]/g, '-')}.json`;
-    anchor.click();
-    URL.revokeObjectURL(objectUrl);
-    setSuccess('完整请求数据已下载');
-    setTimeout(() => setSuccess(''), 2000);
-    setDownloadMenuAnchor(null);
+    openDownloadDialog('full');
   };
 
   return (
@@ -672,6 +680,46 @@ export default function TestDataEditor({
           <Button onClick={() => setSaveDialogOpen(false)}>取消</Button>
           <Button onClick={handleSaveDataset} variant="contained" startIcon={<SaveIcon />}>
             保存
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 下载确认对话框 */}
+      <Dialog
+        open={downloadDialogOpen}
+        onClose={() => setDownloadDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>下载JSON文件</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+            <Typography>
+              请选择下载格式:
+            </Typography>
+            <Alert severity="info">
+              <Typography variant="body2" gutterBottom>
+                <strong>普通格式:</strong> JSON紧凑单行,无换行
+              </Typography>
+              <Typography variant="body2">
+                <strong>压缩并转义:</strong> JSON紧凑单行 + 转义所有双引号(\")
+              </Typography>
+            </Alert>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDownloadDialogOpen(false)}>取消</Button>
+          <Button
+            onClick={() => handleConfirmDownload(false)}
+            variant="outlined"
+          >
+            普通格式
+          </Button>
+          <Button
+            onClick={() => handleConfirmDownload(true)}
+            variant="contained"
+          >
+            压缩并转义
           </Button>
         </DialogActions>
       </Dialog>
