@@ -41,6 +41,10 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import ErrorIcon from '@mui/icons-material/Error';
 import LinkIcon from '@mui/icons-material/Link';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import ViewModuleIcon from '@mui/icons-material/ViewModule';
+import ViewListIcon from '@mui/icons-material/ViewList';
+import ToggleButton from '@mui/material/ToggleButton';
+import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import { useAria2WebSocket } from '@/hooks/useAria2WebSocket';
 import type { Aria2DownloadGroup, Aria2Download } from '@/types/aria2';
 
@@ -169,6 +173,7 @@ export function Aria2DownloadManager() {
   const [downloadDir, setDownloadDir] = useState<string>('');
   const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   // 用于存储上一次的数据,避免刷新闪烁
   const prevGroupsRef = useRef<Aria2DownloadGroup[]>([]);
   const prevDownloadsRef = useRef<Aria2Download[]>([]);
@@ -422,7 +427,7 @@ export function Aria2DownloadManager() {
   const displayDownloads = selectedGroupDownloads.length > 0 ? selectedGroupDownloads : prevDownloadsRef.current;
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <Box sx={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
       {/* 左侧:组列表 */}
       <Paper
         sx={{
@@ -506,7 +511,24 @@ export function Aria2DownloadManager() {
             {selectedGroupId ? '下载任务' : '请选择一个下载组'}
           </Typography>
           {selectedGroupId && (
-            <Box sx={{ display: 'flex', gap: 1 }}>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <ToggleButtonGroup
+                value={viewMode}
+                exclusive
+                onChange={(e, newMode) => newMode && setViewMode(newMode)}
+                size="small"
+              >
+                <ToggleButton value="grid">
+                  <Tooltip title="网格视图">
+                    <ViewModuleIcon />
+                  </Tooltip>
+                </ToggleButton>
+                <ToggleButton value="list">
+                  <Tooltip title="列表视图">
+                    <ViewListIcon />
+                  </Tooltip>
+                </ToggleButton>
+              </ToggleButtonGroup>
               <Button
                 variant="outlined"
                 size="small"
@@ -535,16 +557,16 @@ export function Aria2DownloadManager() {
           </Alert>
         )}
 
-        {/* 任务列表 - 卡片网格布局 */}
+        {/* 任务列表 */}
         {selectedGroupId && (
-          <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
+          <Box sx={{ flex: 1, overflow: 'auto', p: 2, pb: 5 }}>
             {displayDownloads.length === 0 ? (
               <Box sx={{ textAlign: 'center', p: 4 }}>
                 <Typography variant="body2" color="text.secondary">
                   该组没有下载任务
                 </Typography>
               </Box>
-            ) : (
+            ) : viewMode === 'grid' ? (
               <Grid container spacing={2}>
                 {displayDownloads.map((download) => {
                   const progress = download.totalLength > 0
@@ -609,16 +631,25 @@ export function Aria2DownloadManager() {
                           )}
 
                           {/* 状态标签 */}
-                          <Chip
-                            label={getStatusText(download.status)}
-                            color={getStatusColor(download.status)}
-                            size="small"
-                            sx={{
-                              position: 'absolute',
-                              top: 8,
-                              right: 8,
-                            }}
-                          />
+                          <Tooltip
+                            title={
+                              download.errorCode && download.errorCode !== '0'
+                                ? download.errorMessage || `错误: ${download.errorCode}`
+                                : ''
+                            }
+                            arrow
+                          >
+                            <Chip
+                              label={getStatusText(download.status)}
+                              color={getStatusColor(download.status)}
+                              size="small"
+                              sx={{
+                                position: 'absolute',
+                                top: 8,
+                                right: 8,
+                              }}
+                            />
+                          </Tooltip>
                         </Box>
 
                         {/* 卡片内容 */}
@@ -652,15 +683,6 @@ export function Aria2DownloadManager() {
                             <Typography variant="caption" display="block" color="primary">
                               {formatSpeed(download.downloadSpeed)}
                             </Typography>
-                          )}
-
-                          {/* 错误信息 */}
-                          {download.errorCode && download.errorCode !== '0' && (
-                            <Alert severity="error" sx={{ mt: 1, py: 0 }}>
-                              <Typography variant="caption">
-                                {download.errorMessage || `错误: ${download.errorCode}`}
-                              </Typography>
-                            </Alert>
                           )}
                         </CardContent>
 
@@ -707,6 +729,132 @@ export function Aria2DownloadManager() {
                   );
                 })}
               </Grid>
+            ) : (
+              // 列表视图
+              <List sx={{ width: '100%' }}>
+                {displayDownloads.map((download) => {
+                  const progress = download.totalLength > 0
+                    ? (download.completedLength / download.totalLength) * 100
+                    : 0;
+
+                  const filePath = download.files && download.files.length > 0
+                    ? download.files[0].path
+                    : '';
+
+                  const fileName = filePath ? filePath.split(/[/\\]/).pop() : `GID: ${download.gid}`;
+
+                  return (
+                    <React.Fragment key={download.gid}>
+                      <ListItem
+                        sx={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'stretch',
+                          py: 2,
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                          {/* 文件图标 */}
+                          <Box sx={{ mr: 2 }}>
+                            {getFileIcon(filePath)}
+                          </Box>
+
+                          {/* 文件信息 */}
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
+                              <Typography
+                                variant="subtitle1"
+                                sx={{
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  flex: 1,
+                                  mr: 2,
+                                }}
+                                title={fileName}
+                              >
+                                {fileName}
+                              </Typography>
+
+                              {/* 状态标签 */}
+                              <Tooltip
+                                title={
+                                  download.errorCode && download.errorCode !== '0'
+                                    ? download.errorMessage || `错误: ${download.errorCode}`
+                                    : ''
+                                }
+                                arrow
+                              >
+                                <Chip
+                                  label={getStatusText(download.status)}
+                                  color={getStatusColor(download.status)}
+                                  size="small"
+                                />
+                              </Tooltip>
+                            </Box>
+
+                            {/* 进度条 */}
+                            <LinearProgress variant="determinate" value={progress} sx={{ mb: 1 }} />
+
+                            {/* 下载信息 */}
+                            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+                              <Typography variant="caption" color="text.secondary">
+                                {formatFileSize(download.completedLength)} / {formatFileSize(download.totalLength)}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {progress.toFixed(1)}%
+                              </Typography>
+                              {download.downloadSpeed > 0 && (
+                                <Typography variant="caption" color="primary">
+                                  {formatSpeed(download.downloadSpeed)}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+
+                          {/* 操作按钮 */}
+                          <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
+                            {download.status === 'active' && (
+                              <Tooltip title="暂停">
+                                <IconButton size="small" onClick={() => pauseDownload(download.gid)}>
+                                  <PauseIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {download.status === 'paused' && (
+                              <Tooltip title="继续">
+                                <IconButton size="small" onClick={() => resumeDownload(download.gid)}>
+                                  <PlayArrowIcon />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                            {download.status === 'complete' && filePath && (
+                              <>
+                                <Tooltip title="打开文件">
+                                  <IconButton size="small" onClick={() => handleOpenFile(filePath)}>
+                                    <InsertDriveFileIcon />
+                                  </IconButton>
+                                </Tooltip>
+                                <Tooltip title="打开文件位置">
+                                  <IconButton size="small" onClick={() => handleShowInFolder(filePath)}>
+                                    <FolderIcon />
+                                  </IconButton>
+                                </Tooltip>
+                              </>
+                            )}
+                            <Tooltip title="删除">
+                              <IconButton size="small" onClick={() => removeDownload(download.gid)} color="error">
+                                <DeleteIcon />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </Box>
+                      </ListItem>
+                      <Divider />
+                    </React.Fragment>
+                  );
+                })}
+              </List>
             )}
           </Box>
         )}

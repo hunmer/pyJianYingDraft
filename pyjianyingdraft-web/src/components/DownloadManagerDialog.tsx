@@ -129,7 +129,7 @@ export function DownloadManagerDialog({ open, onClose }: DownloadManagerDialogPr
         </DialogTitle>
 
         {/* 对话框内容 */}
-        <DialogContent sx={{ p: 0, overflow: 'hidden' }}>
+        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {open && (
             <Suspense
               fallback={
@@ -145,7 +145,9 @@ export function DownloadManagerDialog({ open, onClose }: DownloadManagerDialogPr
                 </Box>
               }
             >
-              <Aria2DownloadManager />
+              <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
+                <Aria2DownloadManager />
+              </Box>
             </Suspense>
           )}
         </DialogContent>
