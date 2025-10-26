@@ -28,7 +28,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import socketio
 
-from app.routers import draft, subdrafts, materials, tracks, files, rules, file_watch, tasks, aria2
+from app.routers import draft, subdrafts, materials, tracks, files, rules, file_watch, tasks, aria2, generation_records
 
 # 创建Socket.IO服务器
 sio = socketio.AsyncServer(
@@ -158,6 +158,7 @@ app.include_router(rules.router, prefix="/api/rules", tags=["规则测试"])
 app.include_router(file_watch.router, prefix="/api/file-watch", tags=["文件监控"])
 app.include_router(tasks.router, tags=["异步任务"])
 app.include_router(aria2.router, prefix="/api/aria2", tags=["Aria2下载管理"])
+app.include_router(generation_records.router, tags=["生成记录"])
 
 # 挂载静态文件目录
 static_dir = Path(__file__).parent / "static"
@@ -420,6 +421,7 @@ async def update_aria2_config(sid, data):
     """更新 Aria2 配置并重启"""
     try:
         from app.services.aria2_manager import get_aria2_manager
+        from app.services.task_queue import get_task_queue
         from app.config import update_config
 
         aria2_path = data.get('aria2_path')
@@ -430,17 +432,25 @@ async def update_aria2_config(sid, data):
         # 更新配置
         update_config('ARIA2_PATH', aria2_path)
 
-        # 重启 Aria2
+        # 重启 Aria2 进程
         manager = get_aria2_manager()
-        success = manager.restart()
+        restart_success = manager.restart()
 
-        if success:
+        if not restart_success:
+            await sio.emit('update_aria2_config_error', {'error': 'Aria2进程重启失败'}, room=sid)
+            return
+
+        # 重新初始化 Aria2 客户端
+        queue = get_task_queue()
+        client_success = queue.reinitialize_aria2_client()
+
+        if client_success:
             await sio.emit('aria2_config_updated', {
-                'message': 'Aria2配置已更新并重启成功',
+                'message': 'Aria2配置已更新并重启成功,客户端已重新初始化',
                 'aria2Path': aria2_path
             }, room=sid)
         else:
-            await sio.emit('update_aria2_config_error', {'error': 'Aria2重启失败'}, room=sid)
+            await sio.emit('update_aria2_config_error', {'error': 'Aria2客户端初始化失败'}, room=sid)
 
     except Exception as e:
         await sio.emit('update_aria2_config_error', {'error': str(e)}, room=sid)

@@ -284,6 +284,35 @@
             opacity: 0.6;
             cursor: not-allowed;
         }
+
+        .copy-btn {
+            padding: 8px 16px;
+            font-size: 13px;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #155724;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
     </style>
 </head>
 <body>
@@ -340,6 +369,16 @@
                 <button class="btn btn-primary" id="refreshBtn" onclick="refreshStatus()">🔄 立即刷新</button>
                 <button class="btn btn-secondary" id="cancelBtn" onclick="cancelTask()" style="display: none;">❌ 取消任务</button>
             </div>
+
+            <div class="action-buttons" style="margin-top: 10px;">
+                <button class="btn btn-secondary copy-btn" id="copyUrlBtn" onclick="copyJsonUrl()">📋 复制 JSON URL</button>
+                <button class="btn btn-secondary copy-btn" id="copyDataBtn" onclick="copyJsonData()">📋 复制 JSON 数据</button>
+            </div>
+
+            <div id="jsonUrlInfo" style="display: none; margin-top: 15px; padding: 12px; background: #e7f3ff; border-radius: 6px; font-size: 13px;">
+                <div style="color: #0066cc; font-weight: 600; margin-bottom: 5px;">📎 JSON URL</div>
+                <div id="jsonUrlDisplay" style="word-break: break-all; color: #333; font-family: monospace;"></div>
+            </div>
         </div>
 
         <div class="footer">
@@ -348,24 +387,110 @@
     </div>
 
     <script>
-        // 从 URL 参数获取任务 ID
+        // 从 URL 参数获取任务 ID、JSON URL 或原始 URL
         const urlParams = new URLSearchParams(window.location.search);
-        const taskId = urlParams.get('task_id');
+        let taskId = urlParams.get('task_id');
+        let jsonUrl = urlParams.get('json_url');
+        const url = urlParams.get('url'); // 新增:支持直接传入 url 参数
 
         let refreshInterval = null;
         let isCompleted = false;
+        let isSubmitting = false; // 标记是否正在提交任务
 
         // 页面加载时初始化
         window.onload = function() {
+            // 如果有 url 参数但没有 task_id,则自动提交任务
+            if (url && !taskId) {
+                submitTaskWithUrl(url);
+                return;
+            }
+
+            // 如果没有 task_id,显示错误
             if (!taskId) {
-                showError('未提供任务 ID');
+                showError('未提供任务 ID 或 URL');
                 return;
             }
 
             document.getElementById('taskId').textContent = taskId;
+
+            // 初始化 JSON URL 相关 UI
+            initJsonUrlUI();
+
             refreshStatus();
             startAutoRefresh();
         };
+
+        // 使用 URL 提交任务
+        async function submitTaskWithUrl(url) {
+            if (isSubmitting) return;
+            isSubmitting = true;
+
+            try {
+                // 显示提交中状态
+                document.getElementById('taskId').textContent = '正在提交任务...';
+                document.getElementById('taskStatus').textContent = '提交中';
+                document.getElementById('taskStatus').className = 'status-badge status-pending';
+                document.getElementById('taskMessage').innerHTML = '正在通过 URL 提交任务,请稍候...<span class="spinner"></span>';
+
+                // 调用后端 API
+                const encodedUrl = encodeURIComponent(url);
+                const response = await fetch(`/api/tasks/submit_with_url?url=${encodedUrl}`, {
+                    method: 'GET' // 使用 GET 方法,因为后端支持 GET
+                });
+
+                // 检查响应是否重定向
+                if (response.redirected) {
+                    // 如果被重定向,则从重定向URL中提取task_id和json_url
+                    const redirectUrl = new URL(response.url);
+                    taskId = redirectUrl.searchParams.get('task_id');
+                    jsonUrl = redirectUrl.searchParams.get('json_url');
+
+                    if (taskId) {
+                        // 更新 URL 但不刷新页面
+                        window.history.replaceState({}, '', redirectUrl.pathname + redirectUrl.search);
+
+                        // 初始化 UI
+                        document.getElementById('taskId').textContent = taskId;
+                        initJsonUrlUI();
+
+                        // 开始查询任务状态
+                        refreshStatus();
+                        startAutoRefresh();
+                    } else {
+                        throw new Error('未能获取任务 ID');
+                    }
+                } else if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `HTTP ${response.status}`);
+                }
+
+            } catch (error) {
+                console.error('提交任务失败:', error);
+                showError(`提交任务失败: ${error.message}`);
+            } finally {
+                isSubmitting = false;
+            }
+        }
+
+        // 初始化 JSON URL UI
+        function initJsonUrlUI() {
+            const copyUrlBtn = document.getElementById('copyUrlBtn');
+            const copyDataBtn = document.getElementById('copyDataBtn');
+            const jsonUrlInfo = document.getElementById('jsonUrlInfo');
+            const jsonUrlDisplay = document.getElementById('jsonUrlDisplay');
+
+            if (jsonUrl) {
+                // 显示 JSON URL 信息
+                jsonUrlInfo.style.display = 'block';
+                jsonUrlDisplay.textContent = jsonUrl;
+            } else {
+                // 禁用复制按钮
+                copyUrlBtn.disabled = true;
+                copyDataBtn.disabled = true;
+                copyUrlBtn.title = '未提供 JSON URL';
+                copyDataBtn.title = '未提供 JSON URL';
+            }
+        }
 
         // 开始自动刷新
         function startAutoRefresh() {
@@ -410,6 +535,12 @@
             updateStatus(data.status, data.message);
             document.getElementById('createdAt').textContent = formatTime(data.created_at);
             document.getElementById('updatedAt').textContent = formatTime(data.updated_at);
+
+            // 更新 JSON URL (如果API返回了)
+            if (data.json_url && !jsonUrl) {
+                jsonUrl = data.json_url;
+                initJsonUrlUI();
+            }
 
             // 显示/隐藏取消按钮
             const cancelBtn = document.getElementById('cancelBtn');
@@ -592,6 +723,100 @@
             if (seconds < 60) return seconds.toFixed(0) + '秒';
             if (seconds < 3600) return Math.floor(seconds / 60) + '分钟';
             return Math.floor(seconds / 3600) + '小时';
+        }
+
+        // 复制 JSON URL (来自 URL 参数的原始 JSON URL)
+        function copyJsonUrl() {
+            if (!jsonUrl) {
+                showToast('未找到 JSON URL', 'error');
+                return;
+            }
+            copyToClipboard(jsonUrl, 'JSON URL 已复制到剪贴板');
+        }
+
+        // 复制 JSON 数据 (从原始 JSON URL 获取数据)
+        async function copyJsonData() {
+            if (!jsonUrl) {
+                showToast('未找到 JSON URL', 'error');
+                return;
+            }
+
+            try {
+                const response = await fetch(jsonUrl);
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const data = await response.json();
+                const jsonString = JSON.stringify(data, null, 2);
+                copyToClipboard(jsonString, 'JSON 数据已复制到剪贴板');
+            } catch (error) {
+                showToast('复制失败: ' + error.message, 'error');
+            }
+        }
+
+        // 复制到剪贴板的通用函数
+        function copyToClipboard(text, successMessage) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text)
+                    .then(() => {
+                        showToast(successMessage);
+                    })
+                    .catch(err => {
+                        // 降级到旧方法
+                        fallbackCopy(text, successMessage);
+                    });
+            } else {
+                // 降级到旧方法
+                fallbackCopy(text, successMessage);
+            }
+        }
+
+        // 降级的复制方法(兼容旧浏览器)
+        function fallbackCopy(text, successMessage) {
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            textArea.style.position = 'fixed';
+            textArea.style.left = '-9999px';
+            document.body.appendChild(textArea);
+            textArea.select();
+
+            try {
+                document.execCommand('copy');
+                showToast(successMessage);
+            } catch (err) {
+                showToast('复制失败,请手动复制', 'error');
+            } finally {
+                document.body.removeChild(textArea);
+            }
+        }
+
+        // 显示提示消息
+        function showToast(message, type = 'success') {
+            // 移除已存在的 toast
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+
+            if (type === 'error') {
+                toast.style.background = '#721c24';
+            }
+
+            document.body.appendChild(toast);
+
+            // 3 秒后自动移除
+            setTimeout(() => {
+                toast.style.animation = 'slideIn 0.3s ease reverse';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.remove();
+                    }
+                }, 300);
+            }, 3000);
         }
 
         // 页面卸载时停止刷新

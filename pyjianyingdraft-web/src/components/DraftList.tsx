@@ -36,13 +36,14 @@ import { draftApi, type DraftListItem } from '@/lib/api';
 interface DraftListProps {
   onDraftSelect: (draftPath: string, draftName: string) => void;
   onRulesUpdated?: () => void;
+  onDraftRootChanged?: () => void;
   selectedDraftPath?: string;
 }
 
 /**
  * 草稿列表组件 - 显示剪映草稿目录中的所有草稿
  */
-export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraftPath }: DraftListProps) {
+export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootChanged, selectedDraftPath }: DraftListProps) {
   const [basePath, setBasePath] = useState<string>('');
   const [drafts, setDrafts] = useState<DraftListItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -113,6 +114,10 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, selectedDraft
       // 保存路径到后端配置
       try {
         await draftApi.setDraftRoot(pathToUse);
+        // 通知父组件草稿根目录已变更，触发规则组刷新
+        if (typeof onDraftRootChanged === 'function') {
+          onDraftRootChanged();
+        }
       } catch (err) {
         console.warn('保存草稿根目录到后端失败:', err);
       }

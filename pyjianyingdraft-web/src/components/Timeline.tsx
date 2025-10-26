@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/react-timeline-editor';
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
-import { draftApi, ruleTestApi, tasksApi, type AllMaterialsResponse } from '@/lib/api';
+import { draftApi, ruleTestApi, tasksApi, generationRecordsApi, type AllMaterialsResponse } from '@/lib/api';
 import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText, Menu, MenuItem, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import AddBoxIcon from '@mui/icons-material/AddBox';
@@ -766,21 +766,47 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       // 保存完整载荷
       setFullRequestPayload(requestPayload);
 
+      // 生成唯一的记录ID
+      const recordId = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
       // 提交异步任务
       const response = await tasksApi.submit(requestPayload);
       console.log('[Timeline] 异步任务已提交, task_id:', response.task_id);
 
+      // 保存生成记录到后端
+      try {
+        await generationRecordsApi.create({
+          record_id: recordId,
+          task_id: response.task_id,
+          rule_group_id: selectedRuleGroup.id,
+          rule_group_title: selectedRuleGroup.title,
+          rule_group: selectedRuleGroup,
+          draft_config: requestPayload.draft_config,
+          materials: materials || [],
+          test_data: testData,
+          segment_styles: requestPayload.segment_styles,
+          use_raw_segments: requestPayload.use_raw_segments,
+          raw_segments: requestPayload.raw_segments,
+          raw_materials: requestPayload.raw_materials,
+        });
+        console.log('[Timeline] 生成记录已保存, record_id:', recordId);
+      } catch (error) {
+        console.error('[Timeline] 保存生成记录失败:', error);
+        // 即使保存失败也不影响主流程
+      }
+
       setCurrentTaskId(response.task_id);
       setAsyncDialogOpen(true);
-      setTestResult(`✅ 异步任务已提交\n任务ID: ${response.task_id}\n\n提示: 你可以在下载管理页面查看实时下载进度`);
+      setTestResult(`✅ 异步任务已提交\n任务ID: ${response.task_id}\n记录ID: ${recordId}\n\n提示: 你可以在下载管理页面查看实时下载进度`);
 
       // 保存完整载荷供下载使用
       setFullRequestPayload(requestPayload);
 
-      // 返回包含task_id和完整请求载荷的响应，供TestDataEditor显示进度和下载
+      // 返回包含task_id、record_id和完整请求载荷的响应，供TestDataEditor显示进度和下载
       return {
         ...response,
         ...requestPayload,
+        record_id: recordId,
       };
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : '异步任务提交失败';
