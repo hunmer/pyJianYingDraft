@@ -493,7 +493,6 @@ class Aria2Client:
             BatchDownloadProgress: 批次进度信息，批次不存在返回None
         """
         if batch_id not in self.batches:
-            self._log(f"批次ID不存在: {batch_id}")
             return None
 
         gids = self.batches[batch_id]
