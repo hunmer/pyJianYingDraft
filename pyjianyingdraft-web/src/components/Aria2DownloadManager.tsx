@@ -589,7 +589,8 @@ export function Aria2DownloadManager() {
                         {/* 卡片封面 */}
                         <Box
                           sx={{
-                            height: 200,
+                            aspectRatio: '9 / 16',
+                            width: '100%',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
@@ -754,9 +755,49 @@ export function Aria2DownloadManager() {
                         }}
                       >
                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
-                          {/* 文件图标 */}
-                          <Box sx={{ mr: 2 }}>
-                            {getFileIcon(filePath)}
+                          {/* 文件图标/预览图 */}
+                          <Box
+                            sx={{
+                              mr: 2,
+                              width: 80,
+                              height: 80,
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              bgcolor: 'grey.100',
+                              borderRadius: 1,
+                              overflow: 'hidden',
+                              flexShrink: 0,
+                            }}
+                          >
+                            {isImageFile(filePath) && (
+                              <Box
+                                component="img"
+                                src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/files/preview?file_path=${encodeURIComponent(filePath)}`}
+                                alt={fileName}
+                                sx={{
+                                  width: '100%',
+                                  height: '100%',
+                                  objectFit: 'cover',
+                                }}
+                                onError={(e) => {
+                                  // 图片加载失败时显示图标
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    parent.innerHTML = '';
+                                    const iconDiv = document.createElement('div');
+                                    iconDiv.style.display = 'flex';
+                                    iconDiv.style.alignItems = 'center';
+                                    iconDiv.style.justifyContent = 'center';
+                                    iconDiv.style.height = '100%';
+                                    parent.appendChild(iconDiv);
+                                  }
+                                }}
+                              />
+                            )}
+                            {!isImageFile(filePath) && getFileIcon(filePath)}
                           </Box>
 
                           {/* 文件信息 */}
