@@ -657,6 +657,124 @@ export const tasksApi = {
 };
 
 /**
+ * 生成记录相关类型
+ */
+export interface GenerationRecord {
+  record_id: string;
+  task_id?: string;
+  rule_group_id?: string;
+  rule_group_title?: string;
+  rule_group?: any;
+  draft_config?: any;
+  materials?: any[];
+  test_data?: any;
+  segment_styles?: any;
+  use_raw_segments?: boolean;
+  raw_segments?: any[];
+  raw_materials?: any[];
+  status: 'pending' | 'downloading' | 'processing' | 'completed' | 'failed' | 'cancelled';
+  progress?: TaskProgress | null;
+  draft_path?: string;
+  draft_name?: string;
+  error_message?: string;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string;
+}
+
+export interface GenerationRecordCreateRequest {
+  record_id: string;
+  task_id?: string;
+  rule_group_id?: string;
+  rule_group_title?: string;
+  rule_group?: any;
+  draft_config?: any;
+  materials?: any[];
+  test_data?: any;
+  segment_styles?: any;
+  use_raw_segments?: boolean;
+  raw_segments?: any[];
+  raw_materials?: any[];
+}
+
+export interface GenerationRecordListResponse {
+  records: GenerationRecord[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+/**
+ * Generation Records API - 生成记录管理
+ */
+export const generationRecordsApi = {
+  /**
+   * 创建生成记录
+   */
+  async create(request: GenerationRecordCreateRequest): Promise<GenerationRecord> {
+    const response = await fetch(`${API_BASE_URL}/api/generation-records`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+    return handleResponse<GenerationRecord>(response);
+  },
+
+  /**
+   * 获取生成记录列表
+   */
+  async list(options?: {
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<GenerationRecordListResponse> {
+    const params = new URLSearchParams();
+    if (options?.status) params.append('status', options.status);
+    if (options?.limit) params.append('limit', String(options.limit));
+    if (options?.offset) params.append('offset', String(options.offset));
+
+    const url = `${API_BASE_URL}/api/generation-records?${params.toString()}`;
+    const response = await fetch(url);
+    return handleResponse<GenerationRecordListResponse>(response);
+  },
+
+  /**
+   * 获取生成记录详情
+   */
+  async get(recordId: string): Promise<GenerationRecord> {
+    const url = `${API_BASE_URL}/api/generation-records/${recordId}`;
+    const response = await fetch(url);
+    return handleResponse<GenerationRecord>(response);
+  },
+
+  /**
+   * 更新生成记录
+   */
+  async update(recordId: string, record: GenerationRecord): Promise<GenerationRecord> {
+    const response = await fetch(`${API_BASE_URL}/api/generation-records/${recordId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(record),
+    });
+    return handleResponse<GenerationRecord>(response);
+  },
+
+  /**
+   * 删除生成记录
+   */
+  async delete(recordId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/generation-records/${recordId}`, {
+      method: 'DELETE',
+    });
+    return handleResponse<{ success: boolean; message: string }>(response);
+  },
+};
+
+/**
  * 所有API集合
  */
 const api = {
@@ -667,6 +785,7 @@ const api = {
   tasks: tasksApi,
   tracks: tracksApi,
   fileWatch: fileWatchApi,
+  generationRecords: generationRecordsApi,
 };
 
 export default api;

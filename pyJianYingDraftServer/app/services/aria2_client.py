@@ -8,8 +8,9 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import List, Dict, Optional, Tuple, Any
+from typing import List, Dict, Optional, Tuple, Any, Callable
 from datetime import datetime
+import time
 
 try:
     import aria2p
@@ -177,7 +178,10 @@ class Aria2Client:
         self,
         rpc_url: str = "http://localhost:6800/jsonrpc",
         rpc_secret: Optional[str] = None,
-        verbose: bool = True
+        verbose: bool = True,
+        max_retries: int = 3,
+        retry_delay: float = 1.0,
+        auto_restart_failed: bool = True
     ):
         """初始化Aria2客户端
 
@@ -185,6 +189,9 @@ class Aria2Client:
             rpc_url: RPC服务器URL
             rpc_secret: RPC密钥
             verbose: 是否显示详细日志
+            max_retries: 网络请求最大重试次数
+            retry_delay: 重试延迟(秒),使用指数退避
+            auto_restart_failed: 是否自动重启失败的下载任务
         """
         if not ARIA2P_AVAILABLE:
             raise RuntimeError("aria2p未安装，请运行: pip install aria2p")
@@ -192,6 +199,9 @@ class Aria2Client:
         self.rpc_url = rpc_url
         self.rpc_secret = rpc_secret
         self.verbose = verbose
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.auto_restart_failed = auto_restart_failed
 
         # 解析RPC URL获取host和port
         # rpc_url格式: http://localhost:6800/jsonrpc
@@ -217,11 +227,123 @@ class Aria2Client:
         # GID → 文件路径映射表（用于查询下载文件的真实路径）
         self.gid_to_path: Dict[str, str] = {}  # gid -> file_path
 
+        # GID → 原始下载信息(URL + options),用于重启失败的下载
+        self.gid_to_download_info: Dict[str, Tuple[str, Dict[str, Any]]] = {}  # gid -> (url, options)
+
+        # 失败任务重试计数
+        self.retry_count: Dict[str, int] = {}  # gid -> retry_count
+
     def _log(self, message: str) -> None:
         """输出日志"""
         if self.verbose:
             timestamp = datetime.now().strftime("%H:%M:%S")
             print(f"[Aria2Client {timestamp}] {message}")
+
+    async def _retry_on_connection_error(
+        self,
+        func: Callable,
+        *args,
+        **kwargs
+    ) -> Any:
+        """连接错误时自动重试
+
+        Args:
+            func: 要执行的函数
+            *args: 位置参数
+            **kwargs: 关键字参数
+
+        Returns:
+            函数执行结果
+
+        Raises:
+            最后一次重试的异常
+        """
+        last_exception = None
+
+        for attempt in range(self.max_retries):
+            try:
+                # 尝试执行函数
+                if asyncio.iscoroutinefunction(func):
+                    return await func(*args, **kwargs)
+                else:
+                    return func(*args, **kwargs)
+
+            except (ConnectionResetError, ConnectionError, Exception) as e:
+                last_exception = e
+
+                # 判断是否为连接相关错误
+                error_msg = str(e).lower()
+                is_connection_error = any(keyword in error_msg for keyword in [
+                    'connection', 'reset', 'refused', 'aborted', 'max retries'
+                ])
+
+                if not is_connection_error:
+                    # 非连接错误,直接抛出
+                    raise
+
+                if attempt < self.max_retries - 1:
+                    # 指数退避策略
+                    delay = self.retry_delay * (2 ** attempt)
+                    self._log(f"⚠️  连接失败 (尝试 {attempt + 1}/{self.max_retries}): {e}")
+                    self._log(f"等待 {delay:.1f} 秒后重试...")
+                    await asyncio.sleep(delay)
+                else:
+                    self._log(f"✗ 达到最大重试次数 ({self.max_retries}),放弃操作")
+
+        # 所有重试都失败,抛出最后一个异常
+        raise last_exception
+
+    async def _restart_failed_download(self, gid: str) -> Optional[str]:
+        """重启失败的下载任务
+
+        Args:
+            gid: 失败任务的GID
+
+        Returns:
+            新任务的GID,如果重启失败则返回None
+        """
+        # 检查重试次数
+        current_retries = self.retry_count.get(gid, 0)
+        if current_retries >= self.max_retries:
+            self._log(f"⚠️  任务 {gid} 已达最大重试次数,不再重启")
+            return None
+
+        # 获取原始下载信息
+        download_info = self.gid_to_download_info.get(gid)
+        if not download_info:
+            self._log(f"⚠️  无法找到任务 {gid} 的原始下载信息")
+            return None
+
+        url, options = download_info
+        save_path = self.gid_to_path.get(gid)
+
+        try:
+            # 移除失败的任务
+            await self.cancel_download(gid)
+
+            # 重新添加下载
+            self._log(f"🔄 重启失败的下载任务 (尝试 {current_retries + 1}/{self.max_retries}): {url}")
+            new_gid = await self.add_download(url, save_path, options)
+
+            # 更新重试计数
+            self.retry_count[new_gid] = current_retries + 1
+
+            # 复制旧GID的元数据到新GID
+            if gid in self.gid_to_download_info:
+                self.gid_to_download_info[new_gid] = self.gid_to_download_info[gid]
+
+            # 更新批次信息
+            for batch_id, gids in self.batches.items():
+                if gid in gids:
+                    # 替换旧GID为新GID
+                    idx = gids.index(gid)
+                    gids[idx] = new_gid
+
+            return new_gid
+
+        except Exception as e:
+            self._log(f"✗ 重启下载失败: {e}")
+            return None
 
     async def add_download(
         self,
@@ -248,9 +370,12 @@ class Aria2Client:
             opts["out"] = save_path_obj.name
 
         try:
-            # 使用aria2p添加下载
-            download = self.api.add_uris([url], options=opts)
-            gid = download.gid
+            # 使用重试机制添加下载
+            async def _add():
+                download = self.api.add_uris([url], options=opts)
+                return download.gid
+
+            gid = await self._retry_on_connection_error(_add)
 
             # 保存GID → 文件路径映射
             if save_path:
@@ -258,6 +383,12 @@ class Aria2Client:
                 self._log(f"✓ 添加下载任务: {url} -> GID: {gid}, 保存路径: {save_path}")
             else:
                 self._log(f"✓ 添加下载任务: {url} -> GID: {gid}")
+
+            # 保存下载信息用于可能的重启
+            self.gid_to_download_info[gid] = (url, opts.copy())
+
+            # 初始化重试计数
+            self.retry_count[gid] = 0
 
             return gid
 
@@ -303,22 +434,26 @@ class Aria2Client:
         self._log(f"✓ 批量下载任务已添加: {len(gids)}/{len(urls_with_paths)} 个文件成功")
         return batch_id
 
-    def get_progress(self, gid: str) -> Optional[DownloadProgress]:
+    def get_progress(self, gid: str, auto_restart: Optional[bool] = None) -> Optional[DownloadProgress]:
         """获取单个下载的进度
 
         Args:
             gid: 下载任务GID
+            auto_restart: 是否自动重启失败的任务(None使用全局设置)
 
         Returns:
             DownloadProgress: 进度信息，任务不存在返回None
         """
+        if auto_restart is None:
+            auto_restart = self.auto_restart_failed
+
         try:
             download = self.api.get_download(gid)
 
             # 从映射表获取文件路径
             file_path = self.gid_to_path.get(gid)
 
-            return DownloadProgress(
+            progress = DownloadProgress(
                 gid=download.gid,
                 status=download.status,
                 total_length=int(download.total_length),
@@ -332,8 +467,26 @@ class Aria2Client:
                 file_path=file_path
             )
 
+            # 检测失败状态并自动重启
+            if auto_restart and progress.status == "error":
+                self._log(f"⚠️  检测到失败任务 (GID: {gid}), 准备重启...")
+                # 创建异步任务重启下载(不阻塞当前调用)
+                asyncio.create_task(self._restart_failed_download(gid))
+
+            return progress
+
         except Exception as e:
-            self._log(f"获取进度失败 (GID: {gid}): {e}")
+            error_msg = str(e)
+            self._log(f"获取进度失败 (GID: {gid}): {error_msg}")
+
+            # 判断是否为连接错误
+            is_connection_error = any(keyword in error_msg.lower() for keyword in [
+                'connection', 'reset', 'refused', 'aborted', 'max retries'
+            ])
+
+            if is_connection_error:
+                self._log(f"⚠️  检测到连接错误,可能 aria2 服务已停止")
+
             return None
 
     def get_batch_progress(self, batch_id: str) -> Optional[BatchDownloadProgress]:
@@ -526,6 +679,54 @@ class Aria2Client:
         """
         return self.gid_to_path.copy()
 
+    async def restart_all_failed_downloads(self) -> int:
+        """检查并重启所有失败的下载任务
+
+        Returns:
+            int: 成功重启的任务数量
+        """
+        restarted_count = 0
+        all_downloads = self.get_all_downloads()
+
+        for download in all_downloads:
+            if download.status == "error":
+                new_gid = await self._restart_failed_download(download.gid)
+                if new_gid:
+                    restarted_count += 1
+
+        if restarted_count > 0:
+            self._log(f"✓ 已重启 {restarted_count} 个失败的下载任务")
+        else:
+            self._log("ℹ️  没有需要重启的失败任务")
+
+        return restarted_count
+
+    def get_retry_info(self, gid: str) -> Dict[str, Any]:
+        """获取任务的重试信息
+
+        Args:
+            gid: 下载任务GID
+
+        Returns:
+            Dict: 包含重试次数、原始URL等信息
+        """
+        retry_count = self.retry_count.get(gid, 0)
+        download_info = self.gid_to_download_info.get(gid)
+
+        info = {
+            "gid": gid,
+            "retry_count": retry_count,
+            "max_retries": self.max_retries,
+            "can_retry": retry_count < self.max_retries
+        }
+
+        if download_info:
+            url, options = download_info
+            info["url"] = url
+            info["options"] = options
+
+        return info
+
 
 # 全局单例
 _global_client: Optional[Aria2Client] = None
@@ -559,3 +760,12 @@ def get_aria2_client(
         )
 
     return _global_client
+
+
+def reset_aria2_client() -> None:
+    """重置全局Aria2客户端单例
+
+    用于在Aria2配置更改或重启后重新初始化客户端
+    """
+    global _global_client
+    _global_client = None

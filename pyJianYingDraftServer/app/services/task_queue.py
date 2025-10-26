@@ -20,7 +20,7 @@ from app.models.download_models import (
     DownloadProgressInfo,
     TaskSubmitRequest
 )
-from app.services.aria2_client import Aria2Client, get_aria2_client
+from app.services.aria2_client import Aria2Client, get_aria2_client, reset_aria2_client
 from app.services.aria2_manager import Aria2ProcessManager, get_aria2_manager
 
 
@@ -134,6 +134,37 @@ class TaskQueue:
 
         if restored_count > 0:
             self._log(f"✓ 已恢复 {restored_count} 个GID→路径映射")
+
+    def reinitialize_aria2_client(self) -> bool:
+        """重新初始化Aria2客户端
+
+        用于Aria2配置更改或重启后重新创建客户端实例
+
+        Returns:
+            bool: 是否成功重新初始化
+        """
+        try:
+            # 1. 重置全局单例
+            reset_aria2_client()
+            self.aria2_client = None
+            self._log("已重置Aria2客户端单例")
+
+            # 2. 确保Aria2进程运行
+            if not self._ensure_aria2_running():
+                self._log("✗ Aria2进程未能启动,无法初始化客户端")
+                return False
+
+            # 3. 恢复GID到路径的映射
+            self._restore_gid_path_mappings()
+
+            self._log("✓ Aria2客户端已重新初始化")
+            return True
+
+        except Exception as e:
+            self._log(f"✗ 重新初始化Aria2客户端失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
 
     async def create_task(self, request: TaskSubmitRequest) -> str:
         """创建新任务

@@ -130,6 +130,37 @@ class Aria2ProcessManager:
                 safe_message = message.replace("✓", "[OK]").replace("✗", "[FAIL]").replace("⚠", "[WARN]")
                 print(f"[Aria2Manager {timestamp}] {safe_message}")
 
+    def _save_aria2_path_to_config(self, aria2c_path: str) -> None:
+        """保存aria2c路径到config.json
+
+        Args:
+            aria2c_path: aria2c可执行文件的完整路径
+        """
+        project_root = get_executable_dir()
+        config_path = project_root / "config.json"
+
+        try:
+            # 读取现有配置
+            config = {}
+            if config_path.exists():
+                with open(config_path, "r", encoding="utf-8") as f:
+                    config = json.load(f)
+
+            # 保存aria2c所在的目录路径（与配置中使用目录路径的约定保持一致）
+            aria2_dir = str(Path(aria2c_path).parent)
+
+            # 只有当配置中不存在ARIA2_PATH或路径不同时才更新
+            if config.get("ARIA2_PATH") != aria2_dir:
+                config["ARIA2_PATH"] = aria2_dir
+
+                # 写回配置文件
+                with open(config_path, "w", encoding="utf-8") as f:
+                    json.dump(config, f, indent=2, ensure_ascii=False)
+
+                self._log(f"已保存aria2c路径到config.json: {aria2_dir}")
+        except Exception as e:
+            self._log(f"保存aria2c路径到config.json失败: {e}")
+
     def _find_aria2c(self) -> Optional[str]:
         """自动查找系统中的aria2c可执行文件
 
@@ -180,12 +211,16 @@ class Aria2ProcessManager:
 
         if bundled_path.exists():
             self._log(f"找到打包的aria2c: {bundled_path}")
+            # 保存到配置文件
+            self._save_aria2_path_to_config(str(bundled_path))
             return str(bundled_path)
 
         # 3. 使用shutil.which在PATH中查找
         aria2c = shutil.which("aria2c")
         if aria2c:
             self._log(f"在PATH中找到aria2c: {aria2c}")
+            # 保存到配置文件
+            self._save_aria2_path_to_config(aria2c)
             return aria2c
 
         # 4. 检查常见安装路径（Windows）
@@ -199,6 +234,8 @@ class Aria2ProcessManager:
             for path in common_paths:
                 if path.exists():
                     self._log(f"在常见路径找到aria2c: {path}")
+                    # 保存到配置文件
+                    self._save_aria2_path_to_config(str(path))
                     return str(path)
 
         self._log("未找到aria2c可执行文件")

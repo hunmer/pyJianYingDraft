@@ -19,7 +19,6 @@ import {
   ButtonGroup,
   Button,
 } from '@mui/material';
-import Grid from '@mui/material/Grid';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
@@ -299,9 +298,9 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
           </Typography>
         </Box>
 
-        <Grid container spacing={2}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
           {/* 版本1选择 */}
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Box>
             <FormControl fullWidth>
               <InputLabel>版本 1 (旧版本)</InputLabel>
               <Select
@@ -326,10 +325,10 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
                 </Typography>
               </Box>
             )}
-          </Grid>
+          </Box>
 
           {/* 版本2选择 */}
-          <Grid size={{ xs: 12, md: 6 }}>
+          <Box>
             <FormControl fullWidth>
               <InputLabel>版本 2 (新版本)</InputLabel>
               <Select
@@ -354,8 +353,8 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
                 </Typography>
               </Box>
             )}
-          </Grid>
-        </Grid>
+          </Box>
+        </Box>
       </Paper>
 
       <Divider sx={{ mb: 2 }} />

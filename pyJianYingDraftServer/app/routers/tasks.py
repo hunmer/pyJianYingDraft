@@ -6,6 +6,7 @@
 
 import httpx
 from typing import Optional
+from urllib.parse import quote
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
@@ -29,6 +30,7 @@ def _task_to_response(task: DownloadTask) -> TaskResponse:
         task_id=task.task_id,
         status=task.status,
         message=_get_status_message(task.status),
+        json_url=task.json_url,
         progress=task.progress,
         draft_path=task.draft_path,
         error_message=task.error_message,
@@ -174,9 +176,51 @@ async def submit_task_with_url(url: str = Query(..., description="远程 JSON �
         if not task:
             raise HTTPException(status_code=500, detail="任务创建失败")
 
-        # 8. 重定向到任务状态页面
+        # 7.1. 保存 JSON URL
+        task.json_url = url
+
+        # 8. 保存生成记录
+        try:
+            import time
+            import random
+            from app.services.generation_record_service import get_generation_record_service
+            from app.models.generation_record_models import GenerationRecordCreateRequest
+
+            # 生成唯一的记录ID
+            record_id = f"rec_{int(time.time() * 1000)}_{random.randint(1000, 9999)}"
+
+            # 获取规则组信息
+            rule_group = json_data['ruleGroup']
+            rule_group_id = rule_group.get('id', '')
+            rule_group_title = rule_group.get('title', '未命名规则组')
+
+            # 创建生成记录
+            generation_record_service = get_generation_record_service()
+            await generation_record_service.create_record(
+                GenerationRecordCreateRequest(
+                    record_id=record_id,
+                    task_id=task_id,
+                    rule_group_id=rule_group_id,
+                    rule_group_title=rule_group_title,
+                    rule_group=rule_group,
+                    draft_config=json_data.get('draft_config', {}),
+                    materials=json_data.get('materials', []),
+                    test_data=json_data.get('testData'),
+                    segment_styles=json_data.get('segment_styles'),
+                    use_raw_segments=json_data.get('use_raw_segments', False),
+                    raw_segments=json_data.get('raw_segments'),
+                    raw_materials=json_data.get('raw_materials'),
+                )
+            )
+            print(f"[submit_with_url] 生成记录已保存, record_id: {record_id}, task_id: {task_id}")
+        except Exception as e:
+            print(f"[submit_with_url] 保存生成记录失败: {e}")
+            # 即使保存失败也不影响主流程
+
+        # 9. 重定向到任务状态页面(携带原始 json_url)
+        encoded_url = quote(url, safe='')
         return RedirectResponse(
-            url=f"/static/task_status.html?task_id={task_id}",
+            url=f"/static/task_status.html?task_id={task_id}&json_url={encoded_url}",
             status_code=303  # 303 See Other - POST 后重定向到 GET
         )
 

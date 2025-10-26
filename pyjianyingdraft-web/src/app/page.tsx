@@ -36,6 +36,7 @@ import {
   ClearAll,
   Refresh as RefreshIcon,
   Download as DownloadIcon,
+  History as HistoryIcon,
 } from '@mui/icons-material';
 import DraftList from '@/components/DraftList';
 import FileVersionList from '@/components/FileVersionList';
@@ -50,6 +51,12 @@ import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 // 异步加载下载管理器 Dialog
 const DownloadManagerDialog = dynamic(
   () => import('@/components/DownloadManagerDialog').then((mod) => ({ default: mod.DownloadManagerDialog })),
+  { ssr: false }
+);
+
+// 异步加载生成记录 Dialog
+const GenerationRecordsDialog = dynamic(
+  () => import('@/components/GenerationRecordsDialog').then((mod) => ({ default: mod.GenerationRecordsDialog })),
   { ssr: false }
 );
 
@@ -136,6 +143,9 @@ export default function Home() {
   // 下载管理器 Dialog 状态
   const [downloadDialogOpen, setDownloadDialogOpen] = useState<boolean>(false);
 
+  // 生成记录 Dialog 状态
+  const [generationRecordsDialogOpen, setGenerationRecordsDialogOpen] = useState<boolean>(false);
+
   // 左侧栏Tab状态 (0: 草稿列表, 1: 文件版本)
   const [leftTabValue, setLeftTabValue] = useState<number>(0);
 
@@ -157,6 +167,24 @@ export default function Home() {
     setTabs(prev =>
       prev.map(tab => (tab.id === tabId ? { ...tab, ruleGroups: normalized } : tab)),
     );
+  }, []);
+
+  /**
+   * 加载所有规则组
+   */
+  const loadAllRuleGroups = useCallback(async () => {
+    setLoadingRuleGroups(true);
+    setRuleGroupsError(null);
+    try {
+      const response = await draftApi.getAllRuleGroups();
+      setAllRuleGroups(response.rule_groups || []);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : '加载规则组失败';
+      setRuleGroupsError(errorMessage);
+      console.error('加载规则组错误:', err);
+    } finally {
+      setLoadingRuleGroups(false);
+    }
   }, []);
 
   
@@ -251,22 +279,7 @@ export default function Home() {
 
   // 从后端加载所有规则组(从所有草稿目录收集)
   useEffect(() => {
-    const loadRuleGroups = async () => {
-      setLoadingRuleGroups(true);
-      setRuleGroupsError(null);
-      try {
-        const response = await draftApi.getAllRuleGroups();
-        setAllRuleGroups(response.rule_groups || []);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : '加载规则组失败';
-        setRuleGroupsError(errorMessage);
-        console.error('加载规则组错误:', err);
-      } finally {
-        setLoadingRuleGroups(false);
-      }
-    };
-
-    loadRuleGroups();
+    loadAllRuleGroups();
 
     // 从localStorage恢复tabs
     const savedTabs = localStorage.getItem('editorTabs');
@@ -569,6 +582,84 @@ export default function Home() {
     setActiveTabId(newValue);
   };
 
+  /**
+   * 处理重新导入（从生成记录）
+   */
+  const handleReimport = useCallback(async (record: any) => {
+    console.log('[页面] 重新导入生成记录:', record.record_id);
+
+    // 使用记录ID作为唯一标识创建test data tab
+    const testDataId = `reimport-${record.record_id}`;
+    const label = `重新导入: ${record.rule_group_title || '未命名'}`;
+
+    // 创建提交回调
+    const onTest = async (testData: TestData) => {
+      console.log('[重新导入] 执行测试回调, record_id:', record.record_id);
+
+      // 使用保存的元数据构建请求载荷
+      const requestPayload: RuleGroupTestRequest = {
+        ruleGroup: record.rule_group,
+        materials: record.materials || [],
+        testData,
+        segment_styles: record.segment_styles,
+        use_raw_segments: record.use_raw_segments || false,
+        raw_segments: record.raw_segments,
+        raw_materials: record.raw_materials,
+        draft_config: record.draft_config || {
+          canvas_config: {
+            canvas_width: 1920,
+            canvas_height: 1080,
+          },
+          config: {
+            maintrack_adsorb: false,
+          },
+          fps: 30,
+        },
+      };
+
+      // 提交异步任务，使用相同的record_id
+      const { tasksApi } = await import('@/lib/api');
+      const response = await tasksApi.submit(requestPayload);
+      console.log('[重新导入] 任务已提交:', response.task_id);
+
+      // 更新生成记录的task_id
+      try {
+        const { generationRecordsApi } = await import('@/lib/api');
+        await generationRecordsApi.update(record.record_id, {
+          ...record,
+          task_id: response.task_id,
+          status: 'pending',
+          updated_at: new Date().toISOString(),
+        });
+      } catch (error) {
+        console.error('[重新导入] 更新生成记录失败:', error);
+      }
+
+      // 返回包含task_id和完整请求载荷的响应
+      return {
+        ...response,
+        ...requestPayload,
+        record_id: record.record_id,
+      };
+    };
+
+    // 打开test data tab
+    handleTestDataSelect(
+      testDataId,
+      label,
+      onTest,
+      {
+        ruleGroupId: record.rule_group_id,
+        ruleGroup: record.rule_group,
+        materials: record.materials,
+        rawSegments: record.raw_segments,
+        rawMaterials: record.raw_materials,
+        useRawSegmentsHint: record.use_raw_segments,
+        initialTestData: record.test_data,
+      }
+    );
+  }, [handleTestDataSelect]);
+
   // 获取当前激活的tab
   const activeTab = tabs.find(tab => tab.id === activeTabId);
 
@@ -621,6 +712,10 @@ export default function Home() {
                   loadDraftData(activeTab.id, activeTab.draftPath);
                 }
               }}
+              onDraftRootChanged={() => {
+                // 草稿根目录变更后，重新加载所有规则组
+                loadAllRuleGroups();
+              }}
               selectedDraftPath={activeTab?.draftPath}
             />
           </Box>
@@ -638,25 +733,48 @@ export default function Home() {
               onFileSelect={handleFileDiffSelect}
             />
           </Box>
-          <Box sx={{ 
-            display: leftTabValue === 2 ? 'block' : 'none',
+          <Box sx={{
+            display: leftTabValue === 2 ? 'flex' : 'none',
             position: 'absolute',
             top: 0,
             left: 0,
             right: 0,
             bottom: 0,
-            overflow: 'auto',
-            p: 2
+            flexDirection: 'column'
           }}>
-            {loadingRuleGroups ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}>
-                <CircularProgress />
-              </Box>
-            ) : ruleGroupsError ? (
-              <Alert severity="error" sx={{ m: 2 }}>
-                {ruleGroupsError}
-              </Alert>
-            ) : allRuleGroups.length ? (
+            {/* 规则组标题和刷新按钮 */}
+            <Box sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              p: 2,
+              pb: 1
+            }}>
+              <Typography variant="subtitle2" color="text.secondary">
+                全部规则组
+              </Typography>
+              <Tooltip title="刷新规则组列表">
+                <IconButton
+                  size="small"
+                  onClick={loadAllRuleGroups}
+                  disabled={loadingRuleGroups}
+                >
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+
+            {/* 内容区域 */}
+            <Box sx={{ flex: 1, overflow: 'auto', px: 2, pb: 2 }}>
+              {loadingRuleGroups ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}>
+                  <CircularProgress />
+                </Box>
+              ) : ruleGroupsError ? (
+                <Alert severity="error">
+                  {ruleGroupsError}
+                </Alert>
+              ) : allRuleGroups.length ? (
               <List dense>
                 {allRuleGroups.map((group: any) => (
                   <ListItemButton
@@ -714,6 +832,7 @@ export default function Home() {
                 </Typography>
               </Box>
             )}
+            </Box>
           </Box>
         </Box>
       </Drawer>
@@ -757,6 +876,16 @@ export default function Home() {
               color="primary"
             >
               <DownloadIcon />
+            </IconButton>
+          </Tooltip>
+
+          <Tooltip title="生成记录">
+            <IconButton
+              onClick={() => setGenerationRecordsDialogOpen(true)}
+              sx={{ mr: 2 }}
+              color="secondary"
+            >
+              <HistoryIcon />
             </IconButton>
           </Tooltip>
 
@@ -1083,6 +1212,13 @@ export default function Home() {
       <DownloadManagerDialog
         open={downloadDialogOpen}
         onClose={() => setDownloadDialogOpen(false)}
+      />
+
+      {/* 生成记录 Dialog */}
+      <GenerationRecordsDialog
+        open={generationRecordsDialogOpen}
+        onClose={() => setGenerationRecordsDialogOpen(false)}
+        onReimport={handleReimport}
       />
     </Box>
   );
