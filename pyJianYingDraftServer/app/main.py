@@ -65,6 +65,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"✗ Aria2初始化失败: {e}")
 
+    # 初始化数据库
+    try:
+        from app.db import get_database
+        await get_database()
+        print(f"✓ 数据库已初始化")
+    except Exception as e:
+        print(f"✗ 数据库初始化失败: {e}")
+
     # 启动任务队列和Aria2客户端
     try:
         from app.services.task_queue import get_task_queue
@@ -80,6 +88,9 @@ async def lifespan(app: FastAPI):
         else:
             print(f"⚠ 任务队列启动失败，Aria2客户端可能未初始化")
 
+        # 从数据库加载历史任务
+        await queue.load_tasks_from_db()
+
         # 启动进度监控
         await queue.start_progress_monitor()
         print(f"✓ 任务队列进度监控已启动（间隔: 1秒）")
@@ -87,14 +98,6 @@ async def lifespan(app: FastAPI):
         print(f"✗ 任务队列启动失败: {e}")
         import traceback
         traceback.print_exc()
-
-    # 初始化数据库
-    try:
-        from app.db import get_database
-        await get_database()
-        print(f"✓ 数据库已初始化")
-    except Exception as e:
-        print(f"✗ 数据库初始化失败: {e}")
 
     print("=" * 60)
     print("✅ 服务器启动完成！")
@@ -300,20 +303,35 @@ async def get_aria2_groups(sid, data):
             await sio.emit('aria2_groups_error', {'error': 'Aria2客户端未初始化'}, room=sid)
             return
 
-        # 获取所有任务，按 batch_id (group) 分组
+        # 获取所有任务，按 task_id (或 batch_id) 分组
         groups = []
-        seen_batch_ids = set()
+        seen_group_ids = set()
 
         for task in queue.tasks.values():
-            if task.batch_id and task.batch_id not in seen_batch_ids:
-                seen_batch_ids.add(task.batch_id)
+            # 使用 batch_id 如果存在，否则使用 task_id 作为组ID
+            group_id = task.batch_id if task.batch_id else task.task_id
 
-                # 获取批次进度
-                batch_progress = aria2_client.get_batch_progress(task.batch_id)
+            if group_id not in seen_group_ids:
+                seen_group_ids.add(group_id)
+
+                # 基础组信息
+                group_info = {
+                    'groupId': group_id,
+                    'groupName': task.rule_group.get('title', '未命名') if task.rule_group else '未命名',
+                    'status': task.status.value,
+                    'createdAt': task.created_at.isoformat() if task.created_at else None,
+                    'updatedAt': task.updated_at.isoformat() if task.updated_at else None
+                }
+
+                # 尝试获取批次进度（如果任务已经开始下载且Aria2在运行）
+                batch_progress = None
+                if task.batch_id and aria2_client:
+                    batch_progress = aria2_client.get_batch_progress(task.batch_id)
+
+                # 如果有实时批次进度，使用实时数据；否则使用任务中保存的进度
                 if batch_progress:
-                    groups.append({
-                        'groupId': task.batch_id,
-                        'groupName': task.rule_group.get('title', '未命名') if task.rule_group else '未命名',
+                    # 使用Aria2实时数据
+                    group_info.update({
                         'totalDownloads': len(batch_progress.downloads),
                         'completedDownloads': batch_progress.completed_count,
                         'failedDownloads': batch_progress.failed_count,
@@ -322,10 +340,24 @@ async def get_aria2_groups(sid, data):
                         'downloadedSize': batch_progress.downloaded_size,
                         'progressPercent': batch_progress.progress_percent,
                         'downloadSpeed': batch_progress.total_speed,
-                        'etaSeconds': batch_progress.eta_seconds,
-                        'createdAt': task.created_at.isoformat() if task.created_at else None,
-                        'updatedAt': task.updated_at.isoformat() if task.updated_at else None
+                        'etaSeconds': batch_progress.eta_seconds
                     })
+                else:
+                    # 使用数据库中保存的进度信息（服务器重启后的情况）
+                    progress = task.progress
+                    group_info.update({
+                        'totalDownloads': progress.total_files if progress else 0,
+                        'completedDownloads': progress.completed_files if progress else 0,
+                        'failedDownloads': progress.failed_files if progress else 0,
+                        'activeDownloads': progress.active_files if progress else 0,
+                        'totalSize': progress.total_size if progress else 0,
+                        'downloadedSize': progress.downloaded_size if progress else 0,
+                        'progressPercent': progress.progress_percent if progress else 0,
+                        'downloadSpeed': 0,  # 服务器重启后无实时速度
+                        'etaSeconds': None   # 服务器重启后无预计时间
+                    })
+
+                groups.append(group_info)
 
         await sio.emit('aria2_groups', {
             'groups': groups,
@@ -348,47 +380,106 @@ async def get_group_downloads(sid, data):
         queue = get_task_queue()
         aria2_client = queue.aria2_client
 
-        if not aria2_client:
-            await sio.emit('group_downloads_error', {'error': 'Aria2客户端未初始化'}, room=sid)
+        # 先尝试通过 group_id 找到对应的任务
+        task = None
+        for t in queue.tasks.values():
+            if t.batch_id == group_id or t.task_id == group_id:
+                task = t
+                break
+
+        if not task:
+            await sio.emit('group_downloads_error', {'error': f'任务不存在: {group_id}'}, room=sid)
             return
 
-        # 获取批次进度
-        batch_progress = aria2_client.get_batch_progress(group_id)
-        if not batch_progress:
-            await sio.emit('group_downloads_error', {'error': f'组不存在: {group_id}'}, room=sid)
-            return
+        # 如果任务有 batch_id，尝试获取实时下载进度
+        batch_progress = None
+        if task.batch_id and aria2_client:
+            batch_progress = aria2_client.get_batch_progress(task.batch_id)
 
         # 转换下载信息
         downloads = []
-        for download in batch_progress.downloads:
-            # 构建文件信息（包含真实路径）
-            files = []
-            if download.file_path:
-                files.append({
-                    'path': download.file_path,
-                    'length': download.total_length,
-                    'completedLength': download.completed_length,
-                    'selected': 'true',
-                    'uris': []
-                })
 
-            downloads.append({
-                'gid': download.gid,
-                'status': download.status,
-                'totalLength': download.total_length,
-                'completedLength': download.completed_length,
-                'uploadLength': 0,
-                'downloadSpeed': download.download_speed,
-                'uploadSpeed': download.upload_speed,
-                'files': files,
-                'errorCode': download.error_code,
-                'errorMessage': download.error_message
-            })
+        if batch_progress:
+            # 有实时下载进度，返回 Aria2 的下载列表
+            for download in batch_progress.downloads:
+                # 构建文件信息（包含真实路径）
+                files = []
+                if download.file_path:
+                    files.append({
+                        'path': download.file_path,
+                        'length': download.total_length,
+                        'completedLength': download.completed_length,
+                        'selected': 'true',
+                        'uris': []
+                    })
+
+                downloads.append({
+                    'gid': download.gid,
+                    'status': download.status,
+                    'totalLength': download.total_length,
+                    'completedLength': download.completed_length,
+                    'uploadLength': 0,
+                    'downloadSpeed': download.download_speed,
+                    'uploadSpeed': download.upload_speed,
+                    'files': files,
+                    'errorCode': download.error_code,
+                    'errorMessage': download.error_message
+                })
+        elif task.download_files:
+            # 服务器重启后，从数据库中保存的 download_files 恢复下载列表
+            for file_info in task.download_files:
+                downloads.append({
+                    'gid': file_info.gid,
+                    'status': file_info.status,
+                    'totalLength': file_info.total_length,
+                    'completedLength': file_info.completed_length,
+                    'uploadLength': 0,
+                    'downloadSpeed': 0,
+                    'uploadSpeed': 0,
+                    'files': [{
+                        'path': file_info.file_path,
+                        'length': file_info.total_length,
+                        'completedLength': file_info.completed_length,
+                        'selected': 'true',
+                        'uris': []
+                    }],
+                    'errorCode': file_info.error_code or '',
+                    'errorMessage': file_info.error_message or ''
+                })
+        else:
+            # 任务还未开始下载（pending状态），返回任务的素材列表
+            if task.materials:
+                for i, material in enumerate(task.materials):
+                    # 检查素材是否需要下载（有 HTTP/HTTPS URL）
+                    material_path = material.get('path', '') or material.get('url', '')
+                    is_remote = material_path.startswith(('http://', 'https://'))
+
+                    downloads.append({
+                        'gid': f'pending-{i}',  # 临时GID
+                        'status': 'waiting' if is_remote else 'complete',  # 本地文件视为已完成
+                        'totalLength': 0,
+                        'completedLength': 0,
+                        'uploadLength': 0,
+                        'downloadSpeed': 0,
+                        'uploadSpeed': 0,
+                        'files': [{
+                            'path': material_path,
+                            'length': 0,
+                            'completedLength': 0,
+                            'selected': 'true',
+                            'uris': []
+                        }],
+                        'errorCode': '',
+                        'errorMessage': '',
+                        'materialInfo': material  # 添加素材完整信息
+                    })
 
         await sio.emit('group_downloads', {
             'groupId': group_id,
+            'taskStatus': task.status.value,  # 添加任务状态
             'downloads': downloads,
-            'total': len(downloads)
+            'total': len(downloads),
+            'testData': task.test_data  # 添加testData
         }, room=sid)
 
     except Exception as e:
@@ -532,6 +623,59 @@ async def remove_download(sid, data):
 
     except Exception as e:
         await sio.emit('remove_download_error', {'error': str(e)}, room=sid)
+
+@sio.event
+async def retry_failed_downloads(sid, data):
+    """重新下载失败的任务"""
+    try:
+        batch_id = data.get('batch_id')
+        if not batch_id:
+            await sio.emit('retry_failed_error', {'error': '批次ID不能为空'}, room=sid)
+            return
+
+        from app.services.task_queue import get_task_queue
+        queue = get_task_queue()
+        aria2_client = queue.aria2_client
+
+        if not aria2_client:
+            await sio.emit('retry_failed_error', {'error': 'Aria2客户端未初始化'}, room=sid)
+            return
+
+        # 获取批次进度
+        batch_progress = aria2_client.get_batch_progress(batch_id)
+        if not batch_progress:
+            await sio.emit('retry_failed_error', {'error': '未找到批次信息'}, room=sid)
+            return
+
+        # 筛选失败的下载
+        failed_gids = [d.gid for d in batch_progress.downloads if d.status == 'error']
+
+        if not failed_gids:
+            await sio.emit('retry_failed_completed', {
+                'batch_id': batch_id,
+                'restarted_count': 0,
+                'message': '没有失败的下载任务'
+            }, room=sid)
+            return
+
+        # 重启失败的下载
+        restarted_count = 0
+        for gid in failed_gids:
+            # 重置重试计数
+            aria2_client.retry_count[gid] = 0
+            new_gid = await aria2_client._restart_failed_download(gid)
+            if new_gid:
+                restarted_count += 1
+
+        await sio.emit('retry_failed_completed', {
+            'batch_id': batch_id,
+            'restarted_count': restarted_count,
+            'total_failed': len(failed_gids),
+            'message': f'已重新启动 {restarted_count}/{len(failed_gids)} 个失败任务'
+        }, room=sid)
+
+    except Exception as e:
+        await sio.emit('retry_failed_error', {'error': str(e)}, room=sid)
 
 # 将Socket.IO集成到FastAPI
 socket_app = socketio.ASGIApp(sio, app)

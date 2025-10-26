@@ -38,6 +38,9 @@ import ImageIcon from '@mui/icons-material/Image';
 import VideoFileIcon from '@mui/icons-material/VideoFile';
 import AudioFileIcon from '@mui/icons-material/AudioFile';
 import DescriptionIcon from '@mui/icons-material/Description';
+import ErrorIcon from '@mui/icons-material/Error';
+import LinkIcon from '@mui/icons-material/Link';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import { useAria2WebSocket } from '@/hooks/useAria2WebSocket';
 import type { Aria2DownloadGroup, Aria2Download } from '@/types/aria2';
 
@@ -150,6 +153,7 @@ export function Aria2DownloadManager() {
     connected,
     groups,
     selectedGroupDownloads,
+    selectedGroupTestData,
     loading,
     error,
     getGroups,
@@ -157,11 +161,14 @@ export function Aria2DownloadManager() {
     pauseDownload,
     resumeDownload,
     removeDownload,
+    retryFailedDownloads,
   } = useAria2WebSocket();
 
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [refreshInterval, setRefreshInterval] = useState<NodeJS.Timeout | null>(null);
   const [downloadDir, setDownloadDir] = useState<string>('');
+  const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
+  const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
   // 用于存储上一次的数据,避免刷新闪烁
   const prevGroupsRef = useRef<Aria2DownloadGroup[]>([]);
   const prevDownloadsRef = useRef<Aria2Download[]>([]);
@@ -278,6 +285,138 @@ export function Aria2DownloadManager() {
     }
   };
 
+  // 删除组
+  const handleDeleteGroup = async () => {
+    if (!groupToDelete) return;
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/aria2/groups/${groupToDelete}`, {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        // 如果删除的是当前选中的组,清除选中状态
+        if (selectedGroupId === groupToDelete) {
+          setSelectedGroupId(null);
+        }
+        // 刷新组列表
+        getGroups();
+        setDeleteGroupDialogOpen(false);
+        setGroupToDelete(null);
+      } else {
+        const data = await response.json();
+        alert(`删除失败: ${data.detail || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error('删除组失败:', error);
+      alert('删除组失败');
+    }
+  };
+
+  // 打开删除组对话框
+  const handleOpenDeleteGroupDialog = (groupId: string) => {
+    setGroupToDelete(groupId);
+    setDeleteGroupDialogOpen(true);
+  };
+
+  // 关闭删除组对话框
+  const handleCloseDeleteGroupDialog = () => {
+    setDeleteGroupDialogOpen(false);
+    setGroupToDelete(null);
+  };
+
+  // 重试失败任务
+  const handleRetryFailedDownloads = async () => {
+    if (!selectedGroupId) return;
+
+    const failedDownloads = displayDownloads.filter(d => d.status === 'error');
+    if (failedDownloads.length === 0) {
+      alert('当前没有失败的下载任务');
+      return;
+    }
+
+    try {
+      // 调用重试失败下载的API
+      await retryFailedDownloads(selectedGroupId);
+      alert(`正在重新下载 ${failedDownloads.length} 个失败任务`);
+      // 延迟刷新下载列表，给Aria2一些时间处理
+      setTimeout(() => {
+        getGroupDownloads(selectedGroupId);
+      }, 1000);
+    } catch (error) {
+      console.error('重试失败任务出错:', error);
+      alert('重试失败任务出错');
+    }
+  };
+
+  // 导出所有下载链接
+  const handleExportDownloadLinks = () => {
+    if (!selectedGroupId) return;
+
+    const links: string[] = [];
+
+    // 优先从testData中提取链接
+    if (selectedGroupTestData) {
+      // 遍历testData的所有字段，提取URL
+      const extractUrls = (obj: any) => {
+        if (!obj) return;
+
+        if (typeof obj === 'string') {
+          // 检查是否为HTTP/HTTPS链接
+          if (obj.startsWith('http://') || obj.startsWith('https://')) {
+            links.push(obj);
+          }
+        } else if (Array.isArray(obj)) {
+          obj.forEach(item => extractUrls(item));
+        } else if (typeof obj === 'object') {
+          Object.values(obj).forEach(value => extractUrls(value));
+        }
+      };
+
+      extractUrls(selectedGroupTestData);
+    }
+
+    // 如果testData中没有链接，则从下载任务中提取
+    if (links.length === 0) {
+      displayDownloads.forEach((download) => {
+        if (download.files && download.files.length > 0) {
+          download.files.forEach((file) => {
+            if (file.uris && file.uris.length > 0) {
+              file.uris.forEach((uri) => {
+                if (uri.uri) {
+                  links.push(uri.uri);
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+
+    if (links.length === 0) {
+      alert('没有可导出的下载链接');
+      return;
+    }
+
+    // 去重
+    const uniqueLinks = Array.from(new Set(links));
+
+    // 创建文本内容
+    const content = uniqueLinks.join('\n');
+
+    // 创建下载
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `download-links-${selectedGroupId}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
   // 使用当前数据或上一次数据,避免闪烁
   const displayGroups = groups.length > 0 ? groups : prevGroupsRef.current;
   const displayDownloads = selectedGroupDownloads.length > 0 ? selectedGroupDownloads : prevDownloadsRef.current;
@@ -298,11 +437,20 @@ export function Aria2DownloadManager() {
         {/* 头部 */}
         <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6">下载组列表</Typography>
-          <Tooltip title="打开下载文件夹">
-            <IconButton size="small" onClick={handleOpenDownloadFolder}>
-              <FolderOpenIcon />
-            </IconButton>
-          </Tooltip>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            {selectedGroupId && (
+              <Tooltip title="删除当前组">
+                <IconButton size="small" onClick={() => handleOpenDeleteGroupDialog(selectedGroupId)} color="error">
+                  <DeleteForeverIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            <Tooltip title="打开下载文件夹">
+              <IconButton size="small" onClick={handleOpenDownloadFolder}>
+                <FolderOpenIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
         </Box>
 
         {/* 组列表 */}
@@ -353,10 +501,31 @@ export function Aria2DownloadManager() {
       {/* 右侧:下载任务列表 */}
       <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* 头部 */}
-        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6">
             {selectedGroupId ? '下载任务' : '请选择一个下载组'}
           </Typography>
+          {selectedGroupId && (
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<ErrorIcon />}
+                onClick={handleRetryFailedDownloads}
+                color="error"
+              >
+                处理失败任务
+              </Button>
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<LinkIcon />}
+                onClick={handleExportDownloadLinks}
+              >
+                导出下载链接
+              </Button>
+            </Box>
+          )}
         </Box>
 
         {/* 错误提示 */}
@@ -542,6 +711,22 @@ export function Aria2DownloadManager() {
           </Box>
         )}
       </Box>
+
+      {/* 删除组确认对话框 */}
+      <Dialog open={deleteGroupDialogOpen} onClose={handleCloseDeleteGroupDialog}>
+        <DialogTitle>确认删除</DialogTitle>
+        <DialogContent>
+          <Typography>
+            确定要删除此下载组吗？此操作将删除该组的所有下载任务记录，但不会删除已下载的文件。
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseDeleteGroupDialog}>取消</Button>
+          <Button onClick={handleDeleteGroup} color="error" variant="contained">
+            删除
+          </Button>
+        </DialogActions>
+      </Dialog>
 
     </Box>
   );

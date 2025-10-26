@@ -120,4 +120,7 @@ export interface GroupDownloadsResponse {
   groupId: string;
   downloads: Aria2Download[];
   total: number;
+  testData?: {
+    [key: string]: any;
+  };
 }

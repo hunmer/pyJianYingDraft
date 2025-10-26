@@ -58,6 +58,9 @@ class TaskQueue:
         # 任务存储（内存）
         self.tasks: Dict[str, DownloadTask] = {}
 
+        # 数据库实例（延迟初始化，在start()中设置）
+        self.db = None
+
         # 后台任务
         self.progress_monitor_task: Optional[asyncio.Task] = None
         self.is_monitoring = False
@@ -81,12 +84,63 @@ class TaskQueue:
             bool: 是否成功启动
         """
         success = self._ensure_aria2_running()
-
-        # 恢复GID到路径的映射（从内存中的任务）
-        if success and self.aria2_client:
-            self._restore_gid_path_mappings()
-
         return success
+
+    async def load_tasks_from_db(self) -> None:
+        """从数据库加载所有任务到内存"""
+        try:
+            from app.db import get_database
+
+            self.db = await get_database()
+            tasks = await self.db.load_all_tasks()
+
+            # 统计任务状态
+            pending_count = 0
+            downloading_count = 0
+            converted_count = 0
+            other_count = 0
+
+            for task in tasks:
+                # 服务器重启后,将未完成的任务标记为失败
+                if task.status == TaskStatus.PENDING:
+                    pending_count += 1
+                    task.status = TaskStatus.FAILED
+                    task.error_message = "服务器重启,任务已取消"
+                    task.updated_at = datetime.now()
+                    converted_count += 1
+                    self._log(f"  ⚠ pending 任务已标记为 failed: {task.task_id}")
+                elif task.status == TaskStatus.DOWNLOADING:
+                    downloading_count += 1
+                    task.status = TaskStatus.FAILED
+                    task.error_message = "服务器重启,下载已中断"
+                    task.updated_at = datetime.now()
+                    converted_count += 1
+                    self._log(f"  ⚠ downloading 任务已标记为 failed: {task.task_id}")
+                else:
+                    other_count += 1
+
+                self.tasks[task.task_id] = task
+
+            self._log(f"✓ 从数据库加载了 {len(tasks)} 个任务")
+            self._log(f"  - Pending → Failed: {pending_count}")
+            self._log(f"  - Downloading → Failed: {downloading_count}")
+            self._log(f"  - 其他状态: {other_count}")
+
+            # 批量更新转换后的任务到数据库
+            if converted_count > 0:
+                self._log(f"正在更新 {converted_count} 个任务到数据库...")
+                for task in tasks:
+                    if task.status == TaskStatus.FAILED and task.error_message in [
+                        "服务器重启,任务已取消",
+                        "服务器重启,下载已中断"
+                    ]:
+                        await self.db.save_task(task)
+                self._log(f"✓ 已更新 {converted_count} 个任务")
+
+        except Exception as e:
+            self._log(f"✗ 从数据库加载任务失败: {e}")
+            import traceback
+            traceback.print_exc()
 
     def _ensure_aria2_running(self) -> bool:
         """确保Aria2进程运行中
@@ -116,25 +170,6 @@ class TaskQueue:
 
         return True
 
-    def _restore_gid_path_mappings(self) -> None:
-        """从内存中的任务恢复GID到路径的映射到Aria2客户端
-
-        在服务器重启后，从数据库加载的任务中恢复GID→文件路径的映射
-        """
-        if not self.aria2_client:
-            return
-
-        restored_count = 0
-        for task in self.tasks.values():
-            if task.gid_to_path_map:
-                # 将任务中的映射恢复到Aria2客户端
-                for gid, path in task.gid_to_path_map.items():
-                    self.aria2_client.gid_to_path[gid] = path
-                    restored_count += 1
-
-        if restored_count > 0:
-            self._log(f"✓ 已恢复 {restored_count} 个GID→路径映射")
-
     def reinitialize_aria2_client(self) -> bool:
         """重新初始化Aria2客户端
 
@@ -153,9 +188,6 @@ class TaskQueue:
             if not self._ensure_aria2_running():
                 self._log("✗ Aria2进程未能启动,无法初始化客户端")
                 return False
-
-            # 3. 恢复GID到路径的映射
-            self._restore_gid_path_mappings()
 
             self._log("✓ Aria2客户端已重新初始化")
             return True
@@ -195,9 +227,23 @@ class TaskQueue:
             updated_at=datetime.now()
         )
 
-        # 保存任务
+        # 保存任务到内存
         self.tasks[task_id] = task
         self._log(f"✓ 创建任务: {task_id}")
+
+        # 保存任务到数据库
+        try:
+            # 确保数据库已初始化
+            if not self.db:
+                from app.db import get_database
+                self.db = await get_database()
+
+            await self.db.save_task(task)
+            self._log(f"✓ 任务已保存到数据库: {task_id}")
+        except Exception as e:
+            self._log(f"⚠ 保存任务到数据库失败: {e}")
+            import traceback
+            traceback.print_exc()
 
         # 立即启动下载
         asyncio.create_task(self._process_task(task_id))
@@ -236,9 +282,6 @@ class TaskQueue:
                 urls_with_paths=urls_with_paths,
                 batch_id=task_id  # 使用task_id作为batch_id
             )
-
-            # 保存GID到路径的映射到任务中
-            task.gid_to_path_map = self.aria2_client.get_all_file_paths()
 
             # 更新任务状态
             task.batch_id = batch_id
@@ -550,7 +593,7 @@ class TaskQueue:
                 self._log(f"✗ 无法获取任务 {task_id} 的下载进度")
                 break
 
-            # 更新任务进度
+            # 更新任务进度（汇总信息）
             task.progress = DownloadProgressInfo(
                 total_files=len(batch_progress.downloads),
                 completed_files=batch_progress.completed_count,
@@ -562,6 +605,28 @@ class TaskQueue:
                 download_speed=batch_progress.total_speed,
                 eta_seconds=batch_progress.eta_seconds
             )
+
+            # 更新下载文件详细信息
+            from app.models.download_models import DownloadFileInfo
+            from pathlib import Path
+            download_files = []
+            for download in batch_progress.downloads:
+                # 提取文件名
+                file_name = Path(download.file_path).name if download.file_path else f"file-{download.gid}"
+                
+                download_files.append(DownloadFileInfo(
+                    gid=download.gid,
+                    file_path=download.file_path or "",
+                    file_name=file_name,
+                    url=None,  # Aria2进度中没有原始URL,可以后续从materials映射
+                    total_length=download.total_length,
+                    completed_length=download.completed_length,
+                    status=download.status,
+                    error_code=download.error_code,
+                    error_message=download.error_message
+                ))
+            
+            task.download_files = download_files
             task.updated_at = datetime.now()
 
             # 调试日志
@@ -575,6 +640,11 @@ class TaskQueue:
                     self._log(f"⚠ 任务 {task_id} 下载完成，但有 {batch_progress.failed_count} 个文件失败")
                 else:
                     self._log(f"✓ 任务 {task_id} 下载完成")
+                
+                # 保存最终状态到数据库
+                if self.db:
+                    await self._save_task_to_db(task)
+                
                 break
 
             # 等待后再检查
@@ -673,8 +743,30 @@ class TaskQueue:
         if status == TaskStatus.COMPLETED:
             task.completed_at = datetime.now()
 
+        # 保存到数据库
+        if self.db:
+            asyncio.create_task(self._save_task_to_db(task))
+
         # 推送状态变更通知
         asyncio.create_task(self._push_status_change(task))
+
+    async def _save_task_to_db(self, task: DownloadTask) -> None:
+        """保存任务到数据库
+
+        Args:
+            task: 下载任务
+        """
+        try:
+            # 确保数据库已初始化
+            if not self.db:
+                from app.db import get_database
+                self.db = await get_database()
+
+            await self.db.save_task(task)
+        except Exception as e:
+            self._log(f"⚠ 保存任务到数据库失败: {e}")
+            import traceback
+            traceback.print_exc()
 
     async def _push_status_change(self, task: DownloadTask) -> None:
         """推送任务状态变更通知
