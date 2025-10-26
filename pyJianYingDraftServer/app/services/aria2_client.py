@@ -181,7 +181,7 @@ class Aria2Client:
         verbose: bool = True,
         max_retries: int = 3,
         retry_delay: float = 1.0,
-        auto_restart_failed: bool = True
+        auto_restart_failed: bool = False
     ):
         """初始化Aria2客户端
 
@@ -467,12 +467,6 @@ class Aria2Client:
                 file_path=file_path
             )
 
-            # 检测失败状态并自动重启
-            if auto_restart and progress.status == "error":
-                self._log(f"⚠️  检测到失败任务 (GID: {gid}), 准备重启...")
-                # 创建异步任务重启下载(不阻塞当前调用)
-                asyncio.create_task(self._restart_failed_download(gid))
-
             return progress
 
         except Exception as e:
@@ -690,6 +684,9 @@ class Aria2Client:
 
         for download in all_downloads:
             if download.status == "error":
+                # 重置重试计数,允许手动重试
+                self.retry_count[download.gid] = 0
+
                 new_gid = await self._restart_failed_download(download.gid)
                 if new_gid:
                     restarted_count += 1

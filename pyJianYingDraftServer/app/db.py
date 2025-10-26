@@ -16,7 +16,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 
-from app.models.download_models import TaskStatus, DownloadTask, DownloadProgressInfo
+from app.models.download_models import TaskStatus, DownloadTask, DownloadProgressInfo, DownloadFileInfo
 from app.path_utils import get_app_dir
 
 
@@ -34,12 +34,17 @@ class TaskModel(Base):
 
     # 草稿相关信息（JSON存储）
     rule_group_id = Column(String, nullable=True)
+    rule_group = Column(Text, nullable=True)  # JSON: 完整的规则组对象
     draft_config = Column(Text, nullable=True)  # JSON
     materials = Column(Text, nullable=True)  # JSON
     test_data = Column(Text, nullable=True)  # JSON
+    segment_styles = Column(Text, nullable=True)  # JSON: 片段样式
+    use_raw_segments = Column(Integer, default=0)  # 是否使用原始片段（0=False, 1=True）
+    raw_segments = Column(Text, nullable=True)  # JSON: 原始片段数据
+    raw_materials = Column(Text, nullable=True)  # JSON: 原始素材数据
 
-    # 下载路径映射（JSON存储）
-    gid_to_path_map = Column(Text, nullable=True)  # JSON: {gid: file_path}
+    # 下载文件详细信息（JSON存储）
+    download_files_json = Column(Text, nullable=True)  # JSON: List[DownloadFileInfo]
 
     # 进度信息（JSON存储）
     progress_json = Column(Text, nullable=True)  # JSON
@@ -56,10 +61,19 @@ class TaskModel(Base):
     def to_download_task(self) -> DownloadTask:
         """转换为DownloadTask模型"""
         # 解析JSON字段
+        rule_group = json.loads(self.rule_group) if self.rule_group else None
         draft_config = json.loads(self.draft_config) if self.draft_config else None
         materials = json.loads(self.materials) if self.materials else None
         test_data = json.loads(self.test_data) if self.test_data else None
-        gid_to_path_map = json.loads(self.gid_to_path_map) if self.gid_to_path_map else None
+        segment_styles = json.loads(self.segment_styles) if self.segment_styles else None
+        raw_segments = json.loads(self.raw_segments) if self.raw_segments else None
+        raw_materials = json.loads(self.raw_materials) if self.raw_materials else None
+
+        # 解析下载文件详细信息
+        download_files = None
+        if self.download_files_json:
+            download_files_list = json.loads(self.download_files_json)
+            download_files = [DownloadFileInfo(**f) for f in download_files_list]
 
         # 解析进度信息
         progress = None
@@ -72,10 +86,15 @@ class TaskModel(Base):
             status=TaskStatus(self.status),
             batch_id=self.batch_id,
             rule_group_id=self.rule_group_id,
+            rule_group=rule_group,
             draft_config=draft_config,
             materials=materials,
             test_data=test_data,
-            gid_to_path_map=gid_to_path_map,
+            segment_styles=segment_styles,
+            use_raw_segments=bool(self.use_raw_segments),
+            raw_segments=raw_segments,
+            raw_materials=raw_materials,
+            download_files=download_files,
             progress=progress,
             draft_path=self.draft_path,
             error_message=self.error_message,
@@ -88,25 +107,41 @@ class TaskModel(Base):
     def from_download_task(task: DownloadTask) -> TaskModel:
         """从DownloadTask创建数据库模型"""
         # 序列化JSON字段
-        draft_config_json = json.dumps(task.draft_config) if task.draft_config else None
-        materials_json = json.dumps(task.materials) if task.materials else None
-        test_data_json = json.dumps(task.test_data) if task.test_data else None
-        gid_to_path_map_json = json.dumps(task.gid_to_path_map) if task.gid_to_path_map else None
+        rule_group_json = json.dumps(task.rule_group, ensure_ascii=False) if task.rule_group else None
+        draft_config_json = json.dumps(task.draft_config, ensure_ascii=False) if task.draft_config else None
+        materials_json = json.dumps(task.materials, ensure_ascii=False) if task.materials else None
+        test_data_json = json.dumps(task.test_data, ensure_ascii=False) if task.test_data else None
+        segment_styles_json = json.dumps(task.segment_styles, ensure_ascii=False) if task.segment_styles else None
+        raw_segments_json = json.dumps(task.raw_segments, ensure_ascii=False) if task.raw_segments else None
+        raw_materials_json = json.dumps(task.raw_materials, ensure_ascii=False) if task.raw_materials else None
+
+        # 序列化下载文件详细信息
+        download_files_json = None
+        if task.download_files:
+            download_files_json = json.dumps(
+                [f.model_dump() for f in task.download_files],
+                ensure_ascii=False
+            )
 
         # 序列化进度信息
         progress_json = None
         if task.progress:
-            progress_json = json.dumps(task.progress.model_dump())
+            progress_json = json.dumps(task.progress.model_dump(), ensure_ascii=False)
 
         return TaskModel(
             task_id=task.task_id,
             status=task.status.value,
             batch_id=task.batch_id,
             rule_group_id=task.rule_group_id,
+            rule_group=rule_group_json,
             draft_config=draft_config_json,
             materials=materials_json,
             test_data=test_data_json,
-            gid_to_path_map=gid_to_path_map_json,
+            segment_styles=segment_styles_json,
+            use_raw_segments=1 if task.use_raw_segments else 0,
+            raw_segments=raw_segments_json,
+            raw_materials=raw_materials_json,
+            download_files_json=download_files_json,
             progress_json=progress_json,
             draft_path=task.draft_path,
             error_message=task.error_message,

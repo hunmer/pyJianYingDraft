@@ -15,6 +15,7 @@ interface UseAria2WebSocketReturn {
   connected: boolean;
   groups: Aria2DownloadGroup[];
   selectedGroupDownloads: Aria2Download[];
+  selectedGroupTestData: { [key: string]: any } | null;
   config: Aria2Config | null;
   loading: boolean;
   error: string | null;
@@ -27,6 +28,7 @@ interface UseAria2WebSocketReturn {
   pauseDownload: (gid: string) => Promise<void>;
   resumeDownload: (gid: string) => Promise<void>;
   removeDownload: (gid: string) => Promise<void>;
+  retryFailedDownloads: (batchId: string) => Promise<void>;
 }
 
 export function useAria2WebSocket(): UseAria2WebSocketReturn {
@@ -34,6 +36,7 @@ export function useAria2WebSocket(): UseAria2WebSocketReturn {
   const [connected, setConnected] = useState(false);
   const [groups, setGroups] = useState<Aria2DownloadGroup[]>([]);
   const [selectedGroupDownloads, setSelectedGroupDownloads] = useState<Aria2Download[]>([]);
+  const [selectedGroupTestData, setSelectedGroupTestData] = useState<{ [key: string]: any } | null>(null);
   const [config, setConfig] = useState<Aria2Config | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +90,7 @@ export function useAria2WebSocket(): UseAria2WebSocketReturn {
     // 获取组内下载任务响应
     newSocket.on('group_downloads', (data: GroupDownloadsResponse) => {
       setSelectedGroupDownloads(data.downloads);
+      setSelectedGroupTestData(data.testData || null);
       setLoading(false);
     });
 
@@ -150,6 +154,16 @@ export function useAria2WebSocket(): UseAria2WebSocketReturn {
       setError(data.error);
     });
 
+    // 重试失败下载响应
+    newSocket.on('retry_failed_completed', (data: { batch_id: string; restarted_count: number; total_failed: number; message: string }) => {
+      console.log('重试失败下载完成:', data);
+      setError(null);
+    });
+
+    newSocket.on('retry_failed_error', (data: { error: string }) => {
+      setError(data.error);
+    });
+
     // 清理函数
     return () => {
       newSocket.disconnect();
@@ -206,11 +220,18 @@ export function useAria2WebSocket(): UseAria2WebSocketReturn {
     socketRef.current.emit('remove_download', { gid });
   }, []);
 
+  // 重试失败的下载
+  const retryFailedDownloads = useCallback(async (batchId: string) => {
+    if (!socketRef.current) return;
+    socketRef.current.emit('retry_failed_downloads', { batch_id: batchId });
+  }, []);
+
   return {
     socket,
     connected,
     groups,
     selectedGroupDownloads,
+    selectedGroupTestData,
     config,
     loading,
     error,
@@ -221,5 +242,6 @@ export function useAria2WebSocket(): UseAria2WebSocketReturn {
     pauseDownload,
     resumeDownload,
     removeDownload,
+    retryFailedDownloads,
   };
 }

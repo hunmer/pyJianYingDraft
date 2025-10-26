@@ -22,8 +22,36 @@ class TaskStatus(str, Enum):
     CANCELLED = "cancelled"  # 已取消
 
 
+class DownloadFileInfo(BaseModel):
+    """单个下载文件的详细信息"""
+    gid: str = Field(description="Aria2的GID")
+    file_path: str = Field(description="文件保存路径")
+    file_name: str = Field(description="文件名")
+    url: Optional[str] = Field(default=None, description="原始下载URL")
+    total_length: int = Field(default=0, description="文件总大小（字节）")
+    completed_length: int = Field(default=0, description="已下载大小（字节）")
+    status: str = Field(default="waiting", description="下载状态: active, waiting, paused, error, complete")
+    error_code: Optional[str] = Field(default=None, description="错误代码")
+    error_message: Optional[str] = Field(default=None, description="错误信息")
+
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "gid": "2089b05ecca3d829",
+                "file_path": "/downloads/task_123/video.mp4",
+                "file_name": "video.mp4",
+                "url": "https://example.com/video.mp4",
+                "total_length": 10485760,
+                "completed_length": 10485760,
+                "status": "complete",
+                "error_code": None,
+                "error_message": None
+            }
+        }
+
+
 class DownloadProgressInfo(BaseModel):
-    """下载进度信息"""
+    """下载进度信息（汇总）"""
     total_files: int = Field(description="总文件数")
     completed_files: int = Field(default=0, description="已完成文件数")
     failed_files: int = Field(default=0, description="失败文件数")
@@ -68,8 +96,8 @@ class DownloadTask(BaseModel):
     raw_segments: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始片段数据")
     raw_materials: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始素材数据")
 
-    # 下载路径映射（GID → 文件路径）
-    gid_to_path_map: Optional[Dict[str, str]] = Field(default=None, description="GID到文件路径的映射")
+    # 下载文件详细信息
+    download_files: Optional[List[DownloadFileInfo]] = Field(default=None, description="下载文件的详细信息列表")
 
     # 进度信息
     progress: Optional[DownloadProgressInfo] = Field(default=None, description="下载进度")
