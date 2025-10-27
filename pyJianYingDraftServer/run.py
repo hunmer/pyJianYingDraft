@@ -22,10 +22,17 @@ if __name__ == "__main__":
     # 检测是否为 PyInstaller 打包环境
     is_frozen = getattr(sys, 'frozen', False)
 
+    # 启动前清理所有 aria2c 进程 (防止热重载导致的多进程)
+    try:
+        from cleanup_aria2 import cleanup_aria2
+        cleanup_aria2()
+    except Exception as e:
+        print(f"警告: 清理 aria2c 进程失败: {e}")
+
     uvicorn.run(
         "app.main:socket_app",
         host="0.0.0.0",
         port=8000,
-        reload=False if is_frozen else True,  # 打包后禁用热重载
-        log_level="info"
+        reload=False,  # ⚠️ 重要: 禁用热重载,防止多个 aria2c 进程
+        log_level="debug"
     )

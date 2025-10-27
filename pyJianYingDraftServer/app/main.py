@@ -489,17 +489,18 @@ async def get_group_downloads(sid, data):
 async def get_aria2_config(sid, data):
     """获取 Aria2 配置"""
     try:
-        from app.services.aria2_manager import get_aria2_manager
+        from app.services.aria2_controller import get_aria2_controller
         from app.config import get_config
 
-        manager = get_aria2_manager()
+        controller = get_aria2_controller()
+        aria2_config = controller.get_config()
 
         config = {
             'aria2Path': get_config('ARIA2_PATH', ''),
-            'rpcPort': manager.rpc_port,
-            'rpcSecret': manager.rpc_secret if manager.rpc_secret else '',
-            'downloadDir': str(manager.download_dir),
-            'maxConcurrentDownloads': manager.config.get('max_concurrent_downloads', 50)
+            'rpcPort': aria2_config['rpc_port'],
+            'rpcSecret': aria2_config['rpc_secret'],
+            'downloadDir': aria2_config['download_dir'],
+            'maxConcurrentDownloads': aria2_config['max_concurrent_downloads']
         }
 
         await sio.emit('aria2_config', config, room=sid)
@@ -511,7 +512,7 @@ async def get_aria2_config(sid, data):
 async def update_aria2_config(sid, data):
     """更新 Aria2 配置并重启"""
     try:
-        from app.services.aria2_manager import get_aria2_manager
+        from app.services.aria2_controller import get_aria2_controller
         from app.services.task_queue import get_task_queue
         from app.config import update_config
 
@@ -524,8 +525,8 @@ async def update_aria2_config(sid, data):
         update_config('ARIA2_PATH', aria2_path)
 
         # 重启 Aria2 进程
-        manager = get_aria2_manager()
-        restart_success = manager.restart()
+        controller = get_aria2_controller()
+        restart_success = controller.restart()
 
         if not restart_success:
             await sio.emit('update_aria2_config_error', {'error': 'Aria2进程重启失败'}, room=sid)
