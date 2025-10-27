@@ -180,6 +180,7 @@ async def submit_task_with_url(url: str = Query(..., description="远程 JSON �
         task.json_url = url
 
         # 8. 保存生成记录
+        record_id = None
         try:
             import time
             import random
@@ -212,6 +213,10 @@ async def submit_task_with_url(url: str = Query(..., description="远程 JSON �
                     raw_materials=json_data.get('raw_materials'),
                 )
             )
+
+            # 关联 record_id 到任务
+            task.record_id = record_id
+
             print(f"[submit_with_url] 生成记录已保存, record_id: {record_id}, task_id: {task_id}")
         except Exception as e:
             print(f"[submit_with_url] 保存生成记录失败: {e}")
