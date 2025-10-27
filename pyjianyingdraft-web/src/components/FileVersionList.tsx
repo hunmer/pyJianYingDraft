@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
 import {
   Box,
   List,
@@ -46,13 +46,21 @@ interface FileVersionListProps {
 }
 
 /**
+ * 暴露给父组件的方法
+ */
+export interface FileVersionListHandle {
+  /** 打开添加文件对话框并预填充路径 */
+  openAddDialog: (filePath?: string) => void;
+}
+
+/**
  * 文件版本列表组件
  * 显示监控的文件列表，支持添加、删除、开始/停止监控
  */
-export default function FileVersionList({
+const FileVersionList = forwardRef<FileVersionListHandle, FileVersionListProps>(({
   selectedFilePath,
   onFileSelect,
-}: FileVersionListProps) {
+}, ref) => {
   const [watchedFiles, setWatchedFiles] = useState<WatchedFileInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,6 +90,18 @@ export default function FileVersionList({
       setLoading(false);
     }
   }, []);
+
+  /**
+   * 暴露给父组件的方法
+   */
+  useImperativeHandle(ref, () => ({
+    openAddDialog: (filePath?: string) => {
+      setAddDialogOpen(true);
+      if (filePath) {
+        setNewFilePath(filePath);
+      }
+    },
+  }), []);
 
   /**
    * 初始加载
@@ -394,4 +414,8 @@ export default function FileVersionList({
       </Menu>
     </Box>
   );
-}
+});
+
+FileVersionList.displayName = 'FileVersionList';
+
+export default FileVersionList;

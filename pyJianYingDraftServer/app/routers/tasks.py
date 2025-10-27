@@ -103,7 +103,7 @@ async def submit_task_with_url(url: str = Query(..., description="远程 JSON �
             raise HTTPException(status_code=400, detail="url 必须是有效的 HTTP/HTTPS 地址")
 
         # 2. 获取远程 JSON 数据
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=60.0) as client:
             try:
                 response = await client.get(url)
                 response.raise_for_status()

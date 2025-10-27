@@ -39,7 +39,7 @@ import {
   History as HistoryIcon,
 } from '@mui/icons-material';
 import DraftList from '@/components/DraftList';
-import FileVersionList from '@/components/FileVersionList';
+import FileVersionList, { type FileVersionListHandle } from '@/components/FileVersionList';
 import FileDiffViewer from '@/components/FileDiffViewer';
 import TimelineEditor from '@/components/Timeline';
 import TestDataEditor from '@/components/TestDataEditor';
@@ -139,6 +139,9 @@ export default function Home() {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
   const [tabs, setTabs] = useState<TabData[]>([]);
   const [activeTabId, setActiveTabId] = useState<string | null>(null);
+
+  // FileVersionList ref
+  const fileVersionListRef = React.useRef<FileVersionListHandle>(null);
 
   // 下载管理器 Dialog 状态
   const [downloadDialogOpen, setDownloadDialogOpen] = useState<boolean>(false);
@@ -460,6 +463,20 @@ export default function Home() {
   }, []);
 
   /**
+   * 处理设置文件版本检测
+   */
+  const handleSetFileVersionWatch = useCallback((draftPath: string) => {
+    // draftPath 已经是 draft_content.json 的完整路径
+    // 切换到文件版本Tab
+    setLeftTabValue(1);
+
+    // 打开添加对话框并预填充路径
+    setTimeout(() => {
+      fileVersionListRef.current?.openAddDialog(draftPath);
+    }, 100);
+  }, []);
+
+  /**
    * 处理草稿选择
    */
   const handleDraftSelect = useCallback((draftPath: string, draftName: string) => {
@@ -727,6 +744,7 @@ export default function Home() {
                 // 草稿根目录变更后，重新加载所有规则组
                 loadAllRuleGroups();
               }}
+              onSetFileVersionWatch={handleSetFileVersionWatch}
               selectedDraftPath={activeTab?.draftPath}
             />
           </Box>
@@ -740,6 +758,7 @@ export default function Home() {
             overflow: 'auto'
           }}>
             <FileVersionList
+              ref={fileVersionListRef}
               selectedFilePath={tabs.find(t => t.id === activeTabId && t.type === 'file_diff')?.filePath}
               onFileSelect={handleFileDiffSelect}
             />
@@ -791,13 +810,42 @@ export default function Home() {
                   <ListItemButton
                     key={group.id}
                     onClick={() => {
+                      // 创建一个实际可用的测试提交函数
+                      const handleRuleGroupTest = async (testData: any) => {
+                        console.log('规则组测试提交:', testData);
+
+                        // 调用后端 API 进行测试
+                        const response = await fetch('http://localhost:5000/api/test-rules', {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                          },
+                          body: JSON.stringify({
+                            rule_group_id: group.id,
+                            test_data: testData,
+                          }),
+                        });
+
+                        if (!response.ok) {
+                          throw new Error(`测试失败: ${response.statusText}`);
+                        }
+
+                        const result = await response.json();
+                        console.log('测试结果:', result);
+                        return result;
+                      };
+
                       handleTestDataSelect(
                         `${group.id}`,
                         `规则组: ${group.title}`,
-                        async () => Promise.resolve(),
+                        handleRuleGroupTest,
                         {
                           ruleGroupId: group.id,
                           ruleGroup: group,
+                          // 提供空的初始测试数据，允许用户手动添加
+                          initialTestData: {
+                            items: [],
+                          },
                         }
                       );
                     }}

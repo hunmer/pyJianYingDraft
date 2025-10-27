@@ -107,6 +107,13 @@ function startBackendService() {
     const logFile = path.join(logDir, `backend-${Date.now()}.log`);
     backendLogStream = fs.createWriteStream(logFile, { flags: 'a' });
 
+    // 检查日志流是否创建成功
+    if (!backendLogStream) {
+      console.error('[Backend] 无法创建日志文件流');
+      reject(new Error('无法创建日志文件流'));
+      return;
+    }
+
     console.log(`[Backend] 日志文件: ${logFile}`);
 
     // 启动后端进程
@@ -124,24 +131,32 @@ function startBackendService() {
     backendProcess.stdout.on('data', (data) => {
       const message = data.toString('utf8');
       console.log(`[Backend STDOUT] ${message}`);
-      backendLogStream.write(`[STDOUT] ${message}`);
+      if (backendLogStream && !backendLogStream.destroyed) {
+        backendLogStream.write(`[STDOUT] ${message}`);
+      }
     });
 
     backendProcess.stderr.on('data', (data) => {
       const message = data.toString('utf8');
       console.error(`[Backend STDERR] ${message}`);
-      backendLogStream.write(`[STDERR] ${message}`);
+      if (backendLogStream && !backendLogStream.destroyed) {
+        backendLogStream.write(`[STDERR] ${message}`);
+      }
     });
 
     backendProcess.on('error', (error) => {
       console.error('[Backend] 启动失败:', error);
-      backendLogStream.write(`[ERROR] ${error.message}\n`);
+      if (backendLogStream && !backendLogStream.destroyed) {
+        backendLogStream.write(`[ERROR] ${error.message}\n`);
+      }
       reject(error);
     });
 
     backendProcess.on('exit', (code, signal) => {
       console.log(`[Backend] 进程退出 - 代码: ${code}, 信号: ${signal}`);
-      backendLogStream.write(`[EXIT] Code: ${code}, Signal: ${signal}\n`);
+      if (backendLogStream && !backendLogStream.destroyed) {
+        backendLogStream.write(`[EXIT] Code: ${code}, Signal: ${signal}\n`);
+      }
       backendProcess = null;
     });
 
@@ -273,9 +288,15 @@ async function stopBackendService() {
   }
 
   // 3. 关闭日志流
-  if (backendLogStream) {
-    backendLogStream.end();
-    backendLogStream = null;
+  if (backendLogStream && !backendLogStream.destroyed) {
+    try {
+      backendLogStream.end();
+      console.log('[Backend] 日志流已关闭');
+    } catch (error) {
+      console.error('[Backend] 关闭日志流失败:', error.message);
+    } finally {
+      backendLogStream = null;
+    }
   }
 }
 
@@ -298,6 +319,7 @@ async function createWindow() {
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
+    title: 'jianyinX',
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
@@ -445,6 +467,12 @@ ipcMain.handle('fs:open-folder', async (event, folderPath) => {
 ipcMain.handle('fs:select-file', async (event, options) => {
   try {
     console.log('[IPC] 打开文件选择对话框:', options);
+    // 检查主窗口是否存在
+    if (!mainWindow) {
+      const result = await dialog.showOpenDialog(options);
+      console.log('[IPC] 文件选择结果 (无父窗口):', result);
+      return result;
+    }
     const result = await dialog.showOpenDialog(mainWindow, options);
     console.log('[IPC] 文件选择结果:', result);
     return result;
@@ -460,6 +488,15 @@ ipcMain.handle('fs:select-file', async (event, options) => {
 ipcMain.handle('fs:select-directory', async (event, options) => {
   try {
     console.log('[IPC] 打开目录选择对话框:', options);
+    // 检查主窗口是否存在
+    if (!mainWindow) {
+      const result = await dialog.showOpenDialog({
+        ...options,
+        properties: ['openDirectory']
+      });
+      console.log('[IPC] 目录选择结果 (无父窗口):', result);
+      return result;
+    }
     const result = await dialog.showOpenDialog(mainWindow, {
       ...options,
       properties: ['openDirectory']

@@ -25,5 +25,23 @@
     "total_versions": 1,
     "created_at": "2025-10-22T10:56:59.186742",
     "last_modified": "2025-10-22T10:56:59.190416"
+  },
+  "G:\\jianyin5.9_drafts\\JianyingPro Drafts\\test11\\draft_content.json": {
+    "file_path": "G:\\jianyin5.9_drafts\\JianyingPro Drafts\\test11\\draft_content.json",
+    "watch_name": "test",
+    "is_watching": false,
+    "latest_version": 8,
+    "total_versions": 8,
+    "created_at": "2025-10-27T18:59:28.260941",
+    "last_modified": "2025-10-27T19:41:09.145105"
+  },
+  "G:\\jianyin5.9_drafts\\JianyingPro Drafts\\rule-test_20251027_193405\\draft_content.json": {
+    "file_path": "G:\\jianyin5.9_drafts\\JianyingPro Drafts\\rule-test_20251027_193405\\draft_content.json",
+    "watch_name": "draft_content.json",
+    "is_watching": false,
+    "latest_version": 9,
+    "total_versions": 9,
+    "created_at": "2025-10-27T19:35:05.923704",
+    "last_modified": "2025-10-27T19:35:46.326322"
   }
 }

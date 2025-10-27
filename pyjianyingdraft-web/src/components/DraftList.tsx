@@ -30,6 +30,7 @@ import {
   ContentCopy,
   MoreVert,
   Upload,
+  History,
 } from '@mui/icons-material';
 import { draftApi, type DraftListItem } from '@/lib/api';
 import PathSelector from '@/components/PathSelector';
@@ -38,13 +39,14 @@ interface DraftListProps {
   onDraftSelect: (draftPath: string, draftName: string) => void;
   onRulesUpdated?: () => void;
   onDraftRootChanged?: () => void;
+  onSetFileVersionWatch?: (draftPath: string) => void;
   selectedDraftPath?: string;
 }
 
 /**
  * 草稿列表组件 - 显示剪映草稿目录中的所有草稿
  */
-export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootChanged, selectedDraftPath }: DraftListProps) {
+export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootChanged, onSetFileVersionWatch, selectedDraftPath }: DraftListProps) {
   const [basePath, setBasePath] = useState<string>('');
   const [drafts, setDrafts] = useState<DraftListItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
@@ -230,6 +232,21 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
         });
     } else {
       alert('此功能仅在 Electron 环境下可用');
+    }
+    handleCloseContextMenu();
+  };
+
+  /**
+   * 设置文件版本检测
+   */
+  const handleSetFileVersionWatch = () => {
+    if (!contextMenu?.draft) {
+      handleCloseContextMenu();
+      return;
+    }
+
+    if (onSetFileVersionWatch) {
+      onSetFileVersionWatch(contextMenu.draft.path);
     }
     handleCloseContextMenu();
   };
@@ -525,6 +542,12 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
             <FolderOpen fontSize="small" />
           </ListItemIcon>
           <ListItemText>打开文件夹位置</ListItemText>
+        </MenuItem>
+        <MenuItem onClick={handleSetFileVersionWatch}>
+          <ListItemIcon>
+            <History fontSize="small" />
+          </ListItemIcon>
+          <ListItemText>设置文件版本检测</ListItemText>
         </MenuItem>
       </Menu>
 

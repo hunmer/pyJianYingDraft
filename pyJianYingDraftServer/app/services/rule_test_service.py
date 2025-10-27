@@ -25,6 +25,7 @@ from app.models.rule_models import (
     RuleGroupTestResponse,
     SegmentStylesPayload,
     TestDataModel,
+    TestTrackModel,
 )
 
 
@@ -60,11 +61,6 @@ class RuleTestService:
                 canvas_height = payload.draft_config.canvas_config.get("canvas_height") or canvas_height
             if payload.draft_config.fps:
                 fps = payload.draft_config.fps
-        else:
-            # 回退到旧字段（兼容性）
-            canvas_width = payload.canvas_width or canvas_width
-            canvas_height = payload.canvas_height or canvas_height
-            fps = payload.fps or fps
 
         folder = draft.DraftFolder(draft_root)
         script = folder.create_draft(
@@ -391,6 +387,7 @@ class RuleTestService:
         应用draft_config到草稿JSON，覆盖草稿文件的配置字段
         canvas_config, config, fps 对应草稿JSON的顶层字段
         """
+        print(payload.draft_config)
         if not payload.draft_config:
             return
 
@@ -400,19 +397,26 @@ class RuleTestService:
         # 应用 canvas_config（画布配置）
         if payload.draft_config.canvas_config:
             # canvas_config 对应草稿JSON的 canvas_config 字段
-            if not hasattr(script, 'canvas_config'):
-                script.canvas_config = {}
-            for key, value in payload.draft_config.canvas_config.items():
-                script.canvas_config[key] = value
+            # 注意: dumps() 方法会用 width/height 属性重新构建 canvas_config
+            # 所以我们需要同时修改这些属性
+            config = payload.draft_config.canvas_config
+            if "width" in config:
+                script.width = config["width"]
+            if "height" in config:
+                script.height = config["height"]
+            if "ratio" in config:
+                # ratio 需要直接写入 content,因为 dumps() 硬编码为 "original"
+                script.content["canvas_config"]["ratio"] = config["ratio"]
             print(f"[DEBUG] 应用canvas_config: {payload.draft_config.canvas_config}")
 
         # 应用 config（通用配置）
         if payload.draft_config.config:
             # config 对应草稿JSON的 config 字段
-            if not hasattr(script, 'config'):
-                script.config = {}
+            # 注意:必须直接修改 script.content["config"],因为 dumps() 方法使用的是 self.content
+            if "config" not in script.content:
+                script.content["config"] = {}
             for key, value in payload.draft_config.config.items():
-                script.config[key] = value
+                script.content["config"][key] = value
             print(f"[DEBUG] 应用config: {payload.draft_config.config}")
 
         # fps 已在create_draft时设置，这里可选择性覆盖
@@ -435,28 +439,21 @@ class RuleTestService:
         if not raw_segments:
             raise ValueError("use_raw_segments 为 True 时必须提供 raw_segments")
 
-        print(f"[DEBUG] _build_raw_draft: raw_segments数量 = {len(raw_segments)}")
-
         materials = RuleTestService._prepare_raw_materials(payload.raw_materials or [], raw_segments)
-        print(f"[DEBUG] _build_raw_draft: materials categories = {list(materials.keys())}")
-        for cat, mats in materials.items():
-            print(f"[DEBUG]   - {cat}: {len(mats)}个material")
 
-        tracks = RuleTestService._prepare_raw_tracks(raw_segments)
-        print(f"[DEBUG] _build_raw_draft: 准备了{len(tracks)}个tracks")
+        # 从 testData.tracks 中获取轨道信息（包含层级选项）
+        test_tracks = payload.testData.tracks if payload.testData else None
+        tracks = RuleTestService._prepare_raw_tracks(raw_segments, test_tracks)
         for track in tracks:
             track_type = track.get("type")
             segments_count = len(track.get("segments", []))
-            print(f"[DEBUG]   - Track type={track_type}, segments数量={segments_count}")
 
         script.add_raw_segments(tracks, materials, ensure_unique_material_ids=True)
 
-        print(f"[DEBUG] _build_raw_draft完成: script.imported_tracks数量 = {len(script.imported_tracks)}")
         for track in script.imported_tracks:
             track_type = getattr(track, "type", "?")
             segments = getattr(track, "segments", None)
             segments_count = len(segments) if segments else 0
-            print(f"[DEBUG]   - ImportedTrack type={track_type}, segments数量={segments_count}")
 
     @staticmethod
     def _prepare_raw_materials(
@@ -540,8 +537,32 @@ class RuleTestService:
         return {category: list(items.values()) for category, items in grouped.items()}
 
     @staticmethod
-    def _prepare_raw_tracks(raw_segments: List[RawSegmentPayload]) -> List[Dict[str, Any]]:
+    def _prepare_raw_tracks(
+        raw_segments: List[RawSegmentPayload],
+        test_tracks: Optional[List[TestTrackModel]] = None
+    ) -> List[Dict[str, Any]]:
+        # 首先从 testData.tracks 构建 track_map
         track_map: Dict[str, Dict[str, Any]] = {}
+
+        if test_tracks:
+            for test_track in test_tracks:
+                track = {
+                    "id": test_track.id,
+                    "type": test_track.type,
+                    "name": test_track.title or test_track.type,
+                    "is_default_name": test_track.title is None,
+                    "segments": [],
+                    "attribute": 0,
+                    "flag": 0,
+                }
+                # 从 testData.tracks 中添加层级选项
+                if test_track.relative_index is not None:
+                    track["relative_index"] = test_track.relative_index
+                if test_track.absolute_index is not None:
+                    track["absolute_index"] = test_track.absolute_index
+                track_map[test_track.id] = track
+
+        # 然后处理 raw_segments，添加到对应的轨道中
         for raw in raw_segments:
             track_id = raw.track_id
             track_type = raw.track_type
@@ -552,6 +573,7 @@ class RuleTestService:
 
             track = track_map.get(track_id)
             if track is None:
+                # 如果 testData.tracks 中没有定义该轨道，则从 raw_segment 创建
                 track = {
                     "id": track_id,
                     "type": track_type,
@@ -561,10 +583,24 @@ class RuleTestService:
                     "attribute": 0,
                     "flag": 0,
                 }
+                # 从 raw_segment 中添加层级选项（作为后备）
+                if raw.relative_index is not None:
+                    track["relative_index"] = raw.relative_index
+                if raw.absolute_index is not None:
+                    track["absolute_index"] = raw.absolute_index
                 track_map[track_id] = track
             else:
+                # 验证轨道类型一致性
                 if track["type"] != track_type:
                     raise ValueError(f"轨道 {track_id} 的 track_type 不一致")
+
+                # 如果 raw_segment 中也有层级选项，验证其与 testData.tracks 的一致性
+                if raw.relative_index is not None and track.get("relative_index") is not None:
+                    if track.get("relative_index") != raw.relative_index:
+                        raise ValueError(f"轨道 {track_id} 的 relative_index 不一致")
+                if raw.absolute_index is not None and track.get("absolute_index") is not None:
+                    if track.get("absolute_index") != raw.absolute_index:
+                        raise ValueError(f"轨道 {track_id} 的 absolute_index 不一致")
 
             segment_data = deepcopy(raw.segment)
             if not isinstance(segment_data, dict):
@@ -632,18 +668,8 @@ class RuleTestService:
         script: draft.ScriptFile, material_id: Optional[str], item_data: Dict[str, Any]
     ) -> None:
         if not material_id:
-            print(f"[DEBUG] _apply_item_data_to_material: material_id为空，跳过")
             return
         material_entry = RuleTestService._find_imported_material(script, str(material_id))
-        if not material_entry:
-            print(f"[WARNING] 未找到material: material_id={material_id}")
-            print(f"[DEBUG] 当前script.imported_materials categories: {list(script.imported_materials.keys())}")
-            for cat, mats in script.imported_materials.items():
-                mat_ids = [m.get('id') or m.get('material_id') for m in mats[:3]]
-                print(f"[DEBUG] {cat}前3个: {mat_ids}")
-            return
-
-        print(f"[DEBUG] 找到material {material_id}，应用item_data")
 
         path_value = item_data.get("path")
         if path_value:
@@ -652,22 +678,18 @@ class RuleTestService:
                 material_entry["media_path"] = path_value
             if "material_url" in material_entry:
                 material_entry["material_url"] = path_value
-            print(f"[DEBUG]   - 更新path: {path_value}")
 
         duration_us = RuleTestService._seconds_to_microseconds(item_data.get("duration"))
         if duration_us is not None:
             material_entry["duration"] = duration_us
             material_entry["duration_us"] = duration_us
             material_entry["duration_seconds"] = duration_us / 1_000_000
-            print(f"[DEBUG]   - 更新duration: {duration_us}us ({duration_us/1000000}s)")
 
         if "name" in item_data and item_data["name"]:
             material_entry["name"] = item_data["name"]
-            print(f"[DEBUG]   - 更新name: {item_data['name']}")
 
         if "text" in item_data and item_data["text"] is not None:
             RuleTestService._update_text_material(material_entry, str(item_data["text"]))
-            print(f"[DEBUG]   - 更新text: {item_data['text']}")
 
     @staticmethod
     def _apply_item_data_to_segment(segment: ImportedSegment, item_data: Dict[str, Any]) -> None:
@@ -717,7 +739,6 @@ class RuleTestService:
                 correct_source_duration = round(target_duration * speed)
                 source_range.duration = correct_source_duration
                 raw_source["duration"] = correct_source_duration
-                print(f"[DEBUG]   - 自动修正source_duration: {correct_source_duration}us (target={target_duration}, speed={speed})")
 
         # 处理clip相关属性（位置、大小等）- 只在有指定值时更新，否则保持模板原值
         x = item_data.get("x")
@@ -742,10 +763,8 @@ class RuleTestService:
 
                 if x is not None:
                     transform["x"] = float(x)
-                    print(f"[DEBUG]   - 更新clip.transform.x: {x}")
                 if y is not None:
                     transform["y"] = float(y)
-                    print(f"[DEBUG]   - 更新clip.transform.y: {y}")
 
             # 更新scale（大小）
             if scale is not None:
@@ -758,7 +777,6 @@ class RuleTestService:
                 scale_value = float(scale)
                 scale_obj["x"] = scale_value
                 scale_obj["y"] = scale_value
-                print(f"[DEBUG]   - 更新clip.scale: {scale_value}")
 
         # 注意：animations字段在外层单独处理，确保它是最后执行的
 
@@ -790,13 +808,11 @@ class RuleTestService:
                 # 在materials.material_animations中查找并修改
                 material_animations = script.imported_materials.get("material_animations", [])
                 if not material_animations:
-                    print("[WARNING] 草稿中没有material_animations，无法仅修改duration")
                     return
 
                 # 将duration从秒转换为微秒
                 duration_us = RuleTestService._seconds_to_microseconds(animation_duration)
                 if duration_us is None or duration_us <= 0:
-                    print(f"[WARNING] 无效的duration: {animation_duration}")
                     return
 
                 # 遍历所有在extra_refs中引用的material_animations
@@ -808,12 +824,7 @@ class RuleTestService:
                             for anim in animations_list:
                                 if isinstance(anim, dict):
                                     anim["duration"] = duration_us
-                                    print(f"[DEBUG]   - 修改动画duration: {duration_us}us ({animation_duration}s)")
                                     modified = True
-
-                if not modified:
-                    print("[WARNING] segment的extra_refs中没有引用任何material_animation")
-                return
 
             # 情况2: 指定了name，创建新动画（有或没有duration）
             if animation_name:
@@ -821,8 +832,6 @@ class RuleTestService:
                 try:
                     animation_type = GroupAnimationType.from_name(animation_name)
                 except ValueError:
-                    print(f"[WARNING] 未找到组合动画: {animation_name}")
-                    print(f"[DEBUG] 可用的组合动画: {[e.value.title for e in GroupAnimationType]}")
                     return
 
                 # 确定动画duration
@@ -830,12 +839,10 @@ class RuleTestService:
                     # 使用指定的duration
                     duration_us = RuleTestService._seconds_to_microseconds(animation_duration)
                     if duration_us is None or duration_us <= 0:
-                        print(f"[WARNING] 无效的duration: {animation_duration}")
                         return
                 else:
                     # 使用片段的target_timerange.duration作为动画duration
                     duration_us = segment.target_timerange.duration
-                    print(f"[DEBUG]   - 未指定duration，使用片段时长: {duration_us}us ({duration_us/1000000}s)")
 
                 # 创建Segment Animations对象
                 segment_animations = SegmentAnimations()
@@ -884,14 +891,8 @@ class RuleTestService:
                     new_refs.append(new_anim_id)
 
                 segment.raw_data["extra_material_refs"] = new_refs
-
-                duration_s = duration_us / 1_000_000
-                print(f"[DEBUG]   - 创建组合动画: name={animation_name}, duration={duration_us}us ({duration_s}s), id={new_anim_id}")
-                print(f"[DEBUG]   - 更新segment.extra_material_refs: {new_refs}")
                 return
 
-            # 情况3: 既没有name也没有duration
-            print("[WARNING] animations字段必须至少包含name或duration")
 
         except Exception as e:
             print(f"[ERROR] 处理animations失败: {e}")
@@ -905,10 +906,7 @@ class RuleTestService:
         每个plan会创建独立的segment和material副本，确保ID唯一性
         """
         if not plans:
-            print("[DEBUG] plans为空，跳过merge操作")
             return
-
-        print(f"[DEBUG] 开始merge操作，plans数量: {len(plans)}")
 
         # 1. 收集各类型segment结构模板（按轨道类型分类）
         segment_templates: Dict[str, ImportedSegment] = {}
@@ -922,29 +920,22 @@ class RuleTestService:
             segments = getattr(track, "segments", None)
             if segments and len(segments) > 0 and track_type not in segment_templates:
                 segment_templates[track_type] = segments[0]
-                print(f"[DEBUG] 找到{track_type}类型segment模板: track_id={getattr(track, 'track_id', '?')}")
 
         if not segment_templates:
-            print("[ERROR] 未找到任何segment模板")
             return
 
         print(f"[DEBUG] 收集到的模板类型: {list(segment_templates.keys())}")
 
         # 2. 保存原始materials的深拷贝（用于克隆）
         original_materials = deepcopy(script.imported_materials)
-        print(f"[DEBUG] 保存原始materials: categories={list(original_materials.keys())}")
-        for cat, mats in original_materials.items():
-            print(f"[DEBUG]   - {cat}: {len(mats)}个material")
 
         # 3. 清空所有旧轨道
         old_tracks_count = len(script.imported_tracks)
         script.imported_tracks.clear()
-        print(f"[DEBUG] 清空所有旧轨道: 清除了{old_tracks_count}个轨道")
 
         # 4. 清空所有materials（样本数据不应写入）
         old_materials_count = sum(len(mats) for mats in script.imported_materials.values())
         script.imported_materials.clear()
-        print(f"[DEBUG] 清空materials: 清除了{old_materials_count}个material")
 
         # 5. 从testData中提取tracks信息用于确定轨道类型
         from app.models.rule_models import RuleGroupTestRequest
@@ -990,14 +981,11 @@ class RuleTestService:
                 print(f"[DEBUG] 创建新轨道: track_id={track_id}, type={track_type}, name={new_track_data['name']}")
 
         # 6. 为每个plan创建新的segment和materials
-        print(f"[DEBUG] track_map包含的轨道: {list(track_map.keys())}")
         created_segments = 0
         for i, plan in enumerate(plans):
             track_id = str(plan["track_id"])
             material_obj = plan["material"]
             item_data = plan["item"]
-
-            print(f"[DEBUG] 处理plan {i+1}/{len(plans)}: track_id={track_id} (type={type(track_id)}), material_id={material_obj.id}")
 
             # 获取对应轨道
             track = track_map.get(track_id)
@@ -1011,7 +999,6 @@ class RuleTestService:
             if segment_template is None:
                 # 如果没有对应类型的模板，尝试使用video模板或第一个可用模板
                 segment_template = segment_templates.get("video") or next(iter(segment_templates.values()))
-                print(f"[WARNING] 轨道{track_id}类型{track_type}没有对应模板，使用fallback模板")
 
             # 克隆segment和materials，分配新ID（传递轨道类型以选择正确的material模板）
             new_segment, new_material_id = RuleTestService._clone_segment_with_materials(
@@ -1024,7 +1011,6 @@ class RuleTestService:
                 # 尝试获取该track_id的专属样式，或使用__default__样式
                 style_for_track = segment_styles.get(track_id) or segment_styles.get("__default__")
                 if style_for_track and isinstance(style_for_track, dict):
-                    print(f"[DEBUG] 应用segment_styles到segment: track_id={track_id}")
                     # 应用所有样式属性到segment（包括material_animations）
                     style_properties = ["clip", "hdr_settings", "uniform_scale", "enable_adjust",
                                        "enable_color_correct", "enable_color_correct_adjust",
@@ -1035,14 +1021,12 @@ class RuleTestService:
                         if prop in style_for_track:
                             # 深拷贝整个属性（保留模板的完整结构）
                             new_segment.raw_data[prop] = deepcopy(style_for_track[prop])
-                            print(f"[DEBUG]   - 应用{prop}从segment_styles")
 
                     # volume和speed也可能在segment_styles中
                     for prop in ["volume", "last_nonzero_volume", "speed"]:
                         if prop in style_for_track and prop not in item_data:
                             # 只在item_data没有指定时应用（这些值item_data优先级更高）
                             new_segment.raw_data[prop] = style_for_track[prop]
-                            print(f"[DEBUG]   - 应用{prop}={style_for_track[prop]}从segment_styles")
 
             # 步骤2: 应用item_data的基础数据（不包括animations）
             RuleTestService._apply_item_data_to_segment(new_segment, item_data)
@@ -1051,13 +1035,11 @@ class RuleTestService:
             # 步骤3: 最后单独处理animations（确保覆盖所有预设）
             animations = item_data.get("animations")
             if animations and isinstance(animations, dict):
-                print(f"[DEBUG] 最后应用animations（覆盖预设）: {animations}")
                 RuleTestService._apply_animations_to_segment(new_segment, animations, script)
 
             # 添加到轨道
             track.segments.append(new_segment)
             created_segments += 1
-            print(f"[DEBUG] 添加segment到轨道: track_id={track_id}, 当前轨道segments数量={len(track.segments)}")
 
         # 7. 更新草稿总时长
         max_end = 0
@@ -1131,7 +1113,6 @@ class RuleTestService:
         if target_category in original_materials and original_materials[target_category]:
             # 使用对应类型的第一个material作为模板
             old_material = {"category": target_category, "data": original_materials[target_category][0]}
-            print(f"[DEBUG] 使用{target_category}类型的material模板")
         else:
             # 如果没有对应类型，尝试使用segment原本的material
             old_material = RuleTestService._find_material_in_dict(original_materials, str(old_material_id))
@@ -1151,14 +1132,8 @@ class RuleTestService:
             if category:
                 material_list = script.imported_materials.setdefault(category, [])
                 material_list.append(new_material)
-                print(f"[DEBUG] 克隆主material: category={category}, old_id={old_material_id}, new_id={new_material_id}")
         else:
             print(f"[WARNING] 未找到template segment的material: material_id={old_material_id}")
-            print(f"[DEBUG] original_materials categories: {list(original_materials.keys())}")
-            # 打印前几个material的ID供参考
-            for cat, mats in original_materials.items():
-                mat_ids = [m.get('id') or m.get('material_id') for m in mats[:3]]
-                print(f"[DEBUG] {cat}: {mat_ids}...")
 
         # 4. 更新segment中的material_id引用
         new_segment_raw["material_id"] = new_material_id
@@ -1187,9 +1162,6 @@ class RuleTestService:
                         extra_category = old_extra_material["category"]
                         if extra_category:
                             script.imported_materials.setdefault(extra_category, []).append(new_extra_material)
-                            print(f"[DEBUG] 克隆额外material: category={extra_category}, old_id={old_ref_id}, new_id={new_ref_id}")
-                    else:
-                        print(f"[WARNING] 未找到额外material: ref_id={old_ref_id}, 但已生成ID映射: {old_ref_id} -> {new_ref_id}")
 
                     # 无论是否找到material，都使用新ID（保持引用关系）
                     new_extra_refs.append(new_ref_id)
@@ -1200,8 +1172,6 @@ class RuleTestService:
         # 6. 创建新的segment实例
         new_segment = type(template_segment)(new_segment_raw)
         new_segment.material_id = new_material_id
-
-        print(f"[DEBUG] 创建新segment: old_seg_id={old_segment_id}, new_seg_id={new_segment_id}, material_id={new_material_id}")
 
         return new_segment, new_material_id
 
