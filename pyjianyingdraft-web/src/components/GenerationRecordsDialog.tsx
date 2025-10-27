@@ -23,35 +23,27 @@ import {
   Close as CloseIcon,
   Refresh as RefreshIcon,
   Replay as ReplayIcon,
+  Delete as DeleteIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
 import { generationRecordsApi, tasksApi, type GenerationRecord } from '@/lib/api';
 import { useAria2WebSocket } from '@/hooks/useAria2WebSocket';
-import { DownloadList } from './DownloadList';
-import type { Aria2Download } from '@/types/aria2';
 
 interface GenerationRecordsDialogProps {
   open: boolean;
   onClose: () => void;
   onReimport?: (record: GenerationRecord) => void;
+  onOpenDownloadManager?: (taskId?: string) => void;
 }
 
 /**
  * 生成记录对话框组件
  */
-export function GenerationRecordsDialog({ open, onClose, onReimport }: GenerationRecordsDialogProps) {
+export function GenerationRecordsDialog({ open, onClose, onReimport, onOpenDownloadManager }: GenerationRecordsDialogProps) {
   const [records, setRecords] = useState<GenerationRecord[]>([]);
   const [selectedRecord, setSelectedRecord] = useState<GenerationRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [downloads, setDownloads] = useState<Aria2Download[]>([]);
-
-  const {
-    connected,
-    getGroupDownloads,
-    pauseDownload,
-    resumeDownload,
-    removeDownload,
-  } = useAria2WebSocket();
 
   // 加载生成记录列表
   const loadRecords = async () => {
@@ -74,33 +66,9 @@ export function GenerationRecordsDialog({ open, onClose, onReimport }: Generatio
     }
   }, [open]);
 
-  // 选择记录后加载下载信息
-  useEffect(() => {
-    if (selectedRecord && selectedRecord.task_id) {
-      loadDownloads(selectedRecord.task_id);
-    }
-  }, [selectedRecord]);
-
-  // 加载下载信息
-  const loadDownloads = async (taskId: string) => {
-    try {
-      // 获取任务详情
-      const taskInfo = await tasksApi.get(taskId);
-
-      // 如果有batch_id，从Aria2获取下载列表
-      if (taskInfo.task_id && connected) {
-        const groupDownloads = await getGroupDownloads(taskInfo.task_id);
-        setDownloads(groupDownloads);
-      }
-    } catch (err) {
-      console.error('加载下载信息失败:', err);
-    }
-  };
-
   // 处理记录选择
   const handleSelectRecord = (record: GenerationRecord) => {
     setSelectedRecord(record);
-    setDownloads([]);
   };
 
   // 处理重新导入
@@ -111,31 +79,34 @@ export function GenerationRecordsDialog({ open, onClose, onReimport }: Generatio
     }
   };
 
-  // 打开文件
-  const handleOpenFile = async (filePath: string) => {
+  // 处理删除记录
+  const handleDeleteRecord = async (record: GenerationRecord, event: React.MouseEvent) => {
+    event.stopPropagation(); // 阻止触发列表项选择
+
+    if (!confirm(`确定要删除生成记录 "${record.rule_group_title || '未命名'}" 吗？`)) {
+      return;
+    }
+
     try {
-      if (window.electron?.fs?.openFile) {
-        await window.electron.fs.openFile(filePath);
-      } else {
-        alert('此功能仅在Electron环境下可用');
+      await generationRecordsApi.delete(record.record_id);
+
+      // 如果删除的是当前选中的记录，清空选中状态
+      if (selectedRecord?.record_id === record.record_id) {
+        setSelectedRecord(null);
+        setDownloads([]);
       }
-    } catch (error) {
-      console.error('打开文件失败:', error);
-      alert('打开文件失败');
+
+      // 重新加载列表
+      await loadRecords();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : '删除失败');
     }
   };
 
-  // 打开文件所在位置
-  const handleShowInFolder = async (filePath: string) => {
-    try {
-      if (window.electron?.fs?.showInFolder) {
-        await window.electron.fs.showInFolder(filePath);
-      } else {
-        alert('此功能仅在Electron环境下可用');
-      }
-    } catch (error) {
-      console.error('打开文件位置失败:', error);
-      alert('打开文件位置失败');
+  // 打开下载管理器
+  const handleOpenDownloads = () => {
+    if (onOpenDownloadManager) {
+      onOpenDownloadManager(selectedRecord?.task_id);
     }
   };
 
@@ -245,10 +216,31 @@ export function GenerationRecordsDialog({ open, onClose, onReimport }: Generatio
                 </Box>
               ) : (
                 records.map((record) => (
-                  <ListItem key={record.record_id} disablePadding>
+                  <ListItem
+                    key={record.record_id}
+                    disablePadding
+                    secondaryAction={
+                      <IconButton
+                        edge="end"
+                        aria-label="delete"
+                        size="small"
+                        onClick={(e) => handleDeleteRecord(record, e)}
+                        sx={{
+                          color: 'error.main',
+                          '&:hover': {
+                            backgroundColor: 'error.light',
+                            color: 'error.contrastText',
+                          }
+                        }}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    }
+                  >
                     <ListItemButton
                       selected={selectedRecord?.record_id === record.record_id}
                       onClick={() => handleSelectRecord(record)}
+                      sx={{ pr: 6 }} // 为删除按钮留出空间
                     >
                       <ListItemText
                         primary={record.rule_group_title || '未命名规则组'}
@@ -329,27 +321,30 @@ export function GenerationRecordsDialog({ open, onClose, onReimport }: Generatio
                 />
               </Box>
 
-              {/* 下载列表 */}
+              {/* 下载管理按钮 */}
               <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
                 <Typography variant="subtitle2" gutterBottom>
-                  下载文件
+                  下载管理
                 </Typography>
                 <Divider sx={{ mb: 2 }} />
 
-                {!connected ? (
-                  <Alert severity="info">
-                    Aria2未连接，无法显示下载信息
-                  </Alert>
-                ) : (
-                  <DownloadList
-                    downloads={downloads}
-                    onPause={pauseDownload}
-                    onResume={resumeDownload}
-                    onRemove={removeDownload}
-                    onOpenFile={handleOpenFile}
-                    onShowInFolder={handleShowInFolder}
-                  />
-                )}
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', py: 4 }}>
+                  <Typography variant="body2" color="text.secondary" textAlign="center">
+                    {selectedRecord.task_id
+                      ? '点击下方按钮打开下载管理器查看和管理此任务的下载文件'
+                      : '此记录暂无关联的下载任务'}
+                  </Typography>
+                  {selectedRecord.task_id && (
+                    <Button
+                      variant="contained"
+                      startIcon={<DownloadIcon />}
+                      onClick={handleOpenDownloads}
+                      size="large"
+                    >
+                      打开下载管理器
+                    </Button>
+                  )}
+                </Box>
               </Box>
             </>
           )}

@@ -84,6 +84,9 @@ class DownloadTask(BaseModel):
     status: TaskStatus = Field(default=TaskStatus.PENDING, description="任务状态")
     batch_id: Optional[str] = Field(default=None, description="Aria2批次ID")
 
+    # 生成记录关联
+    record_id: Optional[str] = Field(default=None, description="关联的生成记录ID")
+
     # 草稿相关信息
     rule_group_id: Optional[str] = Field(default=None, description="规则组ID")
     rule_group: Optional[Dict[str, Any]] = Field(default=None, description="规则组数据")

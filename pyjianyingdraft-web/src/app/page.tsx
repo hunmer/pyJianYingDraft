@@ -142,6 +142,7 @@ export default function Home() {
 
   // 下载管理器 Dialog 状态
   const [downloadDialogOpen, setDownloadDialogOpen] = useState<boolean>(false);
+  const [activeDownloadTaskId, setActiveDownloadTaskId] = useState<string | undefined>(undefined);
 
   // 生成记录 Dialog 状态
   const [generationRecordsDialogOpen, setGenerationRecordsDialogOpen] = useState<boolean>(false);
@@ -581,6 +582,16 @@ export default function Home() {
   const handleTabChange = (_event: React.SyntheticEvent, newValue: string) => {
     setActiveTabId(newValue);
   };
+
+  /**
+   * 处理打开下载管理器
+   */
+  const handleOpenDownloadManager = useCallback((taskId?: string) => {
+    setActiveDownloadTaskId(taskId);
+    setDownloadDialogOpen(true);
+    // 关闭生成记录对话框
+    setGenerationRecordsDialogOpen(false);
+  }, []);
 
   /**
    * 处理重新导入（从生成记录）
@@ -1211,7 +1222,11 @@ export default function Home() {
       {/* 下载管理器 Dialog */}
       <DownloadManagerDialog
         open={downloadDialogOpen}
-        onClose={() => setDownloadDialogOpen(false)}
+        onClose={() => {
+          setDownloadDialogOpen(false);
+          setActiveDownloadTaskId(undefined);
+        }}
+        initialTaskId={activeDownloadTaskId}
       />
 
       {/* 生成记录 Dialog */}
@@ -1219,6 +1234,7 @@ export default function Home() {
         open={generationRecordsDialogOpen}
         onClose={() => setGenerationRecordsDialogOpen(false)}
         onReimport={handleReimport}
+        onOpenDownloadManager={handleOpenDownloadManager}
       />
     </Box>
   );

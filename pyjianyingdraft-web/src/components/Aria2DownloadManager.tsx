@@ -149,10 +149,14 @@ function getFileIcon(filePath: string) {
   return <DescriptionIcon sx={{ fontSize: 80, color: 'text.secondary' }} />;
 }
 
+interface Aria2DownloadManagerProps {
+  initialGroupId?: string;
+}
+
 /**
  * Aria2 下载管理器组件
  */
-export function Aria2DownloadManager() {
+export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerProps = {}) {
   const {
     connected,
     groups,
@@ -185,6 +189,16 @@ export function Aria2DownloadManager() {
       fetchDownloadDir();
     }
   }, [connected]);
+
+  // 当提供initialGroupId时,自动选择对应的组
+  useEffect(() => {
+    if (initialGroupId && groups.length > 0 && !selectedGroupId) {
+      const targetGroup = groups.find(g => g.groupId === initialGroupId);
+      if (targetGroup) {
+        handleSelectGroup(initialGroupId);
+      }
+    }
+  }, [initialGroupId, groups, selectedGroupId]);
 
   // 获取下载目录
   const fetchDownloadDir = async () => {

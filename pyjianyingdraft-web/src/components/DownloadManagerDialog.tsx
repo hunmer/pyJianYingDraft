@@ -31,13 +31,14 @@ const Aria2DownloadManager = lazy(() =>
 interface DownloadManagerDialogProps {
   open: boolean;
   onClose: () => void;
+  initialTaskId?: string;
 }
 
 /**
  * 下载管理 Dialog 组件
  * 使用异步加载避免阻塞主页面
  */
-export function DownloadManagerDialog({ open, onClose }: DownloadManagerDialogProps) {
+export function DownloadManagerDialog({ open, onClose, initialTaskId }: DownloadManagerDialogProps) {
   const {
     connected,
     config,
@@ -146,7 +147,7 @@ export function DownloadManagerDialog({ open, onClose }: DownloadManagerDialogPr
               }
             >
               <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-                <Aria2DownloadManager />
+                <Aria2DownloadManager initialGroupId={initialTaskId} />
               </Box>
             </Suspense>
           )}

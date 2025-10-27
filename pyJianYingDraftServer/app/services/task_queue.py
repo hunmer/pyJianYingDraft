@@ -665,6 +665,13 @@ class TaskQueue:
             task.status = TaskStatus.PROCESSING
             task.updated_at = datetime.now()
 
+            # 保存PROCESSING状态到数据库
+            if self.db:
+                await self._save_task_to_db(task)
+
+            # 推送状态变更通知
+            await self._push_status_change(task)
+
             # 调用RuleTestService生成草稿
             from app.services.rule_test_service import RuleTestService
             from app.models.rule_models import RuleGroupTestRequest
@@ -709,6 +716,13 @@ class TaskQueue:
 
             self._log(f"✓ 任务 {task_id} 已完成，草稿路径: {response.draft_path}")
 
+            # 保存COMPLETED状态到数据库
+            if self.db:
+                await self._save_task_to_db(task)
+
+            # 推送完成通知
+            await self._push_status_change(task)
+
         except Exception as e:
             self._log(f"✗ 任务 {task_id} 草稿生成失败: {e}")
             import traceback
@@ -716,6 +730,13 @@ class TaskQueue:
             task.status = TaskStatus.FAILED
             task.error_message = f"草稿生成失败: {str(e)}"
             task.updated_at = datetime.now()
+
+            # 保存FAILED状态到数据库
+            if self.db:
+                await self._save_task_to_db(task)
+
+            # 推送失败通知
+            await self._push_status_change(task)
 
     def _update_task_status(
         self,
@@ -763,8 +784,48 @@ class TaskQueue:
                 self.db = await get_database()
 
             await self.db.save_task(task)
+
+            # 同步更新 GenerationRecord 的状态
+            if task.record_id:
+                await self._sync_generation_record_status(task)
+
         except Exception as e:
             self._log(f"⚠ 保存任务到数据库失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    async def _sync_generation_record_status(self, task: DownloadTask) -> None:
+        """同步任务状态到 GenerationRecord
+
+        Args:
+            task: 下载任务
+        """
+        try:
+            from app.services.generation_record_service import get_generation_record_service
+
+            # 获取生成记录服务
+            record_service = get_generation_record_service()
+
+            # 获取记录
+            record = await record_service.get_record(task.record_id)
+
+            if record:
+                # 更新状态
+                record.status = task.status
+                record.draft_path = task.draft_path
+                record.error_message = task.error_message
+                record.completed_at = task.completed_at
+                record.updated_at = task.updated_at
+
+                # 保存更新
+                await record_service.update_record(record)
+
+                self._log(f"✓ 已同步 GenerationRecord 状态: record_id={task.record_id}, status={task.status.value}")
+            else:
+                self._log(f"⚠ GenerationRecord 不存在: record_id={task.record_id}")
+
+        except Exception as e:
+            self._log(f"⚠ 同步 GenerationRecord 状态失败: {e}")
             import traceback
             traceback.print_exc()
 
