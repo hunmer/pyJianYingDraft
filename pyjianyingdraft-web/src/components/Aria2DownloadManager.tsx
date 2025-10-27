@@ -41,6 +41,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import ErrorIcon from '@mui/icons-material/Error';
 import LinkIcon from '@mui/icons-material/Link';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import ViewListIcon from '@mui/icons-material/ViewList';
 import ToggleButton from '@mui/material/ToggleButton';
@@ -177,6 +178,7 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
   const [downloadDir, setDownloadDir] = useState<string>('');
   const [deleteGroupDialogOpen, setDeleteGroupDialogOpen] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState<string | null>(null);
+  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   // 用于存储上一次的数据,避免刷新闪烁
   const prevGroupsRef = useRef<Aria2DownloadGroup[]>([]);
@@ -345,6 +347,35 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
     setGroupToDelete(null);
   };
 
+  // 清空所有下载组
+  const handleClearAllGroups = async () => {
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const response = await fetch(`${apiUrl}/api/aria2/groups/clear-all`, {
+        method: 'POST',
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // 清除选中状态
+        setSelectedGroupId(null);
+        // 清空ref缓存,让UI立即更新为空列表
+        prevGroupsRef.current = [];
+        prevDownloadsRef.current = [];
+        // 刷新组列表
+        getGroups();
+        setClearAllDialogOpen(false);
+        alert(`成功清空 ${data.deleted_count} 个下载组`);
+      } else {
+        const data = await response.json();
+        alert(`清空失败: ${data.detail || '未知错误'}`);
+      }
+    } catch (error) {
+      console.error('清空所有组失败:', error);
+      alert('清空所有组失败');
+    }
+  };
+
   // 重试失败任务
   const handleRetryFailedDownloads = async () => {
     if (!selectedGroupId) return;
@@ -461,6 +492,13 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
               <Tooltip title="删除当前组">
                 <IconButton size="small" onClick={() => handleOpenDeleteGroupDialog(selectedGroupId)} color="error">
                   <DeleteForeverIcon />
+                </IconButton>
+              </Tooltip>
+            )}
+            {displayGroups.length > 0 && (
+              <Tooltip title="清空所有下载组">
+                <IconButton size="small" onClick={() => setClearAllDialogOpen(true)} color="error">
+                  <DeleteSweepIcon />
                 </IconButton>
               </Tooltip>
             )}
@@ -920,13 +958,32 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
         <DialogTitle>确认删除</DialogTitle>
         <DialogContent>
           <Typography>
-            确定要删除此下载组吗？此操作将删除该组的所有下载任务记录，但不会删除已下载的文件。
+            确定要删除此下载组吗?此操作将删除该组的所有下载任务记录,但不会删除已下载的文件。
           </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDeleteGroupDialog}>取消</Button>
           <Button onClick={handleDeleteGroup} color="error" variant="contained">
             删除
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* 清空所有组确认对话框 */}
+      <Dialog open={clearAllDialogOpen} onClose={() => setClearAllDialogOpen(false)}>
+        <DialogTitle>确认清空所有下载组</DialogTitle>
+        <DialogContent>
+          <Typography>
+            确定要清空所有下载组吗?此操作将删除所有下载组及其下载任务记录,但不会删除已下载的文件。
+          </Typography>
+          <Typography sx={{ mt: 2, color: 'error.main', fontWeight: 'bold' }}>
+            ⚠️ 此操作不可撤销!
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setClearAllDialogOpen(false)}>取消</Button>
+          <Button onClick={handleClearAllGroups} color="error" variant="contained">
+            清空所有
           </Button>
         </DialogActions>
       </Dialog>

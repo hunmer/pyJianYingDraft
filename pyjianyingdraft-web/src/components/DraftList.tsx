@@ -32,6 +32,7 @@ import {
   Upload,
 } from '@mui/icons-material';
 import { draftApi, type DraftListItem } from '@/lib/api';
+import PathSelector from '@/components/PathSelector';
 
 interface DraftListProps {
   onDraftSelect: (draftPath: string, draftName: string) => void;
@@ -64,34 +65,6 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
 
   // 检查是否在 Electron 环境
   const isElectron = typeof window !== 'undefined' && (window as any).electron;
-
-  /**
-   * 选择草稿根目录
-   */
-  const handleSelectDirectory = async () => {
-    if (!isElectron) {
-      alert('此功能仅在 Electron 环境下可用');
-      return;
-    }
-
-    try {
-      const result = await (window as any).electron.fs.selectDirectory({
-        title: '选择草稿根目录',
-      });
-
-      if (result.canceled || !result.filePaths || result.filePaths.length === 0) {
-        return;
-      }
-
-      const selectedPath = result.filePaths[0];
-      setBasePath(selectedPath);
-      // 立即加载草稿
-      loadDrafts(selectedPath);
-    } catch (err) {
-      console.error('选择目录失败:', err);
-      alert(`选择目录失败: ${err instanceof Error ? err.message : '未知错误'}`);
-    }
-  };
 
   /**
    * 加载草稿列表
@@ -415,59 +388,33 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
         {/* 设置面板 */}
         {showSettings && (
           <Box sx={{ mt: 2 }}>
-            {isElectron ? (
-              // Electron 环境:显示选择目录按钮
-              <>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="草稿根目录"
-                  value={basePath}
-                  InputProps={{
-                    readOnly: true,
-                  }}
-                  placeholder="点击下方按钮选择目录"
-                  sx={{ mb: 1 }}
-                />
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="small"
-                  onClick={handleSelectDirectory}
-                  disabled={loading}
-                  startIcon={<FolderOpen />}
-                >
-                  选择草稿根目录
-                </Button>
-              </>
-            ) : (
-              // 浏览器环境:显示输入框
-              <>
-                <TextField
-                  fullWidth
-                  size="small"
-                  label="草稿根目录"
-                  placeholder="例: D:\JianyingPro Drafts"
-                  value={basePath}
-                  onChange={(e) => setBasePath(e.target.value)}
-                  onKeyDown={(e) => {
-                    // 支持回车键快速加载
-                    if (e.key === 'Enter' && basePath.trim() && !loading) {
-                      loadDrafts();
-                    }
-                  }}
-                  sx={{ mb: 1 }}
-                />
-                <Button
-                  fullWidth
-                  variant="contained"
-                  size="small"
-                  onClick={() => loadDrafts()}
-                  disabled={loading || !basePath.trim()}
-                >
-                  保存并加载草稿
-                </Button>
-              </>
+            <PathSelector
+              value={basePath}
+              onChange={(newPath) => {
+                setBasePath(newPath);
+                // Electron环境下选择目录后立即加载
+                if (isElectron && newPath) {
+                  loadDrafts(newPath);
+                }
+              }}
+              label="草稿根目录"
+              placeholder="例: D:\JianyingPro Drafts"
+              dialogTitle="选择草稿根目录"
+              buttonText="选择草稿根目录"
+              disabled={loading}
+              size="small"
+            />
+            {!isElectron && (
+              <Button
+                fullWidth
+                variant="contained"
+                size="small"
+                onClick={() => loadDrafts()}
+                disabled={loading || !basePath.trim()}
+                sx={{ mt: 1 }}
+              >
+                保存并加载草稿
+              </Button>
             )}
           </Box>
         )}
