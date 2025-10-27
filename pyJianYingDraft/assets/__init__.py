@@ -2,15 +2,30 @@
 pyJianYingDraft 的资源管理模块，提供集中管理资源文件的方式，避免硬编码路径
 """
 
+import platform
 from pathlib import Path
 
 # 获取当前模块所在目录
 ASSETS_DIR = Path(__file__).parent
 
+# 根据系统平台选择合适的模板文件
+def _get_draft_content_template() -> str:
+    """
+    根据当前系统平台返回对应的草稿内容模板文件名
+
+    Returns:
+        str: 模板文件名
+    """
+    system = platform.system()
+    if system == 'Darwin':  # macOS
+        return 'draft_content_template_macos.json'
+    else:  # Windows, Linux 等其他系统
+        return 'draft_content_template.json'
+
 # 资源文件映射表 - 集中管理所有asset文件名
 ASSET_FILES = {
-    # 模板文件
-    'DRAFT_CONTENT_TEMPLATE': 'draft_content_template.json',
+    # 模板文件 - 根据系统动态选择
+    'DRAFT_CONTENT_TEMPLATE': _get_draft_content_template(),
     'DRAFT_META_TEMPLATE': 'draft_meta_info.json',
 }
 
