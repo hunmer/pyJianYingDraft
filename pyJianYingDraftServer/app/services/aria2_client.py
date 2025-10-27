@@ -526,6 +526,11 @@ class Aria2Client:
             self._log(f"✓ 已取消下载 (GID: {gid})")
             return result
         except Exception as e:
+            error_msg = str(e).lower()
+            # 如果任务不存在(not found),也视为成功删除
+            if 'not found' in error_msg or 'gid' in error_msg:
+                self._log(f"ℹ️  任务不存在或已完成 (GID: {gid}),视为删除成功")
+                return True
             self._log(f"✗ 取消下载失败 (GID: {gid}): {e}")
             return False
 

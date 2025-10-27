@@ -20,6 +20,7 @@ import {
   Refresh as RefreshIcon,
 } from '@mui/icons-material';
 import { useAria2WebSocket } from '@/hooks/useAria2WebSocket';
+import PathSelector from '@/components/PathSelector';
 
 // 异步加载下载管理器组件
 const Aria2DownloadManager = lazy(() =>
@@ -158,15 +159,18 @@ export function DownloadManagerDialog({ open, onClose, initialTaskId }: Download
       <Dialog open={settingsOpen} onClose={handleCloseSettings} maxWidth="sm" fullWidth>
         <DialogTitle>Aria2 设置</DialogTitle>
         <DialogContent>
-          <TextField
-            fullWidth
-            label="Aria2 路径"
+          <PathSelector
             value={aria2PathInput}
-            onChange={(e) => setAria2PathInput(e.target.value)}
+            onChange={setAria2PathInput}
+            label="Aria2 路径"
             placeholder="例如: D:\aria2"
-            helperText="请输入 aria2c.exe 所在的目录路径"
+            dialogTitle="选择 Aria2 目录"
+            buttonText="选择 Aria2 目录"
             sx={{ mt: 2 }}
           />
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+            请输入 aria2c.exe 所在的目录路径
+          </Typography>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseSettings}>取消</Button>

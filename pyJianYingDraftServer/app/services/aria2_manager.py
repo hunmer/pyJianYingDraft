@@ -13,11 +13,40 @@ import asyncio
 import secrets
 import shutil
 import json
+import atexit
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
 from app.path_utils import get_executable_dir
+
+
+def kill_process_tree_windows(pid: int) -> bool:
+    """在Windows上杀死进程树（包含所有子进程）
+
+    Args:
+        pid: 进程ID
+
+    Returns:
+        bool: 成功返回True，失败返回False
+    """
+    if sys.platform != "win32":
+        return False
+
+    try:
+        import subprocess
+        # 使用taskkill命令杀死进程树
+        # /F: 强制终止  /T: 终止所有子进程  /PID: 指定进程ID
+        subprocess.run(
+            ['taskkill', '/F', '/T', '/PID', str(pid)],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=10
+        )
+        return True
+    except Exception:
+        return False
 
 
 class Aria2ProcessManager:
@@ -117,6 +146,9 @@ class Aria2ProcessManager:
         # 进程对象
         self.process: Optional[subprocess.Popen] = None
         self.health_check_task: Optional[asyncio.Task] = None
+
+        # 注册退出清理函数，确保程序异常退出时也能清理进程
+        atexit.register(self._cleanup_on_exit)
 
     def _log(self, message: str) -> None:
         """输出日志"""
@@ -387,17 +419,14 @@ allow-overwrite=false
                     )
             else:
                 # Linux/MacOS
+                # 注意: 不使用 start_new_session=True,以便保持进程组关联
                 if enable_debug_output:
-                    self.process = subprocess.Popen(
-                        cmd,
-                        start_new_session=True
-                    )
+                    self.process = subprocess.Popen(cmd)
                 else:
                     self.process = subprocess.Popen(
                         cmd,
                         stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        start_new_session=True
+                        stderr=subprocess.DEVNULL
                     )
 
             self._log(f"Aria2进程已启动 (PID: {self.process.pid})")
@@ -501,7 +530,33 @@ allow-overwrite=false
             return True
 
         try:
+            # 步骤1: 尝试通过RPC优雅关闭（推荐方式）
+            try:
+                import aria2p
+                client = aria2p.Client(
+                    host=f"http://localhost",
+                    port=self.rpc_port,
+                    secret=self.rpc_secret if self.rpc_secret else "",
+                    timeout=5
+                )
+                # 调用 aria2.shutdown RPC 方法
+                client.shutdown()
+                self._log("通过RPC发送shutdown命令")
+
+                # 等待进程优雅退出（最多10秒）
+                import time
+                for i in range(10):
+                    if not self.is_running():
+                        self._log("✓ Aria2进程已通过RPC优雅停止")
+                        return True
+                    time.sleep(1)
+
+            except Exception as e:
+                self._log(f"RPC关闭失败: {e}，尝试进程终止方式")
+
+            # 步骤2: 如果RPC失败或进程仍在运行，使用SIGTERM
             if self.process:
+                self._log("发送SIGTERM信号...")
                 self.process.terminate()
 
                 # 等待进程结束（最多5秒）
@@ -510,7 +565,16 @@ allow-overwrite=false
                     self._log("✓ Aria2进程已停止")
                     return True
                 except subprocess.TimeoutExpired:
-                    # 强制结束
+                    # 步骤3: 强制结束（SIGKILL）
+                    self._log("进程未响应SIGTERM，发送SIGKILL强制终止...")
+
+                    # Windows: 使用taskkill杀死进程树
+                    if sys.platform == "win32" and self.process.pid:
+                        if kill_process_tree_windows(self.process.pid):
+                            self._log("✓ Aria2进程树已通过taskkill强制停止")
+                            return True
+
+                    # 通用方式: 发送SIGKILL
                     self.process.kill()
                     self.process.wait()
                     self._log("✓ Aria2进程已强制停止")
@@ -610,6 +674,52 @@ allow-overwrite=false
             str: RPC密钥
         """
         return self.rpc_secret
+
+    def _cleanup_on_exit(self) -> None:
+        """程序退出时的清理函数（通过atexit注册）"""
+        try:
+            if hasattr(self, 'verbose') and self.verbose:
+                print("[Aria2Manager] 程序退出，清理Aria2进程...")
+
+            if hasattr(self, 'health_check_task') and self.health_check_task:
+                try:
+                    self.health_check_task.cancel()
+                except Exception:
+                    pass
+
+            if hasattr(self, 'process') and self.process and self.process.poll() is None:
+                # 进程仍在运行，需要清理
+                try:
+                    # 优先使用RPC关闭
+                    try:
+                        import aria2p
+                        client = aria2p.Client(
+                            host=f"http://localhost",
+                            port=self.rpc_port,
+                            secret=self.rpc_secret if self.rpc_secret else "",
+                            timeout=2
+                        )
+                        client.shutdown()
+                        # 等待2秒
+                        import time
+                        time.sleep(2)
+                    except Exception:
+                        pass
+
+                    # 如果仍在运行，强制终止
+                    if self.process.poll() is None:
+                        if sys.platform == "win32" and self.process.pid:
+                            # Windows: 使用taskkill
+                            kill_process_tree_windows(self.process.pid)
+                        else:
+                            # 其他平台: 使用kill
+                            self.process.kill()
+
+                        self.process.wait(timeout=2)
+                except Exception:
+                    pass
+        except Exception:
+            pass
 
     def __del__(self):
         """析构函数：确保进程被正确清理"""
