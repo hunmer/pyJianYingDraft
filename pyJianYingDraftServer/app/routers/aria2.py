@@ -26,12 +26,12 @@ async def get_download_dir():
         下载目录路径
     """
     try:
-        from app.services.aria2_manager import get_aria2_manager
+        from app.services.aria2_controller import get_aria2_controller
 
-        manager = get_aria2_manager()
+        controller = get_aria2_controller()
 
         return {
-            "download_dir": str(manager.download_dir)
+            "download_dir": str(controller.download_dir)
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取下载目录失败: {str(e)}")
@@ -46,17 +46,18 @@ async def get_aria2_config():
         Aria2配置对象
     """
     try:
-        from app.services.aria2_manager import get_aria2_manager
+        from app.services.aria2_controller import get_aria2_controller
         from app.config import get_config
 
-        manager = get_aria2_manager()
+        controller = get_aria2_controller()
+        config = controller.get_config()
 
         return {
             "aria2_path": get_config('ARIA2_PATH', ''),
-            "rpc_port": manager.rpc_port,
-            "rpc_secret": manager.rpc_secret if manager.rpc_secret else '',
-            "download_dir": str(manager.download_dir),
-            "max_concurrent_downloads": manager.config.get('max_concurrent_downloads', 50)
+            "rpc_port": config['rpc_port'],
+            "rpc_secret": config['rpc_secret'],
+            "download_dir": config['download_dir'],
+            "max_concurrent_downloads": config['max_concurrent_downloads']
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"获取Aria2配置失败: {str(e)}")

@@ -134,5 +134,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,  # 可选:添加图标文件路径
+    icon='icon.ico',  # Windows 应用程序图标
 )

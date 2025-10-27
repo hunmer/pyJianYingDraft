@@ -14,11 +14,18 @@ import secrets
 import shutil
 import json
 import atexit
+import threading
 from pathlib import Path
 from typing import Optional
 from datetime import datetime
 
 from app.path_utils import get_executable_dir
+
+
+# 全局进程跟踪（防止多个实例启动重复进程）
+_global_aria2_processes = {}  # {rpc_port: pid}
+_global_aria2_locks = {}  # {rpc_port: threading.Lock}
+_global_lock = threading.Lock()  # 保护全局字典的锁
 
 
 def kill_process_tree_windows(pid: int) -> bool:
@@ -50,7 +57,10 @@ def kill_process_tree_windows(pid: int) -> bool:
 
 
 class Aria2ProcessManager:
-    """Aria2c进程管理器
+    """Aria2c进程管理器 (内部类,请使用 get_aria2_manager() 访问)
+
+    ⚠️ 警告: 此类不应该直接实例化!
+    请使用 get_aria2_manager() 获取全局单例,或使用 Aria2Controller 进行信息查询
 
     负责aria2c进程的完整生命周期管理：
     - 自动查找或使用指定的aria2c可执行文件
@@ -58,6 +68,10 @@ class Aria2ProcessManager:
     - 启动、停止、重启进程
     - 健康检查和自动恢复
     """
+
+    # 类变量: 跟踪所有实例化次数
+    _instance_count = 0
+    _creation_lock = threading.Lock()
 
     def __init__(
         self,
@@ -75,6 +89,8 @@ class Aria2ProcessManager:
     ):
         """初始化Aria2进程管理器
 
+        ⚠️ 此方法仅应由 get_aria2_manager() 调用!
+
         Args:
             aria2c_path: aria2c可执行文件路径（None则自动查找）
             config_path: aria2配置文件路径（None则生成默认配置）
@@ -88,6 +104,19 @@ class Aria2ProcessManager:
             log_level: 日志级别，默认notice
             verbose: 是否显示详细日志，默认True
         """
+        # 跟踪实例创建
+        with Aria2ProcessManager._creation_lock:
+            Aria2ProcessManager._instance_count += 1
+            if Aria2ProcessManager._instance_count > 1:
+                import warnings
+                warnings.warn(
+                    f"检测到创建了第 {Aria2ProcessManager._instance_count} 个 Aria2ProcessManager 实例! "
+                    "这可能导致多个 aria2c 进程同时运行。"
+                    "请使用 get_aria2_manager() 获取单例,或使用 Aria2Controller 进行信息查询。",
+                    RuntimeWarning,
+                    stacklevel=2
+                )
+
         self.verbose = verbose
         self.rpc_port = rpc_port
         # 不使用rpc-secret(本地开发环境)
@@ -147,8 +176,33 @@ class Aria2ProcessManager:
         self.process: Optional[subprocess.Popen] = None
         self.health_check_task: Optional[asyncio.Task] = None
 
-        # 注册退出清理函数，确保程序异常退出时也能清理进程
-        atexit.register(self._cleanup_on_exit)
+        # 标记是否已注册atexit清理函数（避免重复注册）
+        self._atexit_registered = False
+
+        # 启动状态标记（防止并发启动）
+        self._is_starting = False
+        self._start_lock = self._get_port_lock(self.rpc_port)
+
+        # 文件系统级别的单例守护者
+        from app.services.aria2_singleton import get_aria2_singleton
+        self._singleton = get_aria2_singleton()
+
+    @staticmethod
+    def _get_port_lock(port: int) -> threading.Lock:
+        """获取指定端口的锁（线程安全）
+
+        Args:
+            port: RPC端口号
+
+        Returns:
+            threading.Lock: 端口专用锁
+        """
+        global _global_aria2_locks, _global_lock
+
+        with _global_lock:
+            if port not in _global_aria2_locks:
+                _global_aria2_locks[port] = threading.Lock()
+            return _global_aria2_locks[port]
 
     def _log(self, message: str) -> None:
         """输出日志"""
@@ -351,7 +405,7 @@ allow-overwrite=false
             return False
 
     def start(self, enable_debug_output: bool = False) -> bool:
-        """启动aria2c进程
+        """启动aria2c进程（线程安全，保证单次启动）
 
         Args:
             enable_debug_output: 是否启用调试输出（将aria2c的stdout/stderr输出到终端）
@@ -359,87 +413,180 @@ allow-overwrite=false
         Returns:
             bool: 启动成功返回True，失败返回False
         """
-        # 先检查端口是否已被占用且可连接
-        if self._check_port_connectivity():
-            self._log(f"检测到端口 {self.rpc_port} 已有Aria2服务运行")
-            # 验证RPC连接是否可用
-            if self._verify_rpc_connection():
-                self._log("✓ 使用现有的Aria2服务")
-                return True
-            else:
-                self._log("⚠ 端口已被占用但RPC连接失败，可能是其他服务占用了该端口")
-                # 不尝试重启，因为可能不是我们管理的进程
-                return False
+        # 第一层: 文件系统级别的锁 (防止热重载/多进程)
+        registered_process = self._singleton.get_registered_process()
+        if registered_process:
+            pid = registered_process.get("pid")
+            port = registered_process.get("port")
 
-        # 检查自己管理的进程是否在运行
-        if self.is_running():
-            self._log("Aria2进程已在运行")
-            # 即使进程在运行，也要验证RPC连接
-            if self._verify_rpc_connection():
-                return True
-            else:
-                self._log("⚠ Aria2进程运行中但RPC连接失败，尝试重启...")
-                self.stop()
+            if port == self.rpc_port:
+                self._log(f"检测到已注册的 Aria2 进程 (PID: {pid}, 端口: {port})")
 
-        # 生成配置文件（如果不存在）
-        if not self.config_path.exists():
-            self.generate_config()
+                # 验证进程是否可用
+                if self._check_port_connectivity() and self._verify_rpc_connection():
+                    self._log(f"✓ 使用已存在的 Aria2 进程")
+                    return True
+                else:
+                    self._log("已注册进程不可用,清理并重新启动")
+                    self._singleton.kill_registered_process()
+
+        # 尝试获取文件锁
+        if not self._singleton.acquire_lock(self.rpc_port, timeout=10):
+            self._log("⚠ 无法获取全局锁,可能有其他实例正在启动")
+            return False
 
         try:
-            # 构建启动命令
-            cmd = [
-                str(self.aria2c_path),
-                f"--conf-path={self.config_path}"
-            ]
+            # 第二层: 线程级别的锁 (防止同一进程内的并发)
+            with self._start_lock:
+                # 双重检查：如果正在启动中，等待启动完成
+                if self._is_starting:
+                    self._log(f"端口 {self.rpc_port} 的Aria2进程正在启动中，等待启动完成...")
+                    # 等待启动完成（最多10秒）
+                    import time
+                    for _ in range(100):
+                        time.sleep(0.1)
+                        if not self._is_starting:
+                            break
 
-            self._log(f"执行命令: {' '.join(cmd)}")
+                    # 检查启动结果
+                    if self._check_port_connectivity() and self._verify_rpc_connection():
+                        self._log(f"✓ 使用已启动的Aria2进程")
+                        return True
+                    else:
+                        self._log("⚠ 等待启动超时或启动失败")
+                        return False
 
-            # 启动进程（后台运行，不显示窗口）
-            if sys.platform == "win32":
-                # Windows: 使用CREATE_NO_WINDOW标志隐藏窗口
-                startupinfo = subprocess.STARTUPINFO()
-                startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-                startupinfo.wShowWindow = subprocess.SW_HIDE
+                # 标记正在启动
+                self._is_starting = True
 
-                if enable_debug_output:
-                    # 调试模式：输出到终端
-                    self.process = subprocess.Popen(
-                        cmd,
-                        startupinfo=startupinfo,
-                        creationflags=subprocess.CREATE_NO_WINDOW
-                    )
-                else:
-                    # 正常模式：静默运行
-                    self.process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL,
-                        startupinfo=startupinfo,
-                        creationflags=subprocess.CREATE_NO_WINDOW
-                    )
-            else:
-                # Linux/MacOS
-                # 注意: 不使用 start_new_session=True,以便保持进程组关联
-                if enable_debug_output:
-                    self.process = subprocess.Popen(cmd)
-                else:
-                    self.process = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.DEVNULL,
-                        stderr=subprocess.DEVNULL
-                    )
+                try:
+                    # 注册atexit清理函数（仅第一次启动时注册）
+                    if not self._atexit_registered:
+                        atexit.register(self._cleanup_on_exit)
+                        self._atexit_registered = True
 
-            self._log(f"Aria2进程已启动 (PID: {self.process.pid})")
+                    # 检查全局进程跟踪，看该端口是否已被占用
+                    global _global_aria2_processes
+                    if self.rpc_port in _global_aria2_processes:
+                        existing_pid = _global_aria2_processes[self.rpc_port]
+                        self._log(f"全局跟踪显示端口 {self.rpc_port} 已被PID {existing_pid} 占用")
+                        # 检查该进程是否仍在运行
+                        try:
+                            import psutil
+                            if psutil.pid_exists(existing_pid):
+                                self._log(f"✓ 使用现有的Aria2进程 (PID: {existing_pid})")
+                                return True
+                            else:
+                                # 进程已不存在，清理跟踪记录
+                                del _global_aria2_processes[self.rpc_port]
+                        except ImportError:
+                            # 如果没有psutil，使用端口检查作为fallback
+                            pass
 
-            # 等待并验证启动成功
-            return self._wait_for_startup()
+                    # 检查端口是否已被占用且可连接
+                    if self._check_port_connectivity():
+                        self._log(f"检测到端口 {self.rpc_port} 已有Aria2服务运行")
+                        # 验证RPC连接是否可用
+                        if self._verify_rpc_connection():
+                            self._log("✓ 使用现有的Aria2服务")
+                            # 如果端口上已有可用的aria2服务,但不是我们管理的进程
+                            # 不再启动新进程,避免重复
+                            return True
+                        else:
+                            self._log("⚠ 端口已被占用但RPC连接失败，可能是其他服务占用了该端口")
+                            # 不尝试重启，因为可能不是我们管理的进程
+                            return False
 
-        except Exception as e:
-            self._log(f"✗ 启动Aria2进程时出错: {e}")
-            import traceback
-            if self.verbose:
-                traceback.print_exc()
-            return False
+                    # 检查自己管理的进程是否在运行
+                    if self.is_running():
+                        self._log("Aria2进程已在运行")
+                        # 即使进程在运行，也要验证RPC连接
+                        if self._verify_rpc_connection():
+                            return True
+                        else:
+                            self._log("⚠ Aria2进程运行中但RPC连接失败，尝试重启...")
+                            self.stop()
+
+                    # 生成配置文件（如果不存在）
+                    if not self.config_path.exists():
+                        self.generate_config()
+
+                    try:
+                        # 构建启动命令
+                        cmd = [
+                            str(self.aria2c_path),
+                            f"--conf-path={self.config_path}"
+                        ]
+
+                        self._log(f"执行命令: {' '.join(cmd)}")
+
+                        # 启动进程（后台运行，不显示窗口）
+                        if sys.platform == "win32":
+                            # Windows: 使用CREATE_NO_WINDOW标志隐藏窗口
+                            startupinfo = subprocess.STARTUPINFO()
+                            startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+                            startupinfo.wShowWindow = subprocess.SW_HIDE
+
+                            if enable_debug_output:
+                                # 调试模式:输出到终端
+                                self.process = subprocess.Popen(
+                                    cmd,
+                                    startupinfo=startupinfo,
+                                    creationflags=subprocess.CREATE_NO_WINDOW
+                                )
+                            else:
+                                # 正常模式：静默运行
+                                self.process = subprocess.Popen(
+                                    cmd,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                    startupinfo=startupinfo,
+                                    creationflags=subprocess.CREATE_NO_WINDOW
+                                )
+                        else:
+                            # Linux/MacOS
+                            # 注意: 不使用 start_new_session=True,以便保持进程组关联
+                            if enable_debug_output:
+                                self.process = subprocess.Popen(cmd)
+                            else:
+                                self.process = subprocess.Popen(
+                                    cmd,
+                                    stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL
+                                )
+
+                        self._log(f"Aria2进程已启动 (PID: {self.process.pid})")
+
+                        # 添加到全局进程跟踪
+                        _global_aria2_processes[self.rpc_port] = self.process.pid
+
+                        # 等待并验证启动成功
+                        result = self._wait_for_startup()
+
+                        # 如果启动成功,注册到单例守护者
+                        if result:
+                            self._singleton.register_process(self.process.pid, self.rpc_port)
+                        else:
+                            # 启动失败,从全局跟踪中移除并释放锁
+                            if self.rpc_port in _global_aria2_processes:
+                                del _global_aria2_processes[self.rpc_port]
+                            self._singleton.release_lock()
+
+                        return result
+
+                    except Exception as e:
+                        self._log(f"✗ 启动Aria2进程时出错: {e}")
+                        import traceback
+                        if self.verbose:
+                            traceback.print_exc()
+                        return False
+
+                finally:
+                    # 清除启动中标记
+                    self._is_starting = False
+        finally:
+            # 释放文件锁
+            self._singleton.release_lock()
 
     def _wait_for_startup(self, max_retries: int = 15, retry_interval: float = 1.0) -> bool:
         """等待aria2c启动并验证RPC连接
@@ -525,8 +672,13 @@ allow-overwrite=false
         Returns:
             bool: 停止成功返回True，失败返回False
         """
+        global _global_aria2_processes
+
         if not self.is_running():
             self._log("Aria2进程未运行")
+            # 清理全局跟踪
+            if self.rpc_port in _global_aria2_processes:
+                del _global_aria2_processes[self.rpc_port]
             return True
 
         try:
@@ -548,6 +700,9 @@ allow-overwrite=false
                 for i in range(10):
                     if not self.is_running():
                         self._log("✓ Aria2进程已通过RPC优雅停止")
+                        # 清理全局跟踪
+                        if self.rpc_port in _global_aria2_processes:
+                            del _global_aria2_processes[self.rpc_port]
                         return True
                     time.sleep(1)
 
@@ -563,6 +718,9 @@ allow-overwrite=false
                 try:
                     self.process.wait(timeout=5)
                     self._log("✓ Aria2进程已停止")
+                    # 清理全局跟踪
+                    if self.rpc_port in _global_aria2_processes:
+                        del _global_aria2_processes[self.rpc_port]
                     return True
                 except subprocess.TimeoutExpired:
                     # 步骤3: 强制结束（SIGKILL）
@@ -572,12 +730,18 @@ allow-overwrite=false
                     if sys.platform == "win32" and self.process.pid:
                         if kill_process_tree_windows(self.process.pid):
                             self._log("✓ Aria2进程树已通过taskkill强制停止")
+                            # 清理全局跟踪
+                            if self.rpc_port in _global_aria2_processes:
+                                del _global_aria2_processes[self.rpc_port]
                             return True
 
                     # 通用方式: 发送SIGKILL
                     self.process.kill()
                     self.process.wait()
                     self._log("✓ Aria2进程已强制停止")
+                    # 清理全局跟踪
+                    if self.rpc_port in _global_aria2_processes:
+                        del _global_aria2_processes[self.rpc_port]
                     return True
         except Exception as e:
             self._log(f"✗ 停止Aria2进程时出错: {e}")
@@ -622,6 +786,19 @@ allow-overwrite=false
             try:
                 await asyncio.sleep(interval)
 
+                # 首先检查端口上是否已有服务在运行
+                if self._check_port_connectivity():
+                    # 端口可连接,验证RPC
+                    if self._verify_rpc_connection():
+                        # RPC正常,说明aria2服务正常运行
+                        # 即使不是我们管理的进程也没关系
+                        continue
+                    else:
+                        # 端口被占用但RPC不可用,可能是其他服务
+                        self._log("⚠ 端口被占用但RPC不可用,跳过本次健康检查")
+                        continue
+
+                # 端口未被占用,检查我们管理的进程
                 if not self.is_running():
                     self._log("⚠ 检测到Aria2进程异常退出，正在自动重启...")
                     if self.start():
