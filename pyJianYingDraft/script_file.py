@@ -451,7 +451,20 @@ class ScriptFile:
             if not isinstance(segments, list):
                 raise ValueError("轨道segments字段必须是列表")
 
+            # 处理层级选项，计算最终的 render_index
             default_render_index = track_enum.value.render_index
+            relative_index = track_json.get("relative_index")
+            absolute_index = track_json.get("absolute_index")
+
+            if relative_index is not None:
+                default_render_index = default_render_index + relative_index
+            if absolute_index is not None:
+                default_render_index = absolute_index
+
+            # 从 track_json 中移除临时字段，避免干扰后续处理
+            track_json.pop("relative_index", None)
+            track_json.pop("absolute_index", None)
+
             for segment in segments:
                 if not isinstance(segment, dict):
                     raise TypeError("segment必须是dict")

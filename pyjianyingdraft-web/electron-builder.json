@@ -32,12 +32,15 @@
   ],
   "win": {
     "target": "dir",
-    "electronLanguages": ["zh-CN", "zh-TW", "en-US", "en-GB"]
+    "electronLanguages": ["zh-CN", "zh-TW", "en-US", "en-GB"],
+    "icon": "../webapp/favicon.ico"
   },
   "mac": {
-    "target": "dir"
+    "target": "dir",
+    "icon": "../webapp/apple-touch-icon.png"
   },
   "linux": {
-    "target": "dir"
+    "target": "dir",
+    "icon": "../webapp/android-chrome-512x512.png"
   }
 }

@@ -42,6 +42,8 @@ class TestTrackModel(BaseModel):
     id: str = Field(..., description="轨道ID")
     type: str = Field(..., description="轨道类型")
     title: Optional[str] = Field(default=None, description="轨道名称")
+    relative_index: Optional[int] = Field(default=None, description="相对(同类型轨道的)图层位置，越高越接近前景")
+    absolute_index: Optional[int] = Field(default=None, description="绝对图层位置，越高越接近前景，直接覆盖render_index")
 
 
 class TestItemModel(BaseModel):
@@ -67,6 +69,8 @@ class RawSegmentPayload(BaseModel):
     track_id: str = Field(..., description="轨道ID")
     track_type: str = Field(..., description="轨道类型")
     track_name: Optional[str] = Field(default=None, description="轨道名称")
+    relative_index: Optional[int] = Field(default=None, description="相对(同类型轨道的)图层位置，越高越接近前景")
+    absolute_index: Optional[int] = Field(default=None, description="绝对图层位置，越高越接近前景，直接覆盖render_index")
     material_id: Optional[str] = Field(default=None, description="素材ID")
     segment: Dict[str, Any] = Field(default_factory=dict, description="完整片段数据")
     material: Optional[Dict[str, Any]] = Field(default=None, description="片段附带的素材数据")
