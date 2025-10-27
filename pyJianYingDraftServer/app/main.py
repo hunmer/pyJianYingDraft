@@ -4,13 +4,32 @@ FastAPI 主应用入口
 
 import sys
 import io
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
 
 # 设置标准输出/错误流为UTF-8编码(解决Windows GBK编码问题)
-if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
-    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+# 延迟执行，避免在某些环境下引起递归错误
+try:
+    if sys.platform == 'win32':
+        sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+        sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+except Exception:
+    # 如果设置失败，使用默认配置
+    pass
+
+# 最小化日志配置 - 避免与其他库冲突
+try:
+    # 只配置我们应用的日志，不影响其他库
+    logger = logging.getLogger("pyJianYingDraft")
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+    logger.addHandler(handler)
+    logger.propagate = False  # 防止传播到根日志记录器
+except Exception:
+    # 如果配置失败，跳过自定义日志配置
+    pass
 
 # 将父目录添加到 Python 路径,以便导入 pyJianYingDraft 模块
 if getattr(sys, 'frozen', False):
@@ -30,12 +49,12 @@ import socketio
 
 from app.routers import draft, subdrafts, materials, tracks, files, rules, file_watch, tasks, aria2, generation_records
 
-# 创建Socket.IO服务器
+# 创建Socket.IO服务器 - 简化日志配置
 sio = socketio.AsyncServer(
     async_mode='asgi',
     cors_allowed_origins='*',
-    logger=False,
-    engineio_logger=False
+    logger=False,  # 禁用 Socket.IO 日志避免递归
+    engineio_logger=False  # 禁用 Engine.IO 日志避免递归
 )
 
 
@@ -43,9 +62,18 @@ sio = socketio.AsyncServer(
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
     # ==================== 启动事件 ====================
+    def flush_logs():
+        """强制刷新日志缓冲区 - 简化版本避免递归"""
+        try:
+            sys.stdout.flush()
+            sys.stderr.flush()
+        except Exception:
+            pass  # 忽略刷新错误
+
     print("=" * 60)
     print("🚀 pyJianYingDraft API Server 启动中...")
     print("=" * 60)
+    flush_logs()  # 立即刷新输出
 
     # 启动Aria2进程管理器
     try:
@@ -56,22 +84,28 @@ async def lifespan(app: FastAPI):
             print(f"✓ Aria2进程已启动")
             print(f"  - RPC URL: {manager.get_rpc_url()}")
             print(f"  - 下载目录: {manager.download_dir}")
+            flush_logs()  # 刷新输出
 
             # 启动健康检查
             manager.start_health_check(interval=30)
             print(f"✓ Aria2健康检查已启动（间隔: 30秒）")
+            flush_logs()  # 刷新输出
         else:
             print("⚠ Aria2进程启动失败，异步下载功能将不可用")
+            flush_logs()  # 刷新输出
     except Exception as e:
         print(f"✗ Aria2初始化失败: {e}")
+        flush_logs()  # 刷新输出
 
     # 初始化数据库
     try:
         from app.db import get_database
         await get_database()
         print(f"✓ 数据库已初始化")
+        flush_logs()  # 刷新输出
     except Exception as e:
         print(f"✗ 数据库初始化失败: {e}")
+        flush_logs()  # 刷新输出
 
     # 启动任务队列和Aria2客户端
     try:
@@ -85,24 +119,30 @@ async def lifespan(app: FastAPI):
         if queue.start():
             print(f"✓ 任务队列已启动")
             print(f"  - Aria2客户端已初始化")
+            flush_logs()  # 刷新输出
         else:
             print(f"⚠ 任务队列启动失败，Aria2客户端可能未初始化")
+            flush_logs()  # 刷新输出
 
         # 从数据库加载历史任务
         await queue.load_tasks_from_db()
+        flush_logs()  # 刷新异步操作输出
 
         # 启动进度监控
         await queue.start_progress_monitor()
         print(f"✓ 任务队列进度监控已启动（间隔: 1秒）")
+        flush_logs()  # 刷新输出
     except Exception as e:
         print(f"✗ 任务队列启动失败: {e}")
         import traceback
         traceback.print_exc()
+        flush_logs()  # 刷新输出
 
     print("=" * 60)
     print("✅ 服务器启动完成！")
     print("📚 API文档: http://localhost:8000/docs")
     print("=" * 60)
+    flush_logs()  # 最终刷新输出
 
     yield
 
