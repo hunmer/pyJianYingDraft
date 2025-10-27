@@ -29,10 +29,17 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"警告: 清理 aria2c 进程失败: {e}")
 
+    # 设置环境变量以确保日志实时输出
+    import os
+    os.environ["PYTHONUNBUFFERED"] = "1"
+
     uvicorn.run(
         "app.main:socket_app",
         host="0.0.0.0",
         port=8000,
         reload=False,  # ⚠️ 重要: 禁用热重载,防止多个 aria2c 进程
-        log_level="debug"
+        log_level="info",  # 使用 info 级别减少噪音
+        access_log=True,  # 启用访问日志
+        use_colors=True,  # 启用彩色日志
+        # 使用默认日志配置，避免复杂的自定义配置导致递归
     )
