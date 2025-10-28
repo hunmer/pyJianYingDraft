@@ -54,6 +54,10 @@ interface RuleGroupListProps {
   materials?: MaterialInfo[];
   /** 规则组更新成功回调 */
   onSuccess?: (updatedRuleGroup: RuleGroup) => void;
+  /** 需要高亮显示的规则类型 */
+  highlightedTypes?: Set<string>;
+  /** 规则点击回调函数 */
+  onRuleClick?: (rule: Rule, ruleIndex: number) => void;
 }
 
 /**
@@ -66,6 +70,8 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
   customTitle,
   materials = [],
   onSuccess = () => {},
+  highlightedTypes = new Set(),
+  onRuleClick,
 }) => {
   // 展开状态：记录每个规则的展开状态
   const [expandedRules, setExpandedRules] = useState<Set<number>>(new Set());
@@ -328,16 +334,18 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
           {ruleGroup.rules.map((rule, index) => {
             const isExpanded = expandedRules.has(index);
             const hasMaterials = rule.material_ids.length > 0;
+            const isHighlighted = highlightedTypes.has(rule.type);
 
             return (
               <React.Fragment key={index}>
                 <ListItem
                   divider={index < ruleGroup.rules.length - 1 || isExpanded}
                   onContextMenu={(e) => handleContextMenu(e, index)}
+                  onClick={() => onRuleClick?.(rule, index)}
                   sx={{
                     flexDirection: 'column',
                     alignItems: 'stretch',
-                    cursor: 'context-menu',
+                    cursor: onRuleClick ? 'pointer' : 'context-menu',
                     '&:hover': {
                       backgroundColor: 'action.hover',
                     },
@@ -345,12 +353,27 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
                     <ListItemText
-                      primary={rule.title}
+                      primary={rule.title || '未命名'}
                       secondary={`类型: ${rule.type}`}
-                      primaryTypographyProps={{ variant: 'body2', fontWeight: 500 }}
-                      secondaryTypographyProps={{ variant: 'caption' }}
+                      primaryTypographyProps={{
+                        variant: 'body2',
+                        fontWeight: 500,
+                        color: 'text.primary',
+                      }}
+                      secondaryTypographyProps={{
+                        variant: 'caption',
+                        color: 'text.secondary',
+                      }}
                     />
-                    <Box sx={{ display: 'flex' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      {isHighlighted && (
+                        <Chip
+                          label="已添加"
+                          size="small"
+                          color="success"
+                          sx={{ mr: 1, fontSize: 10, height: 20 }}
+                        />
+                      )}
                       {hasMaterials && (
                         <Tooltip title={isExpanded ? '收起素材' : '查看素材'}>
                           <IconButton
