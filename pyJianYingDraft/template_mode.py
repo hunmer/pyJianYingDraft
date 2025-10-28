@@ -83,7 +83,8 @@ class ImportedTrack(BaseTrack):
 
     def __init__(self, json_data: Dict[str, Any]):
         self.track_type = TrackType.from_name(json_data["type"])
-        self.name = json_data["name"]
+        # name 字段可能不存在或为空字符串，使用 get 方法提供默认值
+        self.name = json_data.get("name", "")
         self.track_id = json_data["id"]
         self.render_index = max([int(seg["render_index"]) for seg in json_data["segments"]], default=0)
 

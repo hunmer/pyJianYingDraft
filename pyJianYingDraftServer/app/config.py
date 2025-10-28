@@ -12,7 +12,13 @@ from typing import Any, Optional
 from app.path_utils import get_executable_dir
 
 
-CONFIG_FILE_NAMES = ("config.json",)
+import sys
+
+# 根据操作系统选择配置文件名
+if sys.platform == "darwin":  # macOS
+    CONFIG_FILE_NAMES = ("config_macos.json",)
+else:  # Windows
+    CONFIG_FILE_NAMES = ("config.json",)
 
 
 def _candidate_paths() -> list[Path]:

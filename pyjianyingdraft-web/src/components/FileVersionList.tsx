@@ -37,6 +37,7 @@ import {
 } from '@mui/icons-material';
 import { fileWatchApi, type WatchedFileInfo } from '@/lib/api';
 import { socketFileWatchApi } from '@/lib/socket';
+import PathSelector from './PathSelector';
 
 interface FileVersionListProps {
   /** 当前选择的文件路径 */
@@ -350,18 +351,26 @@ const FileVersionList = forwardRef<FileVersionListHandle, FileVersionListProps>(
       >
         <DialogTitle>添加监控文件</DialogTitle>
         <DialogContent>
-          <TextField
-            autoFocus
-            margin="dense"
-            label="文件路径"
-            type="text"
-            fullWidth
-            variant="outlined"
-            value={newFilePath}
-            onChange={(e) => setNewFilePath(e.target.value)}
-            placeholder="例如: D:\path\to\file.json"
-            helperText="请输入要监控的文件的绝对路径"
-          />
+          <Box sx={{ mt: 1 }}>
+            <PathSelector
+              value={newFilePath}
+              onChange={setNewFilePath}
+              label="文件路径"
+              placeholder="例如: D:\path\to\file.json"
+              fullWidth
+              size="small"
+              selectFile
+              fileFilters={[
+                { name: 'JSON 文件', extensions: ['json'] },
+                { name: '所有文件', extensions: ['*'] }
+              ]}
+              dialogTitle="选择要监控的文件"
+              buttonText="选择文件"
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+              请选择或输入要监控的文件的绝对路径
+            </Typography>
+          </Box>
           <TextField
             margin="dense"
             label="监控名称（可选）"

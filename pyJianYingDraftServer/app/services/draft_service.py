@@ -456,8 +456,8 @@ class DraftService:
                 # 使用字符串替换而不是正则替换,避免反斜杠转义问题
                 placeholder = match.group(0)
                 result = path_str.replace(placeholder, draft_folder_path)
-                # 确保整个路径使用统一的反斜杠(Windows标准)
-                result = result.replace('/', '\\')
+                # 使用 os.path.normpath 根据当前操作系统规范化路径分隔符
+                result = os.path.normpath(result)
                 return result
 
             return path_str

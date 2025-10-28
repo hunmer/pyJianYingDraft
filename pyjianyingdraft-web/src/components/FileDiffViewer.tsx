@@ -14,7 +14,6 @@ import {
   Divider,
   Chip,
   SelectChangeEvent,
-  IconButton,
   Tooltip,
   ButtonGroup,
   Button,
@@ -267,41 +266,41 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
         </Alert>
       )}
 
-      {/* 版本选择器和字体大小控制 */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        {/* 字体大小控制 */}
-        <Box sx={{ display: 'flex', justifyContent: 'flex-end', mb: 2 }}>
-          <Tooltip title="字体大小">
-            <ButtonGroup size="small" variant="outlined">
-              <Button
-                onClick={() => setFontSize(Math.max(8, fontSize - 1))}
-                disabled={fontSize <= 8}
-              >
-                <RemoveIcon fontSize="small" />
-              </Button>
-              <Button
-                onClick={() => setFontSize(13)}
-                disabled={fontSize === 13}
-              >
-                <RestartAltIcon fontSize="small" />
-              </Button>
-              <Button
-                onClick={() => setFontSize(Math.min(24, fontSize + 1))}
-                disabled={fontSize >= 24}
-              >
-                <AddIcon fontSize="small" />
-              </Button>
-            </ButtonGroup>
-          </Tooltip>
-          <Typography variant="caption" sx={{ ml: 1, alignSelf: 'center', minWidth: '40px' }}>
-            {fontSize}px
-          </Typography>
-        </Box>
+      {/* 字体大小控制 */}
+      <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 2, pb: 1 }}>
+        <Tooltip title="字体大小">
+          <ButtonGroup size="small" variant="outlined">
+            <Button
+              onClick={() => setFontSize(Math.max(8, fontSize - 1))}
+              disabled={fontSize <= 8}
+            >
+              <RemoveIcon fontSize="small" />
+            </Button>
+            <Button
+              onClick={() => setFontSize(13)}
+              disabled={fontSize === 13}
+            >
+              <RestartAltIcon fontSize="small" />
+            </Button>
+            <Button
+              onClick={() => setFontSize(Math.min(24, fontSize + 1))}
+              disabled={fontSize >= 24}
+            >
+              <AddIcon fontSize="small" />
+            </Button>
+          </ButtonGroup>
+        </Tooltip>
+        <Typography variant="caption" sx={{ ml: 1, alignSelf: 'center', minWidth: '40px' }}>
+          {fontSize}px
+        </Typography>
+      </Box>
 
+      {/* 版本选择器 */}
+      <Box sx={{ px: 2, pb: 2 }}>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 2 }}>
           {/* 版本1选择 */}
           <Box>
-            <FormControl fullWidth>
+            <FormControl fullWidth size="small">
               <InputLabel>版本 1 (旧版本)</InputLabel>
               <Select
                 value={selectedVersion1}
@@ -329,7 +328,7 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
 
           {/* 版本2选择 */}
           <Box>
-            <FormControl fullWidth>
+            <FormControl fullWidth size="small">
               <InputLabel>版本 2 (新版本)</InputLabel>
               <Select
                 value={selectedVersion2}
@@ -355,7 +354,7 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
             )}
           </Box>
         </Box>
-      </Paper>
+      </Box>
 
       <Divider sx={{ mb: 2 }} />
 

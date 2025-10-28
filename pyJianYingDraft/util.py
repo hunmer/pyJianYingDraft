@@ -39,6 +39,10 @@ def assign_attr_with_json(obj: object, attrs: List[str], json_data: Dict[str, An
             type_hints.update(cls.__annotations__)
 
     for attr in attrs:
+        # 如果字段不存在于 json_data 中，跳过该字段
+        if attr not in json_data:
+            continue
+            
         if hasattr(type_hints[attr], 'import_json'):
             obj.__setattr__(attr, type_hints[attr].import_json(json_data[attr]))
         else:

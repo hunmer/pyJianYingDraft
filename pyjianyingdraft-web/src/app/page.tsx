@@ -774,14 +774,15 @@ export default function Home() {
           }}>
             {/* 规则组标题和刷新按钮 */}
             <Box sx={{
+              p: 2,
+              borderBottom: 1,
+              borderColor: 'divider',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'space-between',
-              p: 2,
-              pb: 1
+              justifyContent: 'space-between'
             }}>
-              <Typography variant="subtitle2" color="text.secondary">
-                全部规则组
+              <Typography variant="h6">
+                规则组
               </Typography>
               <Tooltip title="刷新规则组列表">
                 <IconButton

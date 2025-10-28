@@ -18,3 +18,4 @@ pyjianyingdraft-web/dist/
 downloads/
 pyjianyingdraft-web/resources/pyJianYingDraftServer.exe
 pyJianYingDraftServer/data/
+pyJianYingDraftServer/tasks.db
