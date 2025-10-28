@@ -4,9 +4,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 项目概述
 
-**pyJianYingDraft** 是一个 Python 库,用于编程方式生成和操作剪映(JianyingPro)的草稿文件。它允许开发者通过代码创建视频剪辑项目,而无需手动在剪映界面操作。
+**pyJianYingDraft** 是一个完整的剪映草稿文件编程工具集,包含三个主要组件:
 
-**核心能力:**
+1. **pyJianYingDraft (核心库)** - Python 库,用于编程方式生成和操作剪映草稿文件
+2. **pyJianYingDraftServer** - FastAPI 后端服务,提供 REST API 和 WebSocket 接口
+3. **pyjianyingdraft-web** - Next.js + Electron 前端应用,提供可视化界面
+
+### 子项目导航
+
+每个子项目都有自己的详细 CLAUDE.md 文档:
+- `pyJianYingDraftServer/CLAUDE.md` - FastAPI 后端开发指南
+- `pyjianyingdraft-web/CLAUDE.md` - Next.js 前端开发指南
+
+**本文档聚焦于核心 Python 库的开发。**
+
+## 核心能力
+
 - 生成剪映草稿文件 (`draft_content.json`)
 - 模板模式:加载现有草稿并替换素材/文本
 - 自动导出:控制剪映批量导出视频(仅 Windows,剪映 ≤6.x)
@@ -47,14 +60,43 @@ DraftFolder (草稿文件夹管理器)
 
 ## 常用开发任务
 
-### 运行示例
+### 开发和测试
+
 ```bash
-python demo.py  # 需先修改草稿文件夹路径
+# 运行核心库示例
+python demo.py  # 需先修改代码中的草稿文件夹路径
+python demo_subdrafts.py  # 复合片段示例
+
+# 启动后端服务 (用于 API 测试)
+cd pyJianYingDraftServer
+python run.py
+
+# 启动前端应用 (用于可视化测试)
+cd pyjianyingdraft-web
+npm run dev
+```
+
+### 打包和发布
+
+```bash
+# 打包 Python 库 (pip)
+python setup.py sdist bdist_wheel
+
+# 打包后端服务 (单文件可执行程序)
+cd pyJianYingDraftServer
+python build_server.py
+
+# 打包前端应用 (Electron 桌面应用)
+cd pyjianyingdraft-web
+npm run build:all  # 包含后端打包
 ```
 
 ### 测试和验证
+
 - **手动验证:** 运行代码后在剪映中打开生成的草稿,检查时间轴是否符合预期
-- **注意:** 项目无自动化测试,依赖剪映软件验证
+- **注意:** 核心库无自动化测试,依赖剪映软件验证
+- **后端测试:** 参见 `pyJianYingDraftServer/test_*.py` 系列文件
+- **前端测试:** 通过浏览器开发工具检查 API 调用和 WebSocket 连接
 
 ### 时间系统
 - **内部单位:** 微秒 (`int`)
@@ -183,7 +225,71 @@ script.save()  # 模板模式
 
 ## 扩展指南
 
-- **添加新特效/滤镜类型:** 在 `metadata/` 对应模块中扩展枚举类,标注参数
+### 扩展核心库功能
+
+- **添加新特效/滤镜类型:** 在 `pyJianYingDraft/metadata/` 对应模块中扩展枚举类,标注参数
 - **支持新片段类型:** 继承 `BaseSegment`,实现 `export_json()` 方法
 - **新素材类型:** 继承 `VideoMaterial` 或 `AudioMaterial`,添加媒体信息提取逻辑
 - **元数据更新:** 剪映更新后资源 ID 可能变化,需从实际草稿文件中提取更新
+
+### 扩展后端 API
+
+参见 `pyJianYingDraftServer/CLAUDE.md` 中的"添加新的 API 端点"部分
+
+### 扩展前端界面
+
+参见 `pyjianyingdraft-web/CLAUDE.md` 中的"添加新组件"部分
+
+## 项目目录结构
+
+```
+pyJianYingDraft/
+├── pyJianYingDraft/           # 核心 Python 库
+│   ├── __init__.py
+│   ├── script_file.py         # 草稿文件主类
+│   ├── draft_folder.py        # 草稿文件夹管理
+│   ├── track.py               # 轨道管理
+│   ├── segment.py             # 片段基类
+│   ├── *_segment.py           # 各类型片段实现
+│   ├── local_materials.py     # 本地素材封装
+│   ├── metadata/              # 剪映内置资源元数据
+│   ├── time_util.py           # 时间转换工具
+│   ├── keyframe.py            # 关键帧系统
+│   ├── animation.py           # 动画元数据
+│   ├── template_mode.py       # 模板模式
+│   ├── jianying_controller.py # UI 自动化导出
+│   ├── util.py                # 通用工具函数
+│   └── exceptions.py          # 自定义异常
+│
+├── pyJianYingDraftServer/     # FastAPI 后端服务
+│   ├── app/
+│   │   ├── main.py            # FastAPI 应用入口
+│   │   ├── routers/           # API 路由
+│   │   ├── services/          # 业务逻辑层
+│   │   ├── models/            # 数据模型
+│   │   └── db.py              # 数据库管理
+│   ├── config.json            # 服务配置
+│   ├── run.py                 # 开发启动脚本
+│   ├── build_server.py        # 打包脚本
+│   └── test_*.py              # 测试脚本
+│
+├── pyjianyingdraft-web/       # Next.js + Electron 前端
+│   ├── src/
+│   │   ├── app/               # Next.js App Router 页面
+│   │   ├── components/        # React 组件
+│   │   ├── lib/               # API 和工具库
+│   │   ├── types/             # TypeScript 类型定义
+│   │   ├── hooks/             # React Hooks
+│   │   └── theme.ts           # MUI 主题配置
+│   ├── electron/
+│   │   ├── main.js            # Electron 主进程
+│   │   └── preload.js         # 预加载脚本
+│   ├── package.json
+│   └── next.config.js
+│
+├── demo.py                    # 核心库使用示例
+├── demo_subdrafts.py          # 复合片段示例
+├── setup.py                   # pip 打包配置
+├── README.md                  # 用户文档
+└── CLAUDE.md                  # 本文件 (开发者指南)
+```

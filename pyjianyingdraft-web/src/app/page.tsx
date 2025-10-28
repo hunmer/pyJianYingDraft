@@ -22,7 +22,6 @@ import {
   ListItemButton,
   ListItemIcon,
   ListItemText,
-  Button,
   Tooltip,
 } from '@mui/material';
 import Grid from '@mui/material/Grid2';
@@ -46,7 +45,6 @@ import TestDataEditorWithTabs from '@/components/TestDataEditorWithTabs';
 import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/lib/api';
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, RuleGroupTestRequest } from '@/types/rule';
-import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 
 // 异步加载下载管理器 Dialog
 const DownloadManagerDialog = dynamic(
@@ -96,41 +94,6 @@ const DRAWER_WIDTH = 280;
 
 const cloneTestData = (data: TestData): TestData =>
   JSON.parse(JSON.stringify(data)) as TestData;
-
-const TEST_DATA_PRESETS: Array<{
-  id: string;
-  label: string;
-  description: string;
-  data: TestData;
-}> = [
-  {
-    id: 'example',
-    label: '示例测试数据',
-    description: '包含基础轨道与素材条目，可用于快速演示测试流程',
-    data: cloneTestData(EXAMPLE_TEST_DATA),
-  },
-  {
-    id: 'audio-focus',
-    label: '音频轨道示例',
-    description: '包含独立的视频与音频轨道，便于校验音频规则',
-    data: {
-      tracks: [
-        { id: 'video_track', title: '视频轨道', type: 'video' },
-        { id: 'audio_track', title: '音频轨道', type: 'audio' },
-      ],
-      items: [
-        {
-          type: 'video_clip',
-          data: { track: 'video_track', start: 0, duration: 8, name: '视频片段' },
-        },
-        {
-          type: 'audio_clip',
-          data: { track: 'audio_track', start: 0, duration: 8, name: '背景音乐' },
-        },
-      ],
-    },
-  },
-];
 
 /**
  * 主页面 - 草稿编辑器
@@ -240,22 +203,6 @@ export default function Home() {
     setTabs(prev => [...prev, newTab]);
     setActiveTabId(newTabId);
   }, [tabs]);
-
-
-  const handleOpenTestDataPreset = useCallback(
-    (preset: (typeof TEST_DATA_PRESETS)[number]) => {
-      const presetId = `preset-${preset.id}-${Date.now()}`;
-      handleTestDataSelect(
-        presetId,
-        `预设: ${preset.label}`,
-        async () => Promise.resolve(),
-        {
-          initialTestData: cloneTestData(preset.data),
-        },
-      );
-    },
-    [handleTestDataSelect],
-  );
 
   // 处理文件差异视图选择
   const handleFileDiffSelect = useCallback((filePath: string) => {
@@ -845,6 +792,7 @@ export default function Home() {
                           ruleGroup: group,
                           // 提供空的初始测试数据，允许用户手动添加
                           initialTestData: {
+                            tracks: [],
                             items: [],
                           },
                         }
@@ -1100,24 +1048,7 @@ export default function Home() {
               {/* 草稿信息卡片 */}
               <Box sx={{ mb: 3 }}>
                 <Grid container spacing={2}>
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                    <Card>
-                      <CardContent>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                          <Info color="primary" />
-                          <Typography variant="h6">分辨率</Typography>
-                        </Box>
-                        <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                          {activeTab.draftInfo.width} × {activeTab.draftInfo.height}
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary">
-                          {activeTab.draftInfo.fps} FPS
-                        </Typography>
-                      </CardContent>
-                    </Card>
-                  </Grid>
-
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <Card>
                       <CardContent>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -1134,7 +1065,7 @@ export default function Home() {
                     </Card>
                   </Grid>
 
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <Card>
                       <CardContent>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -1153,7 +1084,7 @@ export default function Home() {
                     </Card>
                   </Grid>
 
-                  <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                  <Grid size={{ xs: 12, md: 4 }}>
                     <Card>
                       <CardContent>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
@@ -1172,26 +1103,6 @@ export default function Home() {
                     </Card>
                   </Grid>
                 </Grid>
-              </Box>
-
-              {/* 测试数据预设 */}
-              <Box sx={{ mb: 3 }}>
-                <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
-                  测试数据预设
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {TEST_DATA_PRESETS.map((preset) => (
-                    <Tooltip key={preset.id} title={preset.description}>
-                      <Button
-                        size="small"
-                        variant="outlined"
-                        onClick={() => handleOpenTestDataPreset(preset)}
-                      >
-                        {preset.label}
-                      </Button>
-                    </Tooltip>
-                  ))}
-                </Box>
               </Box>
 
               {/* 时间轴编辑器 */}
