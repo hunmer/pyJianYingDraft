@@ -11,6 +11,7 @@ import { lintKeymap } from '@codemirror/lint';
 import { json } from '@codemirror/lang-json';
 import { javascript } from '@codemirror/lang-javascript';
 import { typescript } from '@codemirror/lang-typescript';
+import { python } from '@codemirror/lang-python';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { Box } from '@mui/material';
 
@@ -57,7 +58,7 @@ export interface CodeMirrorEditorProps {
   /** 编辑器高度 */
   height?: string | number;
   /** 编辑器语言 */
-  language?: 'json' | 'javascript' | 'typescript';
+  language?: 'json' | 'javascript' | 'typescript' | 'python';
   /** 主题 (light 或 dark) */
   theme?: 'light' | 'dark';
   /** 只读模式 */
@@ -100,6 +101,9 @@ export default function CodeMirrorEditor({
         break;
       case 'typescript':
         languageExtension = javascript({ typescript: true });
+        break;
+      case 'python':
+        languageExtension = python();
         break;
       case 'json':
       default:
