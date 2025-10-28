@@ -32,6 +32,9 @@ import RestartAltIcon from '@mui/icons-material/RestartAlt';
 import MonacoEditor from '@/components/MonacoEditor';
 import DownloadIcon from '@mui/icons-material/Download';
 import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
+import AddTrackIcon from '@mui/icons-material/AddRoad';
+import HighlightIcon from '@mui/icons-material/Highlight';
 import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
@@ -108,6 +111,9 @@ export default function TestDataEditor({
     type: 'base' | 'full';
   } | null>(null);
 
+  // 高亮显示的规则类型
+  const [highlightedTypes, setHighlightedTypes] = useState<Set<string>>(new Set());
+
   // 当testDataId变化时,强制重新加载对应的测试数据
   useEffect(() => {
     const stored = localStorage.getItem(`test-data-json-${testDataId}`);
@@ -169,6 +175,131 @@ export default function TestDataEditor({
       setError('保存数据集失败');
     }
   };
+
+  // 格式化JSON
+  const handleFormatJson = () => {
+    try {
+      const testData: TestData = JSON.parse(testDataJson);
+      const formattedJson = JSON.stringify(testData, null, 2);
+      setTestDataJson(formattedJson);
+      setSuccess('JSON格式化成功');
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err: any) {
+      setError(`JSON格式错误: ${err.message}`);
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  // 一键添加轨道
+  const handleAddTracks = () => {
+    if (!ruleGroup || !ruleGroup.rules.length) {
+      setError('没有可用的预设规则');
+      return;
+    }
+
+    try {
+      const testData: TestData = JSON.parse(testDataJson);
+
+      // 根据规则组中的规则类型创建轨道
+      const newTracks = ruleGroup.rules.map((rule) => {
+        // 获取规则的第一个material_id
+        const firstMaterialId = rule.material_ids && rule.material_ids.length > 0
+          ? rule.material_ids[0]
+          : null;
+
+        let trackType = rule.type; // 默认使用规则类型
+
+        // 如果有material_id，尝试从materials中找到对应素材并获取其type
+        if (firstMaterialId && materials && materials.length > 0) {
+          const material = materials.find(m => m.id === firstMaterialId);
+          if (material) {
+            // 根据素材类型映射到轨道类型
+            switch (material.type) {
+              case 'video':
+              case 'image':
+              case 'photo':
+                trackType = 'video';
+                break;
+              case 'audio':
+              case 'extract_music':
+                trackType = 'audio';
+                break;
+              case 'text':
+              case 'subtitle':
+                trackType = 'text';
+                break;
+              case 'sticker':
+                trackType = 'sticker';
+                break;
+              case 'effect':
+                trackType = 'effect';
+                break;
+              case 'filter':
+                trackType = 'filter';
+                break;
+              case 'transition':
+                trackType = 'effect'; // 转场效果通常放在特效轨道
+                break;
+              default:
+                // 如果无法识别类型，保持原来的rule.type
+                break;
+            }
+          }
+        }
+
+        return {
+          id: rule.type, // 使用type作为id
+          title: rule.title, // 使用规则标题
+          type: trackType, // 使用映射后的轨道类型
+        };
+      });
+
+      // 更新testData的tracks字段
+      const updatedTestData = {
+        ...testData,
+        tracks: newTracks,
+      };
+
+      const formattedJson = JSON.stringify(updatedTestData, null, 2);
+      setTestDataJson(formattedJson);
+      setSuccess(`已添加 ${newTracks.length} 个轨道`);
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err: any) {
+      setError(`添加轨道失败: ${err.message}`);
+    }
+  };
+
+  // 检测items中的type并更新高亮状态
+  const updateHighlightTypes = useCallback(() => {
+    if (!ruleGroup) {
+      setHighlightedTypes(new Set());
+      return;
+    }
+
+    try {
+      const testData: TestData = JSON.parse(testDataJson);
+      const itemTypes = new Set<string>();
+
+      // 收集items中的所有type
+      if (testData.items && Array.isArray(testData.items)) {
+        testData.items.forEach((item) => {
+          if (item.type) {
+            itemTypes.add(item.type);
+          }
+        });
+      }
+
+      setHighlightedTypes(itemTypes);
+    } catch (err) {
+      // JSON解析失败时清空高亮
+      setHighlightedTypes(new Set());
+    }
+  }, [testDataJson, ruleGroup]);
+
+  // 当编辑器内容或规则组变化时更新高亮
+  useEffect(() => {
+    updateHighlightTypes();
+  }, [testDataJson, ruleGroup, updateHighlightTypes]);
 
   // 处理测试
   const handleTest = async () => {
@@ -460,7 +591,12 @@ export default function TestDataEditor({
             p: 2,
           }}
         >
-          <RuleGroupList ruleGroup={ruleGroup ?? null} showTitle={true} materials={materials} />
+          <RuleGroupList
+            ruleGroup={ruleGroup ?? null}
+            showTitle={true}
+            materials={materials}
+            highlightedTypes={highlightedTypes}
+          />
         </Box>
 
         {/* 右侧编辑器区域 */}
@@ -540,8 +676,34 @@ export default function TestDataEditor({
             )}
           </Box>
 
+          {/* 编辑器工具栏 */}
+          <Box sx={{ px: 2, py: 1, display: 'flex', gap: 1, alignItems: 'center', backgroundColor: 'grey.50', borderBottom: 1, borderColor: 'divider' }}>
+            <Tooltip title="格式化JSON">
+              <IconButton
+                size="small"
+                onClick={handleFormatJson}
+                color="primary"
+              >
+                <FormatAlignLeftIcon />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="一键添加轨道">
+              <IconButton
+                size="small"
+                onClick={handleAddTracks}
+                color="secondary"
+                disabled={!ruleGroup || !ruleGroup.rules.length}
+              >
+                <AddTrackIcon />
+              </IconButton>
+            </Tooltip>
+            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+              {highlightedTypes.size > 0 && `已匹配 ${highlightedTypes.size} 个规则类型`}
+            </Typography>
+          </Box>
+
           {/* CodeMirror 编辑器 */}
-          <Box sx={{ flex: 1, p: 2, pt: 0, overflow: 'hidden' }}>
+          <Box sx={{ flex: 1, p: 2, pt: 1, overflow: 'hidden' }}>
             <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden', height: '100%' }}>
               <MonacoEditor
                 key={editorKey}

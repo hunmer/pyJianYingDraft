@@ -234,7 +234,8 @@ const CustomAction: React.FC<{
   onContextMenu?: (event: React.MouseEvent, action: TimelineAction, row: TimelineRow) => void;
   material?: MaterialInfo;
   selectedRuleGroup?: RuleGroup | null;
-}> = ({ action, row, isSelected = false, onClick, onContextMenu, material, selectedRuleGroup }) => {
+  isHighlighted?: boolean;
+}> = ({ action, row, isSelected = false, onClick, onContextMenu, material, selectedRuleGroup, isHighlighted = false }) => {
   const trackType = (row as any).data?.type || 'video';
   const color = TRACK_COLORS[trackType] || '#666';
   const name = (action as any).data?.name || '未命名';
@@ -261,10 +262,10 @@ const CustomAction: React.FC<{
     // 注册新的tooltip（这会自动关闭其他tooltip）
     tooltipManager.current.registerTooltip(id);
 
-    // 设置Tooltip位置为鼠标右上角（向右偏移15px，向上偏移15px）
+    // 设置Tooltip位置为鼠标右上角（向右偏移15px，y轴不偏移）
     setTooltipPosition({
       x: event.clientX + 15,
-      y: event.clientY - 15
+      y: event.clientY
     });
     setTooltipOpen(true);
   };
@@ -427,8 +428,16 @@ const CustomAction: React.FC<{
           flexDirection: 'column',
           justifyContent: 'center',
           cursor: 'pointer',
-          border: isSelected ? '2px solid #fff' : '2px solid transparent',
-          boxShadow: isSelected ? '0 0 0 2px rgba(25, 118, 210, 0.5)' : 'none',
+          border: isSelected
+            ? '2px solid #fff'
+            : isHighlighted
+              ? '3px solid #FFD700'
+              : '2px solid transparent',
+          boxShadow: isSelected
+            ? '0 0 0 2px rgba(25, 118, 210, 0.5)'
+            : isHighlighted
+              ? '0 0 0 3px rgba(255, 215, 0, 0.3)'
+              : 'none',
           transition: 'all 0.2s ease',
           opacity: isInAnyRuleGroup ? 1 : 0.7, // 未绑定的素材降低整体透明度
           '&:hover': {
@@ -608,6 +617,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   const [fullRequestPayload, setFullRequestPayload] = useState<RuleGroupTestRequest | null>(null); // 完整的API请求载荷
   const [hiddenTrackTypes, setHiddenTrackTypes] = useState<string[]>([]); // 隐藏的轨道类型
 
+  // 短暂描边状态
+  const [highlightedActionIds, setHighlightedActionIds] = useState<Set<string>>(new Set());
+
   // 异步任务相关状态
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [asyncDialogOpen, setAsyncDialogOpen] = useState(false);
@@ -679,6 +691,55 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
     },
     [ruleGroups, persistRuleGroups],
   );
+
+  // 处理规则点击事件，短暂描边相关片段
+  const handleRuleClick = useCallback((rule: Rule) => {
+    // 查找规则中所有素材ID对应的片段
+    const newHighlightedActionIds = new Set<string>();
+
+    console.log('[Timeline] handleRuleClick:', {
+      rule: rule.title,
+      materialIds: rule.material_ids,
+      totalRows: data.length,
+      rowsWithActions: data.filter(row => row.actions && row.actions.length > 0).length
+    });
+
+    rule.material_ids.forEach(materialId => {
+      data.forEach(row => {
+        // 检查 row.actions 是否存在且不为空
+        if (row.actions && Array.isArray(row.actions) && row.actions.length > 0) {
+          row.actions.forEach(action => {
+            // 检查 action 的 material_id（在 data 中存储为 effectId）
+            if ((action as any).data?.material_id === materialId || action.effectId === materialId) {
+              newHighlightedActionIds.add(action.id);
+              console.log('[Timeline] 找到匹配的 action:', {
+                actionId: action.id,
+                materialId,
+                effectId: action.effectId,
+                rowData: (action as any).data
+              });
+            }
+          });
+        } else {
+          console.log('[Timeline] 跳过空轨道或无效轨道:', {
+            rowId: row.id,
+            actionsCount: row.actions?.length || 0,
+            rowData: (row as any).data
+          });
+        }
+      });
+    });
+
+    console.log('[Timeline] 最终高亮的 action IDs:', Array.from(newHighlightedActionIds));
+
+    // 设置高亮状态
+    setHighlightedActionIds(newHighlightedActionIds);
+
+    // 3秒后自动清除高亮
+    setTimeout(() => {
+      setHighlightedActionIds(new Set());
+    }, 3000);
+  }, [data]);
 
   useEffect(() => {
     if (initialRuleGroups !== undefined && initialRuleGroups !== null) {
@@ -1382,6 +1443,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                   action={action}
                   row={row}
                   isSelected={selectedActionId === action.id}
+                  isHighlighted={highlightedActionIds.has(action.id)}
                   onClick={() => {
                     setSelectedActionId(action.id);
                     setActiveTab(0); // 切换到素材信息 tab
@@ -1695,6 +1757,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 ruleGroup={selectedRuleGroup}
                 materials={Array.isArray(materials) ? materials : []}
                 onSuccess={handleRuleGroupRuleSave}
+                onRuleClick={handleRuleClick}
               />
             </Box>
           </TabPanel>
