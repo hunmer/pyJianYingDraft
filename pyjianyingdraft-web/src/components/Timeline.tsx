@@ -174,10 +174,35 @@ const CustomAction: React.FC<{
   const speed = (action as any).data?.speed;
   const volume = (action as any).data?.volume;
 
+  // 状态：控制Tooltip的显示和位置
+  const [tooltipOpen, setTooltipOpen] = React.useState(false);
+  const [tooltipPosition, setTooltipPosition] = React.useState({ x: 0, y: 0 });
+
   const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
     event.stopPropagation();
     onContextMenu?.(event, action, row);
+  };
+
+  const handleMouseEnter = (event: React.MouseEvent) => {
+    // 设置Tooltip位置为鼠标右上角（向右偏移15px，向上偏移15px）
+    setTooltipPosition({
+      x: event.clientX + 15,
+      y: event.clientY - 15
+    });
+    setTooltipOpen(true);
+  };
+
+  const handleMouseMove = (event: React.MouseEvent) => {
+    // 鼠标移动时更新Tooltip位置
+    setTooltipPosition({
+      x: event.clientX + 15,
+      y: event.clientY - 15
+    });
+  };
+
+  const handleMouseLeave = () => {
+    setTooltipOpen(false);
   };
 
   // 检查素材是否在当前规则组中
@@ -207,7 +232,7 @@ const CustomAction: React.FC<{
               </Typography>
               {rulesUsingMaterial.map((rule, index) => (
                 <Typography key={index} variant="caption" sx={{ color: 'grey.300', display: 'block', ml: 1 }}>
-                  • {rule.title}
+                  • {rule.title || '未命名'}({rule.type})
                 </Typography>
               ))}
             </>
@@ -225,10 +250,26 @@ const CustomAction: React.FC<{
 
   return (
     <Tooltip
+      open={tooltipOpen}
       title={tooltipContent}
       placement="top"
-      arrow
-      enterDelay={500}
+      arrow={false}
+      PopperProps={{
+        anchorEl: {
+          getBoundingClientRect: () => ({
+            top: tooltipPosition.y,
+            left: tooltipPosition.x,
+            right: tooltipPosition.x,
+            bottom: tooltipPosition.y,
+            width: 0,
+            height: 0,
+            x: tooltipPosition.x,
+            y: tooltipPosition.y,
+            toJSON: () => ({})
+          })
+        } as any,
+        disablePortal: false,
+      }}
       componentsProps={{
         tooltip: {
           sx: {
@@ -242,6 +283,9 @@ const CustomAction: React.FC<{
       <Box
         onClick={onClick}
         onContextMenu={handleContextMenu}
+        onMouseEnter={handleMouseEnter}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
         sx={{
           width: '100%',
           height: '100%',
@@ -672,7 +716,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       throw new Error(message);
     }
 
-    console.log('异步提交测试数据:', testData);
+    console.log('提交测试数据:', testData);
     console.log('当前规则组:', selectedRuleGroup);
 
     // 验证测试数据中的规则类型是否都存在于规则组中
@@ -1474,7 +1518,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
               <Divider />
 
-              {/* 异步提交按钮 */}
+              {/* 提交按钮 */}
               <Button
                 variant="outlined"
                 color="secondary"
@@ -1497,7 +1541,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 }}
                 fullWidth
               >
-                异步提交任务
+                提交任务
               </Button>
 
               {/* 测试结果显示 */}

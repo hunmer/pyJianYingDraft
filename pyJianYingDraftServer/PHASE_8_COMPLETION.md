@@ -141,7 +141,7 @@ TaskQueue.create_task() ✅
 
 ### 立即需要解决
 1. **前端UI验证**
-   - [ ] Timeline.tsx 异步提交按钮的真实集成测试
+   - [ ] Timeline.tsx 提交按钮的真实集成测试
    - [ ] 进度条UI组件的实时更新验证
    - [ ] 错误状态的用户反馈
 
