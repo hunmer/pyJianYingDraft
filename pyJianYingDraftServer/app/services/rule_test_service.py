@@ -83,6 +83,8 @@ class RuleTestService:
         if payload.use_raw_segments:
             RuleTestService._build_raw_draft(script, payload)
             if plans:
+                # 将raw_segments的默认时间信息注入到plans中(作为未指定值的后备)
+                RuleTestService._inject_raw_segment_defaults(plans, payload.raw_segments or [])
                 RuleTestService._merge_raw_segments_with_test_data(script, plans)
         else:
             track_configs = RuleTestService._prepare_tracks(test_data, rule_lookup, material_lookup)
@@ -898,6 +900,82 @@ class RuleTestService:
             print(f"[ERROR] 处理animations失败: {e}")
             import traceback
             traceback.print_exc()
+
+    @staticmethod
+    def _inject_raw_segment_defaults(plans: List[Dict[str, Any]], raw_segments: List[RawSegmentPayload]) -> None:
+        """
+        将raw_segments中的默认时间信息注入到plans的item_data中
+        只在item_data中未明确指定start/duration时才注入默认值
+
+        匹配策略:通过material_id匹配raw_segment和plan
+        - plan中的material对象的id对应raw_segment的material_id
+        - 如果同一个material_id有多个raw_segments,按顺序匹配
+        """
+        if not raw_segments:
+            return
+
+        # 创建raw_segments的索引(按material_id分组)
+        raw_segments_by_material: Dict[str, List[RawSegmentPayload]] = {}
+        for raw_seg in raw_segments:
+            material_id = raw_seg.material_id
+            if not material_id:
+                # 尝试从segment中获取material_id
+                material_id = raw_seg.segment.get("material_id")
+
+            if material_id:
+                material_id_str = str(material_id)
+                if material_id_str not in raw_segments_by_material:
+                    raw_segments_by_material[material_id_str] = []
+                raw_segments_by_material[material_id_str].append(raw_seg)
+
+        # 为每个material_id维护一个指针,指向下一个要使用的raw_segment
+        material_pointers: Dict[str, int] = defaultdict(int)
+
+        for plan in plans:
+            material_obj = plan.get("material")
+            item_data = plan.get("item", {})
+
+            if not material_obj:
+                continue
+
+            # 获取material的ID
+            material_id = material_obj.id if hasattr(material_obj, 'id') else str(material_obj.get('id', ''))
+            if not material_id:
+                continue
+
+            # 获取该material_id的raw_segments列表
+            raw_segs = raw_segments_by_material.get(material_id, [])
+            if not raw_segs:
+                continue
+
+            # 获取当前指针位置的raw_segment
+            pointer = material_pointers[material_id]
+            if pointer >= len(raw_segs):
+                # 如果raw_segments用完了,循环使用最后一个
+                pointer = len(raw_segs) - 1
+
+            raw_seg = raw_segs[pointer]
+            raw_seg_data = raw_seg.segment
+
+            # 提取target_timerange中的start和duration
+            target_timerange = raw_seg_data.get("target_timerange", {})
+
+            # 只在item_data中未指定start时,使用raw_segment的默认值
+            if "start" not in item_data or item_data["start"] is None:
+                raw_start_us = target_timerange.get("start")
+                if raw_start_us is not None:
+                    # 转换为秒
+                    item_data["start"] = raw_start_us / 1_000_000
+
+            # 只在item_data中未指定duration时,使用raw_segment的默认值
+            if "duration" not in item_data or item_data["duration"] is None:
+                raw_duration_us = target_timerange.get("duration")
+                if raw_duration_us is not None:
+                    # 转换为秒
+                    item_data["duration"] = raw_duration_us / 1_000_000
+
+            # 移动指针到下一个raw_segment
+            material_pointers[material_id] += 1
 
     @staticmethod
     def _merge_raw_segments_with_test_data(script: draft.ScriptFile, plans: List[Dict[str, Any]]) -> None:
