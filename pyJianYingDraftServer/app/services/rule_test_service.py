@@ -38,6 +38,7 @@ class RuleTestService:
 
     AUDIO_TYPES = {"audio", "music", "sound", "extract_music"}
     TEXT_TYPES = {"text", "subtitle"}
+    EFFECT_TYPES = {"video_effect"}
 
     @staticmethod
     def run_test(payload: RuleGroupTestRequest) -> RuleGroupTestResponse:
@@ -137,11 +138,12 @@ class RuleTestService:
     def _infer_track_type(material: MaterialPayload) -> str:
         extra = material.model_extra or {}
         material_type = (material.type or extra.get("material_type") or "video").lower()
+        print(material_type)
         if material_type in RuleTestService.AUDIO_TYPES:
             return "audio"
         if material_type in RuleTestService.TEXT_TYPES:
             return "text"
-        if material_type in {"filter", "effect"}:
+        if material_type in RuleTestService.EFFECT_TYPES:
             return "effect"
         if material_type in {"sticker"}:
             return "sticker"
@@ -667,19 +669,31 @@ class RuleTestService:
 
     @staticmethod
     def _apply_item_data_to_material(
-        script: draft.ScriptFile, material_id: Optional[str], item_data: Dict[str, Any]
+        script: draft.ScriptFile, material_id: Optional[str], item_data: Dict[str, Any],
+        style_hint: Optional[Dict[str, Any]] = None
     ) -> None:
         if not material_id:
             return
         material_entry = RuleTestService._find_imported_material(script, str(material_id))
 
+        # 处理 path: 优先级为 item_data > segment_styles > material原值(来自raw_segments模板)
         path_value = item_data.get("path")
         if path_value:
+            # item_data 明确指定了 path,使用它(最高优先级)
             material_entry["path"] = path_value
             if "media_path" in material_entry:
                 material_entry["media_path"] = path_value
             if "material_url" in material_entry:
                 material_entry["material_url"] = path_value
+        elif style_hint and "path" in style_hint:
+            # segment_styles 中有 path 预设,使用它(中等优先级)
+            style_path = style_hint["path"]
+            material_entry["path"] = style_path
+            if "media_path" in material_entry:
+                material_entry["media_path"] = style_path
+            if "material_url" in material_entry:
+                material_entry["material_url"] = style_path
+        # 否则保持 material_entry 中的原值(来自 raw_segments 模板,最低优先级)
 
         duration_us = RuleTestService._seconds_to_microseconds(item_data.get("duration"))
         if duration_us is not None:
@@ -986,23 +1000,32 @@ class RuleTestService:
         if not plans:
             return
 
-        # 1. 收集各类型segment结构模板（按轨道类型分类）
-        segment_templates: Dict[str, ImportedSegment] = {}
+        # 1. 收集所有原始segments（按material_id索引）
+        segment_by_material_id: Dict[str, ImportedSegment] = {}
+        segment_templates_by_type: Dict[str, ImportedSegment] = {}  # 类型后备模板
+
         for track in script.imported_tracks:
-            # ImportedTrack使用track_type属性，不是type
             track_type_enum = getattr(track, "track_type", None)
             if not track_type_enum:
                 continue
-            # 转换为字符串（如"video", "audio", "text"）
             track_type = track_type_enum.name if hasattr(track_type_enum, "name") else str(track_type_enum)
             segments = getattr(track, "segments", None)
-            if segments and len(segments) > 0 and track_type not in segment_templates:
-                segment_templates[track_type] = segments[0]
 
-        if not segment_templates:
+            if segments:
+                for seg in segments:
+                    mat_id = getattr(seg, "material_id", None)
+                    if mat_id:
+                        segment_by_material_id[str(mat_id)] = seg
+
+                # 保留类型的第一个segment作为后备模板
+                if track_type not in segment_templates_by_type and len(segments) > 0:
+                    segment_templates_by_type[track_type] = segments[0]
+
+        if not segment_by_material_id and not segment_templates_by_type:
             return
 
-        print(f"[DEBUG] 收集到的模板类型: {list(segment_templates.keys())}")
+        print(f"[DEBUG] 收集到 {len(segment_by_material_id)} 个segment模板(按material_id)")
+        print(f"[DEBUG] 类型模板: {list(segment_templates_by_type.keys())}")
 
         # 2. 保存原始materials的深拷贝（用于克隆）
         original_materials = deepcopy(script.imported_materials)
@@ -1071,20 +1094,33 @@ class RuleTestService:
                 print(f"[WARNING] 未找到轨道: track_id={track_id}, track_map.keys()={list(track_map.keys())}")
                 continue
 
-            # 根据轨道类型选择对应的segment模板
-            track_type = track_type_hints.get(track_id, "video")
-            segment_template = segment_templates.get(track_type)
-            if segment_template is None:
-                # 如果没有对应类型的模板，尝试使用video模板或第一个可用模板
-                segment_template = segment_templates.get("video") or next(iter(segment_templates.values()))
+            # 优先通过material_id查找对应的segment模板
+            material_id = material_obj.id if hasattr(material_obj, 'id') else str(material_obj.get('id', ''))
+            segment_template = segment_by_material_id.get(material_id)
 
-            # 克隆segment和materials，分配新ID（传递轨道类型以选择正确的material模板）
+            if not segment_template:
+                # 后备方案:使用轨道类型的第一个segment作为模板
+                track_type = track_type_hints.get(track_id, "video")
+                segment_template = segment_templates_by_type.get(track_type)
+                if not segment_template:
+                    # 最后的后备:使用任意可用模板
+                    segment_template = segment_templates_by_type.get("video") or next(iter(segment_templates_by_type.values()), None)
+
+                if not segment_template:
+                    print(f"[ERROR] 未找到segment模板: material_id={material_id}, track_type={track_type}")
+                    continue
+
+                print(f"[WARNING] material_id={material_id} 未找到专用模板,使用类型模板")
+
+            # 克隆segment和materials,分配新ID
+            track_type = track_type_hints.get(track_id, "video")
             new_segment, new_material_id = RuleTestService._clone_segment_with_materials(
                 script, segment_template, material_obj, original_materials, track_type=track_type
             )
 
             # 步骤1: 应用segment_styles（预设数据）
             segment_styles = getattr(material_obj, "segment_styles_map", None)
+            style_for_track = None
             if segment_styles and isinstance(segment_styles, dict):
                 # 尝试获取该track_id的专属样式，或使用__default__样式
                 style_for_track = segment_styles.get(track_id) or segment_styles.get("__default__")
@@ -1108,7 +1144,8 @@ class RuleTestService:
 
             # 步骤2: 应用item_data的基础数据（不包括animations）
             RuleTestService._apply_item_data_to_segment(new_segment, item_data)
-            RuleTestService._apply_item_data_to_material(script, new_material_id, item_data)
+            # 传入 style_for_track 以支持从 segment_styles 获取 path 等预设值
+            RuleTestService._apply_item_data_to_material(script, new_material_id, item_data, style_for_track)
 
             # 步骤3: 最后单独处理animations（确保覆盖所有预设）
             animations = item_data.get("animations")
@@ -1172,30 +1209,31 @@ class RuleTestService:
         new_segment_id = get_new_id(old_segment_id)
         new_segment_raw["id"] = new_segment_id
 
-        # 3. 根据轨道类型选择正确的material模板
-        material_category_map = {
-            "audio": "audios",
-            "video": "videos",
-            "text": "texts",
-            "sticker": "stickers",
-            "effect": "effects",
-        }
-        target_category = material_category_map.get(track_type, "videos")
-
-        # 优先从目标类型中选择material模板
+        # 3. 根据segment的material_id查找对应的material模板
         old_material_id = template_segment.material_id
         new_material_id = get_new_id(str(old_material_id))
 
-        # 查找原始material（优先使用对应类型的material）
-        old_material = None
-        if target_category in original_materials and original_materials[target_category]:
-            # 使用对应类型的第一个material作为模板
-            old_material = {"category": target_category, "data": original_materials[target_category][0]}
+        # 查找原始material（通过material_id精确匹配）
+        old_material = RuleTestService._find_material_in_dict(original_materials, str(old_material_id))
+
+        if old_material:
+            old_path = old_material["data"].get("path", "N/A")
+            print(f"[DEBUG] 找到material_id={old_material_id}, path={old_path[:80] if old_path != 'N/A' else 'N/A'}...")
         else:
-            # 如果没有对应类型，尝试使用segment原本的material
-            old_material = RuleTestService._find_material_in_dict(original_materials, str(old_material_id))
-            if old_material:
-                print(f"[DEBUG] 使用segment原有material: category={old_material['category']}")
+            # 如果找不到对应的material_id,作为后备方案,使用对应类型的第一个material
+            material_category_map = {
+                "audio": "audios",
+                "video": "videos",
+                "text": "stickers",
+                "video_effect": "video_effects",
+                "sticker": "stickers",
+                "effect": "effects",
+            }
+            target_category = material_category_map.get(track_type, "videos")
+
+            if target_category in original_materials and original_materials[target_category]:
+                old_material = {"category": target_category, "data": original_materials[target_category][0]}
+                print(f"[WARNING] 未找到material_id={old_material_id},使用{target_category}的第一个material作为后备")
         if old_material:
             new_material = deepcopy(old_material["data"])
 
