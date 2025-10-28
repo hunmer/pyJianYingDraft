@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState, useCallback } from 'react';
+import React, { useEffect, useMemo, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 
 import {
   Box,
@@ -40,6 +40,8 @@ import type { MaterialInfo } from '@/types/draft';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 import { RuleGroupList } from './RuleGroupList';
 import { DownloadProgressBar } from './DownloadProgressBar';
+import { useSnapshots } from '@/hooks/useSnapshots';
+import SnapshotManager from './SnapshotManager';
 
 // 测试回调的返回类型：可以是请求载荷，也可以是包含task_id的响应
 type TestCallbackResult = RuleGroupTestRequest | { task_id: string; [key: string]: any } | void;
@@ -67,11 +69,19 @@ interface TestDataEditorProps {
   onDataChange?: (testData: TestData) => void;
 }
 
+/** 暴露给父组件的方法 */
+export interface TestDataEditorRef {
+  /** 设置测试数据 */
+  setTestData: (data: TestData) => void;
+  /** 执行测试 */
+  runTest: () => Promise<void>;
+}
+
 /**
  * 测试数据编辑器 - 完整页面组件
  * 功能与 TestDataDialog 保持一致
  */
-export default function TestDataEditor({
+const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
   testDataId,
   onTest,
   ruleGroupId,
@@ -82,7 +92,7 @@ export default function TestDataEditor({
   useRawSegmentsHint,
   initialTestData = null,
   onDataChange,
-}: TestDataEditorProps) {
+}, ref) => {
   const initialJson = useMemo(
     () => JSON.stringify(initialTestData ?? EXAMPLE_TEST_DATA, null, 2),
     [initialTestData],
@@ -116,6 +126,19 @@ export default function TestDataEditor({
 
   // 高亮显示的规则类型
   const [highlightedTypes, setHighlightedTypes] = useState<Set<string>>(new Set());
+
+  // 快照管理
+  const {
+    snapshots,
+    createSnapshot,
+    restoreSnapshot,
+    deleteSnapshot,
+    renameSnapshot,
+  } = useSnapshots({
+    storageKey: `test-data-${testDataId}`,
+    maxSnapshots: 20,
+    autoSaveCurrent: false, // 手动控制保存
+  });
 
   // 当testDataId变化时,强制重新加载对应的测试数据
   useEffect(() => {
@@ -366,6 +389,22 @@ export default function TestDataEditor({
   useEffect(() => {
     updateHighlightTypes();
   }, [testDataJson, ruleGroup, updateHighlightTypes]);
+
+  // 暴露给父组件的方法
+  useImperativeHandle(ref, () => ({
+    setTestData: (data: TestData) => {
+      console.log('[TestDataEditor] setTestData 被调用:', data);
+      const jsonString = JSON.stringify(data, null, 2);
+      setTestDataJson(jsonString);
+      // 强制重新渲染编辑器
+      setEditorKey(prev => prev + 1);
+      console.log('[TestDataEditor] 测试数据已设置');
+    },
+    runTest: async () => {
+      console.log('[TestDataEditor] runTest 被调用');
+      await handleTest();
+    }
+  }), [testDataJson]);
 
   // 处理测试
   const handleTest = async () => {
@@ -628,6 +667,36 @@ export default function TestDataEditor({
     openDownloadDialog('full');
   };
 
+  // 创建快照
+  const handleCreateSnapshot = (name: string, description?: string) => {
+    try {
+      const testData: TestData = JSON.parse(testDataJson);
+      createSnapshot(name, testData, description);
+      setSuccess(`快照"${name}"已创建`);
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err: any) {
+      setError(`创建快照失败: ${err.message}`);
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  // 恢复快照
+  const handleRestoreSnapshot = (snapshotId: string) => {
+    try {
+      const data = restoreSnapshot(snapshotId);
+      const jsonString = JSON.stringify(data, null, 2);
+      setTestDataJson(jsonString);
+      setEditorKey(prev => prev + 1); // 强制重新渲染编辑器
+
+      const snapshot = snapshots.find(s => s.id === snapshotId);
+      setSuccess(`已恢复到快照: ${snapshot?.name}`);
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err: any) {
+      setError(`恢复快照失败: ${err.message}`);
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 0 }}>
       {/* 顶部标题栏 */}
@@ -640,6 +709,15 @@ export default function TestDataEditor({
             <Typography variant="caption" color="text.secondary">
               实例ID: {testDataId}
             </Typography>
+          </Box>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <SnapshotManager
+              snapshots={snapshots}
+              onCreateSnapshot={handleCreateSnapshot}
+              onRestoreSnapshot={handleRestoreSnapshot}
+              onDeleteSnapshot={deleteSnapshot}
+              onRenameSnapshot={renameSnapshot}
+            />
           </Box>
         </Box>
       </Paper>
@@ -933,4 +1011,8 @@ export default function TestDataEditor({
       </Dialog>
     </Box>
   );
-}
+});
+
+TestDataEditor.displayName = 'TestDataEditor';
+
+export default TestDataEditor;
