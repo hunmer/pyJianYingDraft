@@ -91,11 +91,6 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
       return false;
     }
 
-    if (!ruleTitle.trim()) {
-      setError('请输入规则标题');
-      return false;
-    }
-
     // 检查规则类型是否重复（编辑模式下排除当前规则）
     if (ruleGroup.rules.some(r => 
       r.type === ruleType.trim() && 
@@ -207,7 +202,6 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
             onChange={(e) => setRuleTitle(e.target.value)}
             placeholder="例如: 视频开场动画"
             helperText="规则的显示标题(中文)"
-            required
           />
         </Box>
       </DialogContent>
