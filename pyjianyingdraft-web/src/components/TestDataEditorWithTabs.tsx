@@ -7,7 +7,7 @@ import {
   Tab,
   Typography,
 } from '@mui/material';
-import TestDataEditor from './TestDataEditor';
+import TestDataEditor, { TestDataEditorRef } from './TestDataEditor';
 import CodeTestEditor from './CodeTestEditor';
 import type { TestData, RuleGroup, MaterialInfo } from '@/types/rule';
 import type { RawSegmentPayload, RawMaterialPayload } from '@/types/rule';
@@ -56,8 +56,9 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
 }, ref) => {
   const [currentTab, setCurrentTab] = useState(0);
   const [currentTestData, setCurrentTestData] = useState<TestData | null>(initialTestData);
-  const [sendTestData, setSendTestData] = useState<TestData | null>(null); // 用于发送测试的数据
-  const [editorKey, setEditorKey] = useState(0); // 用于强制重新渲染编辑器
+
+  // TestDataEditor 的 ref
+  const testDataEditorRef = useRef<TestDataEditorRef>(null);
 
   // 处理测试数据变化
   const handleTestDataChange = useCallback((testData: TestData) => {
@@ -73,42 +74,30 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
     setCurrentTab(newValue);
   };
 
-  // 添加引用方法
-  const testDataEditorRef = useRef<any>(null);
-
   // 暴露给父组件的方法
   useImperativeHandle(ref, () => ({
     setJsonDataAndSwitchTab: (data: any) => {
       // 切换到json数据tab
       setCurrentTab(0);
 
-      // 设置JSON数据
-      if (data && typeof data === 'object') {
-        const jsonString = JSON.stringify(data, null, 2);
-        // 通过ref调用TestDataEditor的方法来设置数据
-        // 由于TestDataEditor没有直接暴露设置方法,我们需要通过其他方式
-        // 这里可以使用一个setTimeout来确保tab切换完成后再设置数据
-        setTimeout(() => {
-          // 触发数据更新
-          const newTestData: TestData = {
-            tracks: data.tracks || [],
-            items: data.items || []
-          };
-          setSendTestData(newTestData);
-          setCurrentTestData(newTestData);
+      // 通过ref调用TestDataEditor的setTestData方法
+      if (data && typeof data === 'object' && testDataEditorRef.current) {
+        const newTestData: TestData = {
+          tracks: data.tracks || [],
+          items: data.items || []
+        };
 
-          // 延迟执行测试,确保数据更新完成
+        setTimeout(() => {
+          testDataEditorRef.current?.setTestData(newTestData);
+
+          // 延迟执行测试
           setTimeout(() => {
-            // 查找并点击测试按钮
-            const testButton = document.querySelector('[data-testid="test-run-button"]') as HTMLButtonElement;
-            if (testButton && !testButton.disabled) {
-              testButton.click();
-            }
+            testDataEditorRef.current?.runTest();
           }, 300);
         }, 100);
       }
     }
-  }), [ruleGroupId]);
+  }), []);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -137,7 +126,7 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
         {/* json数据Tab - 使用display控制显示/隐藏而非条件渲染 */}
         <Box sx={{ display: currentTab === 0 ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
           <TestDataEditor
-            key={editorKey}
+            ref={testDataEditorRef}
             testDataId={testDataId}
             onTest={onTest}
             ruleGroupId={ruleGroupId}
@@ -146,7 +135,7 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
             rawSegments={rawSegments}
             rawMaterials={rawMaterials}
             useRawSegmentsHint={useRawSegmentsHint}
-            initialTestData={sendTestData || currentTestData || initialTestData}
+            initialTestData={initialTestData}
             onDataChange={handleTestDataChange}
           />
         </Box>
@@ -164,14 +153,11 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
                 dataKeys: Object.keys(data),
                 hasTracks: !!data.tracks,
                 hasItems: !!data.items,
-                tracksValue: data.tracks,
-                itemsValue: data.items
               });
 
-              // 先处理和转换数据
+              // 处理和转换数据
               if (data && typeof data === 'object') {
                 console.log('[TestDataEditorWithTabs] 开始处理发送的数据');
-                // 智能数据转换:如果数据没有 tracks/items 结构,尝试转换
                 let newTestData: TestData;
 
                 if (data.tracks && data.items) {
@@ -185,7 +171,6 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
                   // 数据是执行结果格式,需要转换
                   console.log('[TestDataEditorWithTabs] 数据是执行结果格式,尝试转换');
 
-                  // 尝试将 all_params 转换为测试数据结构
                   const convertedData = data.all_params;
                   if (convertedData.tracks && convertedData.items) {
                     newTestData = {
@@ -193,13 +178,11 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
                       items: convertedData.items
                     };
                   } else if (Array.isArray(convertedData)) {
-                    // 如果是数组,假设是 items
                     newTestData = {
                       tracks: [],
                       items: convertedData
                     };
                   } else {
-                    // 作为通用对象,尝试构建测试数据
                     newTestData = {
                       tracks: convertedData.tracks || [],
                       items: convertedData.items || [convertedData]
@@ -217,18 +200,13 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
 
                 console.log('[TestDataEditorWithTabs] 最终设置的测试数据:', newTestData);
 
-                // 立即更新数据状态
-                setSendTestData(newTestData);
-                setCurrentTestData(newTestData);
-                // 强制重新渲染编辑器以确保数据更新
-                setEditorKey(prev => prev + 1);
+                // 切换到json数据tab
+                setCurrentTab(0);
 
-                // 延迟切换tab,确保数据状态更新完成
+                // 延迟调用TestDataEditor的方法
                 setTimeout(() => {
-                  console.log('[TestDataEditorWithTabs] 切换到 json 数据 tab');
-                  setCurrentTab(0);
-
-                  // 数据已设置到编辑器,等待用户手动点击"测试运行"按钮
+                  console.log('[TestDataEditorWithTabs] 调用 TestDataEditor.setTestData');
+                  testDataEditorRef.current?.setTestData(newTestData);
                   console.log('[TestDataEditorWithTabs] 数据已设置到编辑器,等待用户手动执行测试');
                 }, 100);
               } else {
@@ -236,19 +214,14 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
               }
             }}
             onExecute={async (code: string, params?: any) => {
-              // 注意:传入的code已经是编译后的纯JavaScript代码(如果启用了TypeScript)
               console.log('[代码测试] 执行代码:', { code: code.substring(0, 100) + '...', params });
 
               try {
-                // 模拟代码执行环境
                 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
 
-                // 构建完整的可执行代码
-                // 代码已经由CodeTestEditor编译过,无需再次清理TypeScript语法
                 const fullCode = `
                   ${code}
 
-                  // 如果代码中定义了main函数,返回它
                   if (typeof main === 'function') {
                     return main;
                   }
@@ -256,11 +229,9 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
 
                 console.log('[代码测试] 即将执行的完整代码:', fullCode);
 
-                // 创建执行环境
                 const createMainFunction = new AsyncFunction(fullCode);
                 const mainFunction = await createMainFunction();
 
-                // 执行代码
                 const result = typeof mainFunction === 'function'
                   ? await mainFunction({ params })
                   : null;

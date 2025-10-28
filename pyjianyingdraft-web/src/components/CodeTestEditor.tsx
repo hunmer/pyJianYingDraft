@@ -20,6 +20,8 @@ import RefreshIcon from '@mui/icons-material/Refresh';
 import CodeIcon from '@mui/icons-material/Code';
 import SendIcon from '@mui/icons-material/Send';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor';
+import { useSnapshots } from '@/hooks/useSnapshots';
+import SnapshotManager from './SnapshotManager';
 
 // JavaScript默认代码模板
 const JS_DEFAULT_CODE_TEMPLATE = `
@@ -93,6 +95,32 @@ export default function CodeTestEditor({
   const [tsLoaded, setTsLoaded] = useState(false); // TypeScript编译器是否已加载
   const codeEditorRef = useRef<any>(null);
   const jsonEditorRef = useRef<any>(null);
+
+  // 快照管理 - 代码快照
+  const {
+    snapshots: codeSnapshots,
+    createSnapshot: createCodeSnapshot,
+    restoreSnapshot: restoreCodeSnapshot,
+    deleteSnapshot: deleteCodeSnapshot,
+    renameSnapshot: renameCodeSnapshot,
+  } = useSnapshots({
+    storageKey: `code-test-code-${testDataId}`,
+    maxSnapshots: 20,
+    autoSaveCurrent: false,
+  });
+
+  // 快照管理 - JSON数据快照
+  const {
+    snapshots: jsonSnapshots,
+    createSnapshot: createJsonSnapshot,
+    restoreSnapshot: restoreJsonSnapshot,
+    deleteSnapshot: deleteJsonSnapshot,
+    renameSnapshot: renameJsonSnapshot,
+  } = useSnapshots({
+    storageKey: `code-test-json-${testDataId}`,
+    maxSnapshots: 20,
+    autoSaveCurrent: false,
+  });
 
   // 当testDataId变化时，恢复对应的代码和JSON数据
   useEffect(() => {
@@ -483,6 +511,60 @@ export default function CodeTestEditor({
     }
   };
 
+  // 创建代码快照
+  const handleCreateCodeSnapshot = (name: string, description?: string) => {
+    try {
+      createCodeSnapshot(name, code, description);
+      setSuccess(`代码快照"${name}"已创建`);
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err: any) {
+      setError(`创建快照失败: ${err.message}`);
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  // 恢复代码快照
+  const handleRestoreCodeSnapshot = (snapshotId: string) => {
+    try {
+      const restoredCode = restoreCodeSnapshot(snapshotId);
+      setCode(restoredCode);
+
+      const snapshot = codeSnapshots.find(s => s.id === snapshotId);
+      setSuccess(`已恢复代码到快照: ${snapshot?.name}`);
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err: any) {
+      setError(`恢复快照失败: ${err.message}`);
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  // 创建JSON快照
+  const handleCreateJsonSnapshot = (name: string, description?: string) => {
+    try {
+      createJsonSnapshot(name, jsonData, description);
+      setSuccess(`JSON快照"${name}"已创建`);
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err: any) {
+      setError(`创建快照失败: ${err.message}`);
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
+  // 恢复JSON快照
+  const handleRestoreJsonSnapshot = (snapshotId: string) => {
+    try {
+      const restoredJson = restoreJsonSnapshot(snapshotId);
+      setJsonData(restoredJson);
+
+      const snapshot = jsonSnapshots.find(s => s.id === snapshotId);
+      setSuccess(`已恢复JSON到快照: ${snapshot?.name}`);
+      setTimeout(() => setSuccess(''), 2000);
+    } catch (err: any) {
+      setError(`恢复快照失败: ${err.message}`);
+      setTimeout(() => setError(''), 3000);
+    }
+  };
+
   // 发送测试数据
   const handleSendTest = () => {
     console.log('[CodeTestEditor] handleSendTest 开始执行');
@@ -623,7 +705,15 @@ export default function CodeTestEditor({
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                 代码编辑器 ({useTypeScript ? 'TypeScript' : 'JavaScript'})
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <SnapshotManager
+                  snapshots={codeSnapshots}
+                  onCreateSnapshot={handleCreateCodeSnapshot}
+                  onRestoreSnapshot={handleRestoreCodeSnapshot}
+                  onDeleteSnapshot={deleteCodeSnapshot}
+                  onRenameSnapshot={renameCodeSnapshot}
+                />
+                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
                 {useTypeScript && (
                   <Tooltip title="加载TypeScript示例代码">
                     <IconButton
@@ -701,15 +791,25 @@ export default function CodeTestEditor({
                     <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
                       JSON参数编辑器
                     </Typography>
-                    <Tooltip title="格式化JSON">
-                      <IconButton
-                        size="small"
-                        onClick={handleFormatJson}
-                        color="primary"
-                      >
-                        <RefreshIcon />
-                      </IconButton>
-                    </Tooltip>
+                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                      <SnapshotManager
+                        snapshots={jsonSnapshots}
+                        onCreateSnapshot={handleCreateJsonSnapshot}
+                        onRestoreSnapshot={handleRestoreJsonSnapshot}
+                        onDeleteSnapshot={deleteJsonSnapshot}
+                        onRenameSnapshot={renameJsonSnapshot}
+                      />
+                      <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                      <Tooltip title="格式化JSON">
+                        <IconButton
+                          size="small"
+                          onClick={handleFormatJson}
+                          color="primary"
+                        >
+                          <RefreshIcon />
+                        </IconButton>
+                      </Tooltip>
+                    </Box>
                   </Box>
 
                   <Box sx={{ flex: 1, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
