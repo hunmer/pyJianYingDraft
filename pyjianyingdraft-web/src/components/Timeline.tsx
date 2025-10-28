@@ -166,7 +166,8 @@ const CustomAction: React.FC<{
   onClick?: () => void;
   onContextMenu?: (event: React.MouseEvent, action: TimelineAction, row: TimelineRow) => void;
   material?: MaterialInfo;
-}> = ({ action, row, isSelected = false, onClick, onContextMenu, material }) => {
+  selectedRuleGroup?: RuleGroup | null;
+}> = ({ action, row, isSelected = false, onClick, onContextMenu, material, selectedRuleGroup }) => {
   const trackType = (row as any).data?.type || 'video';
   const color = TRACK_COLORS[trackType] || '#666';
   const name = (action as any).data?.name || '未命名';
@@ -179,6 +180,12 @@ const CustomAction: React.FC<{
     onContextMenu?.(event, action, row);
   };
 
+  // 检查素材是否在当前规则组中
+  const rulesUsingMaterial = selectedRuleGroup?.rules.filter(rule =>
+    material?.id && rule.material_ids.includes(material.id)
+  ) || [];
+  const isInRuleGroup = rulesUsingMaterial.length > 0;
+
   // 创建悬浮预览内容
   const tooltipContent = material ? (
     <Box sx={{ maxWidth: 300 }}>
@@ -190,6 +197,26 @@ const CustomAction: React.FC<{
         <Typography variant="caption" sx={{ color: 'grey.400', display: 'block', wordBreak: 'break-all' }}>
           {material.path}
         </Typography>
+      )}
+      {selectedRuleGroup && (
+        <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255, 255, 255, 0.3)' }}>
+          {isInRuleGroup ? (
+            <>
+              <Typography variant="caption" sx={{ color: 'success.light', display: 'block', fontWeight: 600 }}>
+                ✓ 已添加到规则组: {selectedRuleGroup.title}
+              </Typography>
+              {rulesUsingMaterial.map((rule, index) => (
+                <Typography key={index} variant="caption" sx={{ color: 'grey.300', display: 'block', ml: 1 }}>
+                  • {rule.title}
+                </Typography>
+              ))}
+            </>
+          ) : (
+            <Typography variant="caption" sx={{ color: 'warning.light', display: 'block' }}>
+              未添加到当前规则组
+            </Typography>
+          )}
+        </Box>
       )}
     </Box>
   ) : (
@@ -1189,6 +1216,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                   }}
                   onContextMenu={handleContextMenu}
                   material={material}
+                  selectedRuleGroup={selectedRuleGroup}
                 />
               );
             }}
@@ -1329,6 +1357,55 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                         )}
                       </Box>
 
+                      {/* 规则组状态信息 */}
+                      {material && selectedRuleGroup && (
+                        <>
+                          <Divider />
+                          <Box>
+                            <Typography variant="subtitle2" gutterBottom>
+                              规则组状态
+                            </Typography>
+                            {(() => {
+                              const rulesUsingMaterial = selectedRuleGroup.rules.filter(rule =>
+                                rule.material_ids.includes(material.id)
+                              );
+                              const isInRuleGroup = rulesUsingMaterial.length > 0;
+
+                              return (
+                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">当前规则组</Typography>
+                                    <Typography variant="body2">{selectedRuleGroup.title}</Typography>
+                                  </Box>
+                                  <Box>
+                                    <Typography variant="caption" color="text.secondary">状态</Typography>
+                                    <Typography
+                                      variant="body2"
+                                      sx={{
+                                        color: isInRuleGroup ? 'success.main' : 'warning.main',
+                                        fontWeight: 600
+                                      }}
+                                    >
+                                      {isInRuleGroup ? '✓ 已添加' : '未添加'}
+                                    </Typography>
+                                  </Box>
+                                  {isInRuleGroup && rulesUsingMaterial.length > 0 && (
+                                    <Box>
+                                      <Typography variant="caption" color="text.secondary">使用此素材的规则</Typography>
+                                      {rulesUsingMaterial.map((rule, index) => (
+                                        <Typography key={index} variant="body2" sx={{ ml: 1 }}>
+                                          • {rule.title}
+                                        </Typography>
+                                      ))}
+                                    </Box>
+                                  )}
+                                </Box>
+                              );
+                            })()}
+                          </Box>
+                        </>
+                      )}
+
                       {/* 素材预览 */}
                       {material && (
                         <>
@@ -1352,7 +1429,10 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                             onClick={() => setAddToRuleGroupDialogOpen(true)}
                             fullWidth
                           >
-                            添加到规则组
+                            {selectedRuleGroup && selectedRuleGroup.rules.some(rule => rule.material_ids.includes(material.id))
+                              ? '修改规则组配置'
+                              : '添加到规则组'
+                            }
                           </Button>
                         </>
                       )}

@@ -1009,7 +1009,20 @@ class RuleTestService:
             if not track_type_enum:
                 continue
             track_type = track_type_enum.name if hasattr(track_type_enum, "name") else str(track_type_enum)
+
+            # 尝试获取segments: 优先从属性获取,否则从raw_data获取
             segments = getattr(track, "segments", None)
+            if segments is None:
+                # 对于ImportedTrack(effect/filter等不可修改轨道),从raw_data获取
+                raw_data = getattr(track, "raw_data", None)
+                if raw_data and isinstance(raw_data, dict):
+                    raw_segments = raw_data.get("segments", [])
+                    # 将原始segment JSON包装为ImportedSegment对象
+                    from pyJianYingDraft.template_mode import ImportedSegment
+                    segments = [ImportedSegment(seg) for seg in raw_segments] if raw_segments else None
+
+            # 调试:打印轨道类型
+            print(f"[DEBUG] 加载的轨道: track_type={track_type}, segments={len(segments) if segments else 0}")
 
             if segments:
                 for seg in segments:
@@ -1057,6 +1070,9 @@ class RuleTestService:
                 material_obj = plan["material"]
                 inferred_type = RuleTestService._infer_track_type(material_obj)
                 track_type_hints[track_id] = inferred_type
+                material_id = material_obj.id if hasattr(material_obj, 'id') else material_obj.get('id', 'N/A')
+                material_type = material_obj.type if hasattr(material_obj, 'type') else material_obj.get('type', 'N/A')
+                print(f"[DEBUG] 收集轨道类型: track_id={track_id}, inferred_type={inferred_type}, material_id={material_id}, material_type={material_type}")
 
         # 创建轨道
         for plan in plans:
@@ -1221,13 +1237,14 @@ class RuleTestService:
             print(f"[DEBUG] 找到material_id={old_material_id}, path={old_path[:80] if old_path != 'N/A' else 'N/A'}...")
         else:
             # 如果找不到对应的material_id,作为后备方案,使用对应类型的第一个material
+            # 注意:effect轨道可能包含video_effects或effects两种category的素材
             material_category_map = {
                 "audio": "audios",
                 "video": "videos",
                 "text": "stickers",
                 "video_effect": "video_effects",
                 "sticker": "stickers",
-                "effect": "effects",
+                "effect": "video_effects",  # effect轨道优先使用video_effects
             }
             target_category = material_category_map.get(track_type, "videos")
 
