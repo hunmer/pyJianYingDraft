@@ -9,6 +9,8 @@ import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } 
 import { foldGutter, indentOnInput, syntaxHighlighting, defaultHighlightStyle, bracketMatching, foldKeymap } from '@codemirror/language';
 import { lintKeymap } from '@codemirror/lint';
 import { json } from '@codemirror/lang-json';
+import { javascript } from '@codemirror/lang-javascript';
+import { typescript } from '@codemirror/lang-typescript';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { Box } from '@mui/material';
 
@@ -54,8 +56,8 @@ export interface CodeMirrorEditorProps {
   onChange?: (value: string) => void;
   /** 编辑器高度 */
   height?: string | number;
-  /** 编辑器语言 (目前只支持 json) */
-  language?: 'json';
+  /** 编辑器语言 */
+  language?: 'json' | 'javascript' | 'typescript';
   /** 主题 (light 或 dark) */
   theme?: 'light' | 'dark';
   /** 只读模式 */
@@ -90,10 +92,25 @@ export default function CodeMirrorEditor({
   useEffect(() => {
     if (!editorRef.current) return;
 
+    // 根据语言类型添加对应的语法高亮
+    let languageExtension;
+    switch (language) {
+      case 'javascript':
+        languageExtension = javascript({ typescript: false });
+        break;
+      case 'typescript':
+        languageExtension = javascript({ typescript: true });
+        break;
+      case 'json':
+      default:
+        languageExtension = json();
+        break;
+    }
+
     // 创建编辑器状态
     const extensions = [
       basicSetup,
-      json(), // JSON 语法高亮
+      languageExtension, // 语言语法高亮
       EditorView.lineWrapping, // 自动换行
       EditorView.updateListener.of((update) => {
         if (update.docChanged && onChange) {

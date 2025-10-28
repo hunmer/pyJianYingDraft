@@ -14,7 +14,6 @@ import {
   Typography,
   Card,
   CardContent,
-  Grid,
   IconButton,
   Divider,
   Menu,
@@ -26,6 +25,7 @@ import {
   Button,
   Tooltip,
 } from '@mui/material';
+import Grid from '@mui/material/Grid2';
 import {
   Menu as MenuIcon,
   Close as CloseIcon,
@@ -42,7 +42,7 @@ import DraftList from '@/components/DraftList';
 import FileVersionList, { type FileVersionListHandle } from '@/components/FileVersionList';
 import FileDiffViewer from '@/components/FileDiffViewer';
 import TimelineEditor from '@/components/Timeline';
-import TestDataEditor from '@/components/TestDataEditor';
+import TestDataEditorWithTabs from '@/components/TestDataEditorWithTabs';
 import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/lib/api';
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, RuleGroupTestRequest } from '@/types/rule';
@@ -1042,7 +1042,7 @@ export default function Home() {
 
           {/* 测试数据视图 */}
           {activeTab?.type === 'test_data' && activeTab.onTestData && (
-            <TestDataEditor
+            <TestDataEditorWithTabs
               testDataId={activeTab.testDataId!}
               onTest={activeTab.onTestData}
               ruleGroupId={activeTab.testDataContext?.ruleGroupId}

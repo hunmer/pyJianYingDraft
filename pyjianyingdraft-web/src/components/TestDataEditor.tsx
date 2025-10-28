@@ -63,6 +63,8 @@ interface TestDataEditorProps {
   useRawSegmentsHint?: boolean;
   /** 预设测试数据 */
   initialTestData?: TestData | null;
+  /** 数据变化回调 */
+  onDataChange?: (testData: TestData) => void;
 }
 
 /**
@@ -79,6 +81,7 @@ export default function TestDataEditor({
   rawMaterials: _rawMaterials,
   useRawSegmentsHint,
   initialTestData = null,
+  onDataChange,
 }: TestDataEditorProps) {
   const initialJson = useMemo(
     () => JSON.stringify(initialTestData ?? EXAMPLE_TEST_DATA, null, 2),
@@ -125,12 +128,75 @@ export default function TestDataEditor({
     console.log('[TestDataEditor] 加载测试数据:', { testDataId, hasStored: !!stored, contentLength: newContent.length });
   }, [testDataId, initialJson]);
 
+  // 使用 ref 来跟踪上一次的 initialTestData，避免重复同步
+  const prevInitialTestDataRef = React.useRef<string | null>(null);
+
+  // 监听外部数据变化（用于发送测试功能）
+  useEffect(() => {
+    console.log('[TestDataEditor] 监听外部数据变化:', {
+      testDataId,
+      hasInitialTestData: !!initialTestData,
+      initialTestData,
+      currentTestDataJsonLength: testDataJson.length
+    });
+
+    if (initialTestData) {
+      const newJson = JSON.stringify(initialTestData, null, 2);
+      const prevJson = prevInitialTestDataRef.current;
+
+      console.log('[TestDataEditor] 准备更新JSON数据:', {
+        testDataId,
+        newJsonLength: newJson.length,
+        newJsonPreview: newJson.substring(0, 200) + (newJson.length > 200 ? '...' : ''),
+        isNewData: prevJson !== newJson
+      });
+
+      // 只有当 initialTestData 真正变化时才更新（不依赖 testDataJson）
+      if (prevJson !== newJson) {
+        setTestDataJson(newJson);
+        setEditorKey(prev => prev + 1); // 强制重新渲染编辑器
+        prevInitialTestDataRef.current = newJson; // 记录当前值
+
+        console.log('[TestDataEditor] 外部数据已更新:', {
+          testDataId,
+          dataLength: newJson.length,
+          tracksCount: initialTestData.tracks?.length || 0,
+          itemsCount: initialTestData.items?.length || 0
+        });
+
+        // 自动触发测试（延迟执行以确保数据已更新）
+        setTimeout(() => {
+          console.log('[TestDataEditor] 准备自动运行测试...');
+          const testButton = document.querySelector('[data-testid="test-run-button"]') as HTMLButtonElement;
+          if (testButton && !testButton.disabled) {
+            console.log('[TestDataEditor] 自动点击测试按钮');
+            testButton.click();
+          } else {
+            console.warn('[TestDataEditor] 测试按钮不可用或不存在', { testButton, disabled: testButton?.disabled });
+          }
+        }, 500);
+      } else {
+        console.log('[TestDataEditor] initialTestData 未变化，跳过更新');
+      }
+    }
+  }, [initialTestData, testDataId]); // 移除 testDataJson 依赖
+
   // 保存测试数据到localStorage
   useEffect(() => {
     if (testDataJson) {
       localStorage.setItem(`test-data-json-${testDataId}`, testDataJson);
+
+      // 通知数据变化
+      if (onDataChange) {
+        try {
+          const testData: TestData = JSON.parse(testDataJson);
+          onDataChange(testData);
+        } catch (err) {
+          console.warn('[TestDataEditor] JSON解析失败，无法通知数据变化:', err);
+        }
+      }
     }
-  }, [testDataJson, testDataId]);
+  }, [testDataJson, testDataId, onDataChange]);
   // 数据集管理状态
   const [datasets, setDatasets] = useState<TestDataset[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
@@ -776,6 +842,7 @@ export default function TestDataEditor({
                 variant="contained"
                 startIcon={<PlayArrowIcon />}
                 disabled={testing}
+                data-testid="test-run-button"
               >
                 {testing ? '测试中...' : '运行测试'}
               </Button>
