@@ -12,8 +12,11 @@ import {
   Divider,
   Tabs,
   Tab,
-  Switch,
+  Radio,
+  RadioGroup,
   FormControlLabel,
+  FormControl,
+  FormLabel,
 } from '@mui/material';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import RefreshIcon from '@mui/icons-material/Refresh';
@@ -57,6 +60,34 @@ async function main({ params }) {
     return ret;
 }`;
 
+// Python默认代码模板
+const PYTHON_DEFAULT_CODE_TEMPLATE = `
+import json
+
+def main(params):
+    """
+    Python代码测试环境
+    params: 输入参数字典
+    返回: 字典对象
+    """
+    ret = {
+        "input_value": params.get("input", ""),
+        "message": params.get("message", ""),
+        "number_doubled": params.get("number", 0) * 2,
+        "key1": ["hello", "world"],
+        "key2": {
+            "key21": "hi"
+        },
+        "all_params": params
+    }
+
+    return ret
+
+# 执行main函数
+result = main(params)
+result
+`;
+
 interface CodeTestEditorProps {
   /** 初始代码内容 */
   initialCode?: string;
@@ -91,8 +122,10 @@ export default function CodeTestEditor({
   const [executing, setExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<any>(null);
   const [rightTabValue, setRightTabValue] = useState(0); // 右侧tab状态：0=输入数据，1=输出数据
-  const [useTypeScript, setUseTypeScript] = useState(true); // 是否使用TypeScript
+  const [language, setLanguage] = useState<'javascript' | 'typescript' | 'python'>('typescript'); // 当前语言选择
   const [tsLoaded, setTsLoaded] = useState(false); // TypeScript编译器是否已加载
+  const [pyodideLoaded, setPyodideLoaded] = useState(false); // Pyodide是否已加载
+  const [pyodide, setPyodide] = useState<any>(null); // Pyodide实例
   const codeEditorRef = useRef<any>(null);
   const jsonEditorRef = useRef<any>(null);
 
@@ -160,7 +193,7 @@ export default function CodeTestEditor({
   // 动态加载TypeScript编译器
   useEffect(() => {
     const loadTypeScript = async () => {
-      if (useTypeScript && !tsLoaded && (window as any).ts === undefined) {
+      if (language === 'typescript' && !tsLoaded && (window as any).ts === undefined) {
         try {
           console.log('[CodeTestEditor] 开始加载TypeScript编译器...');
           const script = document.createElement('script');
@@ -175,7 +208,6 @@ export default function CodeTestEditor({
                 console.log('[CodeTestEditor] TypeScript编译器已加载完成');
               } else {
                 setError('TypeScript编译器初始化失败');
-                setUseTypeScript(false);
               }
             }, 100);
           };
@@ -183,57 +215,127 @@ export default function CodeTestEditor({
           script.onerror = (error) => {
             console.error('[CodeTestEditor] TypeScript编译器加载失败:', error);
             setError('TypeScript编译器加载失败，请检查网络连接');
-            setUseTypeScript(false);
           };
 
           document.head.appendChild(script);
         } catch (err: any) {
           console.error('[CodeTestEditor] TypeScript编译器加载异常:', err);
           setError(`TypeScript编译器加载失败: ${err.message}`);
-          setUseTypeScript(false);
         }
-      } else if (useTypeScript && (window as any).ts !== undefined) {
+      } else if (language === 'typescript' && (window as any).ts !== undefined) {
         setTsLoaded(true);
         console.log('[CodeTestEditor] TypeScript编译器已就绪');
       }
     };
 
     loadTypeScript();
-  }, [useTypeScript, tsLoaded]);
+  }, [language, tsLoaded]);
 
-  // 当切换到TypeScript模式时，提供TypeScript示例代码
+  // 动态加载Pyodide
   useEffect(() => {
-    if (useTypeScript && tsLoaded) {
-      const currentCode = code.trim();
-      // 如果当前是JavaScript默认代码，自动切换到TypeScript示例
-      if (currentCode.includes('// 代码测试环境 (JavaScript)') &&
-          !currentCode.includes('interface TestParams')) {
-        setCode(TS_EXAMPLE_CODE_TEMPLATE);
-        setSuccess('已切换到TypeScript模式并加载示例代码');
+    const loadPyodide = async () => {
+      if (language === 'python' && !pyodideLoaded && !(window as any).loadPyodide) {
+        try {
+          console.log('[CodeTestEditor] 开始加载Pyodide...');
+          setSuccess('正在加载Python运行环境，请稍候...');
+
+          const script = document.createElement('script');
+          script.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js';
+          script.async = true;
+
+          script.onload = async () => {
+            try {
+              console.log('[CodeTestEditor] Pyodide脚本已加载，正在初始化...');
+              const loadPyodide = (window as any).loadPyodide;
+              const pyodideInstance = await loadPyodide();
+              setPyodide(pyodideInstance);
+              setPyodideLoaded(true);
+              setSuccess('Python运行环境已就绪');
+              console.log('[CodeTestEditor] Pyodide已加载完成');
+              setTimeout(() => setSuccess(''), 3000);
+            } catch (initErr: any) {
+              console.error('[CodeTestEditor] Pyodide初始化失败:', initErr);
+              setError(`Python运行环境初始化失败: ${initErr.message}`);
+            }
+          };
+
+          script.onerror = (error) => {
+            console.error('[CodeTestEditor] Pyodide加载失败:', error);
+            setError('Python运行环境加载失败，请检查网络连接');
+          };
+
+          document.head.appendChild(script);
+        } catch (err: any) {
+          console.error('[CodeTestEditor] Pyodide加载异常:', err);
+          setError(`Python运行环境加载失败: ${err.message}`);
+        }
+      } else if (language === 'python' && pyodide) {
+        setPyodideLoaded(true);
+        console.log('[CodeTestEditor] Pyodide已就绪');
+      }
+    };
+
+    loadPyodide();
+  }, [language, pyodideLoaded, pyodide]);
+
+  // 当切换语言时，更新代码模板
+  useEffect(() => {
+    const currentCode = code.trim();
+    const isDefaultCode = currentCode.includes('// 代码测试环境') ||
+                         currentCode.includes('def main(params)') ||
+                         currentCode.includes('async function main');
+
+    if (isDefaultCode) {
+      let newCode = '';
+      switch (language) {
+        case 'javascript':
+          newCode = JS_DEFAULT_CODE_TEMPLATE;
+          break;
+        case 'typescript':
+          newCode = TS_EXAMPLE_CODE_TEMPLATE;
+          break;
+        case 'python':
+          newCode = PYTHON_DEFAULT_CODE_TEMPLATE;
+          break;
+      }
+
+      if (newCode && newCode !== code) {
+        setCode(newCode);
+        setSuccess(`已切换到 ${language.toUpperCase()} 模式并加载示例代码`);
         setTimeout(() => setSuccess(''), 3000);
       }
     }
-  }, [useTypeScript, tsLoaded, code]);
+  }, [language]);
 
-  // 验证TypeScript编译器状态
+  // 验证编译器状态
   useEffect(() => {
-    if (useTypeScript && tsLoaded) {
+    if (language === 'typescript' && tsLoaded) {
       // 定期检查编译器是否仍然可用
       const checkInterval = setInterval(() => {
         if ((window as any).ts === undefined) {
           console.warn('[CodeTestEditor] TypeScript编译器丢失，重新加载...');
           setTsLoaded(false);
-          // 可以在这里添加重新加载逻辑
         }
       }, 5000);
 
       return () => clearInterval(checkInterval);
     }
-  }, [useTypeScript, tsLoaded]);
+  }, [language, tsLoaded]);
 
   // 重置为默认代码和JSON
   const handleReset = () => {
-    const defaultCode = useTypeScript ? TS_EXAMPLE_CODE_TEMPLATE : JS_DEFAULT_CODE_TEMPLATE;
+    let defaultCode = '';
+    switch (language) {
+      case 'javascript':
+        defaultCode = JS_DEFAULT_CODE_TEMPLATE;
+        break;
+      case 'typescript':
+        defaultCode = TS_EXAMPLE_CODE_TEMPLATE;
+        break;
+      case 'python':
+        defaultCode = PYTHON_DEFAULT_CODE_TEMPLATE;
+        break;
+    }
     setCode(defaultCode);
     setJsonData('{}');
     setError('');
@@ -285,11 +387,62 @@ export default function CodeTestEditor({
 
       console.log('[CodeTestEditor] 合并后的参数:', mergedParams);
 
-      // 统一的编译逻辑
+      // Python 执行逻辑
+      if (language === 'python') {
+        if (!pyodideLoaded || !pyodide) {
+          throw new Error('Python运行环境未加载完成，请稍后再试');
+        }
+
+        try {
+          console.log('[CodeTestEditor] 执行Python代码...');
+          console.log('[CodeTestEditor] 原始代码:', code);
+
+          // 将JavaScript对象转换为Python字典
+          // 使用pyodide.toPy来确保正确转换
+          const pythonParams = pyodide.toPy(mergedParams);
+          pyodide.globals.set('params', pythonParams);
+
+          console.log('[CodeTestEditor] 参数已设置:', mergedParams);
+
+          // 执行Python代码
+          const result = await pyodide.runPythonAsync(code);
+
+          console.log('[CodeTestEditor] Python代码执行成功');
+          console.log('[CodeTestEditor] 执行结果:', result);
+
+          // 转换结果为JavaScript对象
+          let finalResult;
+          if (result && typeof result.toJs === 'function') {
+            finalResult = result.toJs({ dict_converter: Object.fromEntries });
+          } else {
+            finalResult = result;
+          }
+
+          setExecutionResult(finalResult);
+          setSuccess('Python代码执行成功');
+          setRightTabValue(1);
+        } catch (pyError: any) {
+          const errorMsg = `Python执行失败: ${pyError.message}
+
+请检查以下可能的问题：
+1. 语法错误（如缩进、括号不匹配等）
+2. 确保定义了 def main(params) 函数
+3. 确保代码最后返回了结果
+
+提示：查看浏览器控制台获取更详细的错误信息`;
+          throw new Error(errorMsg);
+        }
+
+        // 早期返回，不执行后续的 JS/TS 逻辑
+        setTimeout(() => setSuccess(''), 3000);
+        return;
+      }
+
+      // 统一的编译逻辑（JavaScript/TypeScript）
       let finalCode = code;
 
       // 如果使用TypeScript，先编译成JavaScript
-      if (useTypeScript) {
+      if (language === 'typescript') {
         if (!tsLoaded || (window as any).ts === undefined) {
           throw new Error('TypeScript编译器未加载完成，请稍后再试');
         }
@@ -433,7 +586,7 @@ export default function CodeTestEditor({
 
             console.log('[CodeTestEditor] 代码执行成功，结果类型:', typeof result);
             setExecutionResult(result);
-            setSuccess(useTypeScript ? 'TypeScript代码执行成功' : 'JavaScript代码执行成功');
+            setSuccess(language === 'typescript' ? 'TypeScript代码执行成功' : 'JavaScript代码执行成功');
             setRightTabValue(1); // 自动切换到输出数据tab
 
           } catch (execError: any) {
@@ -490,10 +643,26 @@ export default function CodeTestEditor({
     }
   };
 
-  // 加载TypeScript示例代码
-  const handleLoadTSExample = () => {
-    setCode(TS_EXAMPLE_CODE_TEMPLATE);
-    setSuccess('已加载TypeScript示例代码');
+  // 加载示例代码
+  const handleLoadExample = () => {
+    let exampleCode = '';
+    let langName = '';
+    switch (language) {
+      case 'javascript':
+        exampleCode = JS_DEFAULT_CODE_TEMPLATE;
+        langName = 'JavaScript';
+        break;
+      case 'typescript':
+        exampleCode = TS_EXAMPLE_CODE_TEMPLATE;
+        langName = 'TypeScript';
+        break;
+      case 'python':
+        exampleCode = PYTHON_DEFAULT_CODE_TEMPLATE;
+        langName = 'Python';
+        break;
+    }
+    setCode(exampleCode);
+    setSuccess(`已加载${langName}示例代码`);
     setTimeout(() => setSuccess(''), 2000);
   };
 
@@ -643,25 +812,47 @@ export default function CodeTestEditor({
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h6">代码测试</Typography>
           <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={useTypeScript}
-                  onChange={(e) => setUseTypeScript(e.target.checked)}
-                  size="small"
+            <FormControl>
+              <RadioGroup
+                row
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as 'javascript' | 'typescript' | 'python')}
+              >
+                <FormControlLabel
+                  value="javascript"
+                  control={<Radio size="small" />}
+                  label={<Typography variant="body2">JavaScript</Typography>}
                 />
-              }
-              label={
-                <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  TypeScript
-                  {useTypeScript && !tsLoaded && (
-                    <Typography variant="caption" color="warning.main">
-                      (加载中...)
+                <FormControlLabel
+                  value="typescript"
+                  control={<Radio size="small" />}
+                  label={
+                    <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      TypeScript
+                      {language === 'typescript' && !tsLoaded && (
+                        <Typography variant="caption" color="warning.main">
+                          (加载中...)
+                        </Typography>
+                      )}
                     </Typography>
-                  )}
-                </Typography>
-              }
-            />
+                  }
+                />
+                <FormControlLabel
+                  value="python"
+                  control={<Radio size="small" />}
+                  label={
+                    <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      Python
+                      {language === 'python' && !pyodideLoaded && (
+                        <Typography variant="caption" color="warning.main">
+                          (加载中...)
+                        </Typography>
+                      )}
+                    </Typography>
+                  }
+                />
+              </RadioGroup>
+            </FormControl>
             <Button size="small" onClick={handleReset} variant="outlined">
               重置全部
             </Button>
@@ -703,7 +894,7 @@ export default function CodeTestEditor({
           >
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
               <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                代码编辑器 ({useTypeScript ? 'TypeScript' : 'JavaScript'})
+                代码编辑器 ({language === 'typescript' ? 'TypeScript' : language === 'python' ? 'Python' : 'JavaScript'})
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
                 <SnapshotManager
@@ -714,17 +905,15 @@ export default function CodeTestEditor({
                   onRenameSnapshot={renameCodeSnapshot}
                 />
                 <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                {useTypeScript && (
-                  <Tooltip title="加载TypeScript示例代码">
-                    <IconButton
-                      size="small"
-                      onClick={handleLoadTSExample}
-                      color="primary"
-                    >
-                      <CodeIcon />
-                    </IconButton>
-                  </Tooltip>
-                )}
+                <Tooltip title={`加载${language === 'typescript' ? 'TypeScript' : language === 'python' ? 'Python' : 'JavaScript'}示例代码`}>
+                  <IconButton
+                    size="small"
+                    onClick={handleLoadExample}
+                    color="primary"
+                  >
+                    <CodeIcon />
+                  </IconButton>
+                </Tooltip>
                 <Tooltip title="刷新代码">
                   <IconButton
                     size="small"
@@ -740,7 +929,7 @@ export default function CodeTestEditor({
             <Box sx={{ flex: 1, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
               <CodeMirrorEditor
                 height="100%"
-                language={useTypeScript ? "typescript" : "javascript"}
+                language={language}
                 value={code}
                 onChange={(value) => setCode(value || '')}
                 theme="light"
