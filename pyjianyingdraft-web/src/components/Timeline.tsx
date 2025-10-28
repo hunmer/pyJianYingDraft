@@ -115,6 +115,73 @@ interface TimelineEditorProps {
 const cloneDeep = <T,>(value: T): T =>
   value === undefined ? (value as T) : JSON.parse(JSON.stringify(value));
 
+// 全局tooltip管理器 - 确保同时只显示一个tooltip
+class TooltipManager {
+  private static instance: TooltipManager;
+  private currentTooltipId: string | null = null;
+  private hideTimeout: NodeJS.Timeout | null = null;
+
+  static getInstance(): TooltipManager {
+    if (!TooltipManager.instance) {
+      TooltipManager.instance = new TooltipManager();
+    }
+    return TooltipManager.instance;
+  }
+
+  // 注册新的tooltip
+  registerTooltip(id: string) {
+    // 如果已有tooltip显示，先关闭它
+    if (this.currentTooltipId && this.currentTooltipId !== id) {
+      this.clearTimeout();
+      // 通知前一个tooltip关闭
+      this.notifyTooltipHide(this.currentTooltipId);
+    }
+    this.currentTooltipId = id;
+    this.clearTimeout();
+  }
+
+  // 设置隐藏超时
+  setHideTimeout(id: string, callback: () => void, delay: number) {
+    // 只有当前活跃的tooltip才能设置超时
+    if (this.currentTooltipId === id) {
+      this.clearTimeout();
+      this.hideTimeout = setTimeout(() => {
+        if (this.currentTooltipId === id) {
+          this.currentTooltipId = null;
+          callback();
+        }
+      }, delay);
+    }
+  }
+
+  // 取消隐藏超时
+  clearTimeout() {
+    if (this.hideTimeout) {
+      clearTimeout(this.hideTimeout);
+      this.hideTimeout = null;
+    }
+  }
+
+  // 主动关闭tooltip
+  closeTooltip(id: string) {
+    if (this.currentTooltipId === id) {
+      this.clearTimeout();
+      this.currentTooltipId = null;
+    }
+  }
+
+  // 通知特定tooltip关闭（用于被新tooltip替换时）
+  private notifyTooltipHide(id: string) {
+    // 这里可以通过事件或回调机制通知对应的组件
+    // 为简化实现，我们将在组件内部检查id是否匹配
+  }
+
+  // 检查是否是当前活跃的tooltip
+  isActive(id: string): boolean {
+    return this.currentTooltipId === id;
+  }
+}
+
 /**
  * 将剪映片段转换为Timeline编辑器的Action格式
  */
@@ -177,6 +244,8 @@ const CustomAction: React.FC<{
   // 状态：控制Tooltip的显示和位置
   const [tooltipOpen, setTooltipOpen] = React.useState(false);
   const [tooltipPosition, setTooltipPosition] = React.useState({ x: 0, y: 0 });
+  const tooltipManager = React.useRef(TooltipManager.getInstance());
+  const tooltipId = React.useRef<string | null>(null);
 
   const handleContextMenu = (event: React.MouseEvent) => {
     event.preventDefault();
@@ -185,6 +254,13 @@ const CustomAction: React.FC<{
   };
 
   const handleMouseEnter = (event: React.MouseEvent) => {
+    // 生成唯一的tooltip ID
+    const id = `${action.id}-${action.start}`;
+    tooltipId.current = id;
+
+    // 注册新的tooltip（这会自动关闭其他tooltip）
+    tooltipManager.current.registerTooltip(id);
+
     // 设置Tooltip位置为鼠标右上角（向右偏移15px，向上偏移15px）
     setTooltipPosition({
       x: event.clientX + 15,
@@ -193,23 +269,65 @@ const CustomAction: React.FC<{
     setTooltipOpen(true);
   };
 
-  const handleMouseMove = (event: React.MouseEvent) => {
-    // 鼠标移动时更新Tooltip位置
-    setTooltipPosition({
-      x: event.clientX + 15,
-      y: event.clientY - 15
-    });
+  const handleMouseLeave = (event: React.MouseEvent) => {
+    if (!tooltipId.current) return;
+
+    // 设置隐藏超时，让用户有时间移动到Tooltip内容
+    tooltipManager.current.setHideTimeout(tooltipId.current, () => {
+      // 只有当前活跃的tooltip才能关闭
+      if (tooltipManager.current.isActive(tooltipId.current!)) {
+        setTooltipOpen(false);
+      }
+    }, 300);
   };
 
-  const handleMouseLeave = () => {
-    setTooltipOpen(false);
+  const handleTooltipMouseEnter = () => {
+    // 鼠标进入Tooltip内容区域时，取消关闭倒计时
+    if (tooltipId.current) {
+      tooltipManager.current.clearTimeout();
+    }
   };
+
+  const handleTooltipMouseLeave = () => {
+    // 鼠标离开Tooltip内容区域时，立即关闭
+    if (tooltipId.current) {
+      tooltipManager.current.closeTooltip(tooltipId.current);
+      setTooltipOpen(false);
+    }
+  };
+
+  // 监听其他tooltip的显示，关闭当前tooltip
+  React.useEffect(() => {
+    const checkActive = () => {
+      if (tooltipId.current && !tooltipManager.current.isActive(tooltipId.current)) {
+        setTooltipOpen(false);
+      }
+    };
+
+    const interval = setInterval(checkActive, 50);
+    return () => clearInterval(interval);
+  }, []);
+
+  // 组件卸载时清理
+  React.useEffect(() => {
+    return () => {
+      if (tooltipId.current) {
+        tooltipManager.current.closeTooltip(tooltipId.current);
+      }
+    };
+  }, []);
 
   // 检查素材是否在当前规则组中
   const rulesUsingMaterial = selectedRuleGroup?.rules.filter(rule =>
     material?.id && rule.material_ids.includes(material.id)
   ) || [];
   const isInRuleGroup = rulesUsingMaterial.length > 0;
+
+  // 检查素材是否在任意规则组中（用于判断背景颜色）
+  const isInAnyRuleGroup = React.useMemo(() => {
+    if (!material?.id || !selectedRuleGroup) return false;
+    return selectedRuleGroup.rules.some(rule => rule.material_ids.includes(material.id));
+  }, [material?.id, selectedRuleGroup]);
 
   // 创建悬浮预览内容
   const tooltipContent = material ? (
@@ -251,7 +369,15 @@ const CustomAction: React.FC<{
   return (
     <Tooltip
       open={tooltipOpen}
-      title={tooltipContent}
+      title={
+        <Box
+          onMouseEnter={handleTooltipMouseEnter}
+          onMouseLeave={handleTooltipMouseLeave}
+          sx={{ display: 'inline-block' }}
+        >
+          {tooltipContent}
+        </Box>
+      }
       placement="top"
       arrow={false}
       PopperProps={{
@@ -272,6 +398,8 @@ const CustomAction: React.FC<{
       }}
       componentsProps={{
         tooltip: {
+          onMouseEnter: handleTooltipMouseEnter,
+          onMouseLeave: handleTooltipMouseLeave,
           sx: {
             backgroundColor: 'rgba(0, 0, 0, 0.9)',
             maxWidth: 320,
@@ -284,12 +412,11 @@ const CustomAction: React.FC<{
         onClick={onClick}
         onContextMenu={handleContextMenu}
         onMouseEnter={handleMouseEnter}
-        onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         sx={{
           width: '100%',
           height: '100%',
-          backgroundColor: color,
+          backgroundColor: isInAnyRuleGroup ? color : `${color}99`, // 未绑定的素材降低透明度
           color: 'white',
           borderRadius: 1,
           padding: 0.5,
@@ -303,8 +430,9 @@ const CustomAction: React.FC<{
           border: isSelected ? '2px solid #fff' : '2px solid transparent',
           boxShadow: isSelected ? '0 0 0 2px rgba(25, 118, 210, 0.5)' : 'none',
           transition: 'all 0.2s ease',
+          opacity: isInAnyRuleGroup ? 1 : 0.7, // 未绑定的素材降低整体透明度
           '&:hover': {
-            opacity: 0.9,
+            opacity: isInAnyRuleGroup ? 0.9 : 0.8,
             transform: 'scale(1.02)',
           },
         }}
