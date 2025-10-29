@@ -170,7 +170,8 @@ class RuleTestService:
 
             track_id = str(item.data.get("track", "")).strip()
             if not track_id:
-                raise ValueError(f"规则 {item.type} 缺少轨道标识 track")
+                track_id = item.type
+                # raise ValueError(f"规则 {item.type} 缺少轨道标识 track")
 
             if track_id not in configs:
                 configs[track_id] = {"name": f"Track {track_id}", "type": "video"}
@@ -222,7 +223,8 @@ class RuleTestService:
 
             track_id = str(item.data.get("track", "")).strip()
             if not track_id:
-                raise ValueError(f"规则 {item.type} 缺少轨道标识 track")
+                track_id = item.type
+                # raise ValueError(f"规则 {item.type} 缺少轨道标识 track")
 
             for material_id in rule.material_ids:
                 material = material_lookup.get(material_id)
