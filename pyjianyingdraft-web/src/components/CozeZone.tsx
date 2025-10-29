@@ -14,14 +14,14 @@ import {
 import {
   Refresh as RefreshIcon,
   AccountTree as WorkflowIcon,
-  Folder as FilesIcon,
+  Assessment as MonitorIcon,
 } from '@mui/icons-material';
 import { CozeZoneTabData } from '@/types/coze';
 import { useCoZone } from '@/hooks/useCoZone';
 import CozeZoneToolbar from './CozeZoneToolbar';
 import WorkflowPanel from './WorkflowPanel';
-import FilesPanel from './FilesPanel';
 import AccountManager from './AccountManager';
+import WorkflowMonitor from './WorkflowMonitor';
 
 interface CozeZoneProps {
   tab: CozeZoneTabData;
@@ -30,8 +30,8 @@ interface CozeZoneProps {
 
 interface TabPanelProps {
   children?: React.ReactNode;
-  index: string;
-  value: string;
+  index: 'workflow' | 'monitor';
+  value: 'workflow' | 'monitor';
 }
 
 function TabPanel({ children, value, index }: TabPanelProps) {
@@ -49,7 +49,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
 }
 
 const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'workflow' | 'files'>(tab.activeSubTab || 'workflow');
+  const [activeSubTab, setActiveSubTab] = useState<'workflow' | 'monitor'>('workflow');
   const [accountManagerOpen, setAccountManagerOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -64,14 +64,12 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     workspaces,
     currentWorkspace,
     workflows,
-    files,
     executions,
     executionHistory,
     loading,
     error,
     refreshing,
     executing,
-    uploading,
     selectedWorkflow,
 
     // 账号管理
@@ -94,13 +92,6 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     loadExecutionHistory,
     setSelectedWorkflow,
 
-    // 文件管理
-    loadFiles,
-    refreshFiles,
-    uploadFile,
-    deleteFile,
-    downloadFile,
-
     // 工具方法
     clearError,
     resetState,
@@ -118,7 +109,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
   }, []);
 
   // 处理子标签页切换
-  const handleSubTabChange = useCallback((event: React.SyntheticEvent, newValue: 'workflow' | 'files') => {
+  const handleSubTabChange = useCallback((event: React.SyntheticEvent, newValue: 'workflow' | 'monitor') => {
     setActiveSubTab(newValue);
     if (onTabUpdate) {
       onTabUpdate(tab.id, { activeSubTab: newValue });
@@ -153,18 +144,14 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
   // 处理刷新
   const handleRefresh = useCallback(async () => {
     try {
-      if (activeSubTab === 'workflow') {
-        await refreshWorkflows();
-      } else {
-        await refreshFiles();
-      }
+      await refreshWorkflows();
       await refreshWorkspaces();
       showMessage('刷新成功', 'success');
     } catch (error) {
       console.error(error)
       showMessage('刷新失败', 'error');
     }
-  }, [activeSubTab, refreshWorkflows, refreshFiles, refreshWorkspaces, showMessage]);
+  }, [refreshWorkflows, refreshWorkspaces, showMessage]);
 
   // 处理工作流执行
   const handleWorkflowExecute = useCallback(async (workflowId: string, parameters?: Record<string, any>) => {
@@ -176,38 +163,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     }
   }, [executeWorkflow, showMessage]);
 
-  // 处理文件上传
-  const handleFileUpload = useCallback(async (files: FileList) => {
-    try {
-      for (let i = 0; i < files.length; i++) {
-        await uploadFile(files[i]);
-      }
-      showMessage(`成功上传 ${files.length} 个文件`, 'success');
-    } catch (error) {
-      showMessage('文件上传失败', 'error');
-    }
-  }, [uploadFile, showMessage]);
-
-  // 处理文件删除
-  const handleFileDelete = useCallback(async (fileId: string) => {
-    try {
-      await deleteFile(fileId);
-      showMessage('文件删除成功', 'success');
-    } catch (error) {
-      showMessage('文件删除失败', 'error');
-    }
-  }, [deleteFile, showMessage]);
-
-  // 处理文件下载
-  const handleFileDownload = useCallback(async (file: any) => {
-    try {
-      await downloadFile(file);
-      showMessage('文件下载已开始', 'success');
-    } catch (error) {
-      showMessage('文件下载失败', 'error');
-    }
-  }, [downloadFile, showMessage]);
-
+  
   // 处理账号添加
   const handleAccountAdd = useCallback(async (accountData: any) => {
     try {
@@ -242,13 +198,11 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
         accounts,
         workspaces,
         workflows,
-        files,
         executions,
         executionHistory,
         selectedWorkflow: selectedWorkflow || undefined,
         refreshing,
         executing,
-        uploading,
         error,
       });
     }
@@ -258,13 +212,11 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     accounts,
     workspaces,
     workflows,
-    files,
     executions,
     executionHistory,
     selectedWorkflow,
     refreshing,
     executing,
-    uploading,
     error,
   ]);
 
@@ -328,11 +280,10 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
             disabled={!currentWorkspace}
           />
           <Tab
-            value="files"
-            label="文件列表"
-            icon={<FilesIcon />}
+            value="monitor"
+            label="工作流监控"
+            icon={<MonitorIcon />}
             iconPosition="start"
-            disabled={!currentWorkspace}
           />
         </Tabs>
       </Paper>
@@ -421,13 +372,11 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
               />
             </TabPanel>
 
-            <TabPanel value="files" index="files">
-              <FilesPanel
-                files={files}
-                uploading={uploading}
-                onFileUpload={handleFileUpload}
-                onFileDelete={handleFileDelete}
-                onFileDownload={handleFileDownload}
+            <TabPanel value="monitor" index="monitor">
+              <WorkflowMonitor
+                workflows={workflows}
+                selectedWorkflow={selectedWorkflow}
+                onWorkflowSelect={setSelectedWorkflow}
               />
             </TabPanel>
           </>

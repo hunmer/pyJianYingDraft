@@ -16,11 +16,9 @@ export {
 export type {
   CozeAccount,
   CozeWorkspace,
-  CozeFile,
   CozeWorkflow,
   WorkflowExecution,
   CreateWorkspaceRequest,
-  UploadFileResponse,
   ExecuteWorkflowRequest,
   ExecuteWorkflowResponse,
   CozeApiResponse,

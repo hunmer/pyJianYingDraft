@@ -109,19 +109,12 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
             工作流信息
           </Typography>
 
-          <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
-            <Chip
-              label={`版本: v${workflow.version}`}
-              size="small"
-              variant="outlined"
-            />
-            <Chip
-              label={workflow.status === 'active' ? '活跃' : '未激活'}
-              size="small"
-              color={workflow.status === 'active' ? 'success' : 'default'}
-              variant="outlined"
-            />
-          </Box>
+          <Chip
+            label={`版本: v${workflow.version}`}
+            size="small"
+            variant="outlined"
+            sx={{ mb: 1 }}
+          />
 
           {workflow.description && (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
