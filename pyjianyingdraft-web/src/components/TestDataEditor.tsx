@@ -436,7 +436,10 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
           throw new Error(`素材项 ${index} 缺少 type 字段`);
         }
         if (!item.data || typeof item.data !== 'object') {
-          throw new Error(`素材项 ${index} 缺少 data 字段`);
+          item.data = {track: item.type}
+        }
+        if(!item.data.track){
+          item.data.track = item.type
         }
       });
 
