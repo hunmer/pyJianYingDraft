@@ -228,17 +228,9 @@ const AccountManager: React.FC<AccountManagerProps> = ({
 
                     <ListItemText
                       primary={
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                            {account.name}
-                          </Typography>
-                          <Chip
-                            label={account.isActive ? '活跃' : '未激活'}
-                            size="small"
-                            color={account.isActive ? 'success' : 'default'}
-                            variant="outlined"
-                          />
-                        </Box>
+                        <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                          {account.name}
+                        </Typography>
                       }
                       secondary={
                         <Box sx={{ mt: 0.5 }}>

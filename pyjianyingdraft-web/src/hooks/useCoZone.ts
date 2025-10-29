@@ -5,7 +5,6 @@ import {
   CozeAccount,
   CozeWorkspace,
   CozeWorkflow,
-  CozeFile,
   WorkflowExecution,
   WorkflowExecutionStatus,
   CozeZoneTabData,
@@ -19,7 +18,6 @@ interface UseCoZoneState {
   workspaces: CozeWorkspace[];
   currentWorkspace: CozeWorkspace | null;
   workflows: CozeWorkflow[];
-  files: CozeFile[];
   executions: WorkflowExecution[];
   executionHistory: WorkflowExecution[];
 
@@ -28,11 +26,10 @@ interface UseCoZoneState {
   error: string | null;
   refreshing: boolean;
   executing: boolean;
-  uploading: boolean;
 
   // 选中的数据
   selectedWorkflow: CozeWorkflow | null;
-  activeSubTab: 'workflow' | 'files';
+  activeSubTab: 'workflow';
 }
 
 interface UseCoZoneResult extends UseCoZoneState {
@@ -56,13 +53,6 @@ interface UseCoZoneResult extends UseCoZoneState {
   loadExecutionHistory: (workflowId?: string) => Promise<void>;
   setSelectedWorkflow: (workflow: CozeWorkflow | null) => void;
 
-  // 文件管理
-  loadFiles: (workspaceId: string) => Promise<void>;
-  refreshFiles: () => Promise<void>;
-  uploadFile: (file: File) => Promise<void>;
-  deleteFile: (fileId: string) => Promise<void>;
-  downloadFile: (file: CozeFile) => Promise<void>;
-
   // 工具方法
   clearError: () => void;
   resetState: () => void;
@@ -82,14 +72,12 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     workspaces: [],
     currentWorkspace: null,
     workflows: [],
-    files: [],
     executions: [],
     executionHistory: [],
     loading: false,
     error: null,
     refreshing: false,
     executing: false,
-    uploading: false,
     selectedWorkflow: null,
     activeSubTab: 'workflow',
   });
@@ -264,7 +252,6 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
           ...prev,
           currentWorkspace: workspace,
           workflows: [],
-          files: [],
           executions: [],
           executionHistory: [],
           selectedWorkflow: null,
@@ -418,7 +405,6 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
           ...current,
           workspaces: [],
           workflows: [],
-          files: [],
           executions: [],
           executionHistory: [],
           selectedWorkflow: null,
@@ -483,85 +469,7 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     setState(prev => ({ ...prev, selectedWorkflow: workflow }));
   }, []);
 
-  // ==================== 文件管理 ====================
-
-  const loadFiles = useCallback(async (workspaceId: string) => {
-    try {
-      if (!clientRef.current) {
-        throw new Error('API 客户端未初始化');
-      }
-
-      setState(prev => ({ ...prev, loading: true, error: null }));
-      const files = await clientRef.current.getFiles(workspaceId);
-      setState(prev => ({ ...prev, files, loading: false }));
-    } catch (error) {
-      handleError(error);
-    }
-  }, [handleError]);
-
-  const refreshFiles = useCallback(async () => {
-    if (!state.currentWorkspace) return;
-
-    setState(prev => ({ ...prev, refreshing: true }));
-    await loadFiles(state.currentWorkspace.id);
-    setState(prev => ({ ...prev, refreshing: false }));
-  }, [state.currentWorkspace, loadFiles]);
-
-  const uploadFile = useCallback(async (file: File) => {
-    try {
-      if (!clientRef.current || !state.currentWorkspace) {
-        throw new Error('请先选择工作空间');
-      }
-
-      setState(prev => ({ ...prev, uploading: true, error: null }));
-
-      const uploadedFile = await clientRef.current.uploadFile(state.currentWorkspace.id, file);
-
-      setState(prev => ({
-        ...prev,
-        files: [...prev.files, uploadedFile],
-        uploading: false,
-      }));
-    } catch (error) {
-      setState(prev => ({ ...prev, uploading: false }));
-      handleError(error);
-    }
-  }, [state.currentWorkspace, handleError]);
-
-  const deleteFile = useCallback(async (fileId: string) => {
-    try {
-      if (!clientRef.current || !state.currentWorkspace) {
-        throw new Error('请先选择工作空间');
-      }
-
-      await clientRef.current.deleteFile(state.currentWorkspace.id, fileId);
-
-      setState(prev => ({
-        ...prev,
-        files: prev.files.filter(f => f.id !== fileId),
-      }));
-    } catch (error) {
-      handleError(error);
-    }
-  }, [state.currentWorkspace, handleError]);
-
-  const downloadFile = useCallback(async (file: CozeFile) => {
-    try {
-      if (!file.url) {
-        throw new Error('文件下载链接不可用');
-      }
-
-      const a = document.createElement('a');
-      a.href = file.url;
-      a.download = file.name;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch (error) {
-      handleError(error);
-    }
-  }, [handleError]);
-
+  
   // 清理定时器
   useEffect(() => {
     return () => {
@@ -576,10 +484,9 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
   useEffect(() => {
     if (state.currentAccount && state.currentWorkspace) {
       loadWorkflows(state.currentWorkspace.id);
-      loadFiles(state.currentWorkspace.id);
       loadExecutionHistory();
     }
-  }, [state.currentAccount, state.currentWorkspace, loadWorkflows, loadFiles, loadExecutionHistory]);
+  }, [state.currentAccount, state.currentWorkspace, loadWorkflows, loadExecutionHistory]);
 
   return {
     ...state,
@@ -597,11 +504,6 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     pollExecutionStatus,
     loadExecutionHistory,
     setSelectedWorkflow,
-    loadFiles,
-    refreshFiles,
-    uploadFile,
-    deleteFile,
-    downloadFile,
     clearError,
     resetState,
     getClient,

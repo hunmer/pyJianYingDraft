@@ -21,16 +21,6 @@ export interface CozeWorkspace {
   updated_time: string;
 }
 
-export interface CozeFile {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  upload_time: string;
-  url?: string;
-  category?: string;
-  description?: string;
-}
 
 export interface CozeWorkflow {
   id: string;
@@ -67,13 +57,12 @@ export interface CozeZoneTabData {
   // Coze Zone 特有字段
   accountId: string;
   workspaceId: string;
-  activeSubTab: 'workflow' | 'files';
+  activeSubTab: 'workflow' | 'monitor';
 
   // 数据
   accounts: CozeAccount[];
   workspaces: CozeWorkspace[];
   workflows: CozeWorkflow[];
-  files: CozeFile[];
   executions: WorkflowExecution[];
   selectedWorkflow?: CozeWorkflow;
   executionHistory: WorkflowExecution[];
@@ -81,7 +70,6 @@ export interface CozeZoneTabData {
   // 状态
   refreshing: boolean;
   executing: boolean;
-  uploading: boolean;
 }
 
 // Coze API 请求和响应类型
@@ -91,14 +79,6 @@ export interface CreateWorkspaceRequest {
   icon?: string;
 }
 
-export interface UploadFileResponse {
-  id: string;
-  name: string;
-  size: number;
-  type: string;
-  url: string;
-  upload_time: string;
-}
 
 export interface ExecuteWorkflowRequest {
   workflow_id: string;
@@ -146,12 +126,7 @@ export enum CozeErrorCode {
   WORKFLOW_INACTIVE = 14002,
   WORKFLOW_EXECUTION_FAILED = 14003,
 
-  // 文件错误
-  FILE_NOT_FOUND = 15001,
-  FILE_UPLOAD_FAILED = 15002,
-  FILE_SIZE_EXCEEDED = 15003,
-  FILE_TYPE_NOT_SUPPORTED = 15004,
-
+  
   // 工作空间错误
   WORKSPACE_NOT_FOUND = 16001,
   WORKSPACE_ACCESS_DENIED = 16002,
@@ -166,11 +141,77 @@ export enum WorkflowExecutionStatus {
   PENDING = 'pending',
 }
 
-// 文件上传配置
-export interface FileUploadConfig {
-  maxFileSize: number; // 字节
-  allowedTypes: string[];
-  multiple: boolean;
+// Coze插件数据类型
+export interface CozePluginData {
+  type: 'audio' | 'image' | 'video' | 'text';
+  data: {
+    url: string;
+    title: string;
+    description?: string;
+    metadata?: Record<string, any>;
+    timestamp: string;
+  };
+  clientId: string;
+}
+
+// 工作流监控数据
+export interface WorkflowMonitorData {
+  id: string;
+  clientId: string;
+  workflowId?: string;
+  workflowName?: string;
+  data: CozePluginData;
+  receivedAt: string;
+  isRead: boolean;
+}
+
+// 工作流监控状态
+export interface WorkflowMonitorState {
+  // 监控的工作流
+  monitoredWorkflows: Array<{
+    workflowId: string;
+    workflowName: string;
+    clientId: string;
+    isActive: boolean;
+    startedAt: string;
+    lastDataReceived?: string;
+    dataCount: number;
+  }>;
+
+  // 订阅的客户端ID列表
+  subscribedClientIds: string[];
+
+  // 接收到的数据
+  monitorData: WorkflowMonitorData[];
+
+  // 状态
+  isMonitoring: boolean;
+  selectedWorkflowId?: string;
+
+  // 统计信息
+  totalDataReceived: number;
+  unreadDataCount: number;
+}
+
+// WebSocket 订阅请求
+export interface CozeSubscribeRequest {
+  clientId: string;
+  workflowId?: string;
+}
+
+// WebSocket 订阅响应
+export interface CozeSubscribeResponse {
+  success: boolean;
+  clientId: string;
+  message: string;
+  subscribedAt: string;
+}
+
+// Coze数据发送请求
+export interface CozeSendDataRequest {
+  api_base: string;
+  clientId: string;
+  data: any;
 }
 
 // Coze Zone 配置
@@ -179,7 +220,6 @@ export interface CozeZoneConfig {
   maxRetries: number;
   timeout: number;
   pollingInterval: number; // 执行状态轮询间隔（毫秒）
-  fileUpload: FileUploadConfig;
 }
 
 // 默认配置
@@ -188,13 +228,4 @@ export const DEFAULT_COZE_CONFIG: CozeZoneConfig = {
   maxRetries: 3,
   timeout: 30000,
   pollingInterval: 2000,
-  fileUpload: {
-    maxFileSize: 100 * 1024 * 1024, // 100MB
-    allowedTypes: [
-      'image/jpeg', 'image/png', 'image/gif', 'image/webp',
-      'application/pdf', 'text/plain', 'application/json',
-      'text/csv', 'application/vnd.ms-excel'
-    ],
-    multiple: true,
-  },
 };

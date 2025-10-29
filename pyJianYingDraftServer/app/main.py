@@ -5,6 +5,8 @@ FastAPI 主应用入口
 import sys
 import io
 import logging
+import uuid
+from datetime import datetime
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -47,7 +49,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import socketio
 
-from app.routers import draft, subdrafts, materials, tracks, files, rules, file_watch, tasks, aria2, generation_records
+from app.routers import draft, subdrafts, materials, tracks, files, rules, file_watch, tasks, aria2, generation_records, coze
 
 # 创建Socket.IO服务器 - 简化日志配置
 sio = socketio.AsyncServer(
@@ -202,6 +204,7 @@ app.include_router(file_watch.router, prefix="/api/file-watch", tags=["文件监
 app.include_router(tasks.router, tags=["异步任务"])
 app.include_router(aria2.router, prefix="/api/aria2", tags=["Aria2下载管理"])
 app.include_router(generation_records.router, tags=["生成记录"])
+app.include_router(coze.router, prefix="/api/coze", tags=["Coze插件"])
 
 # 挂载静态文件目录
 static_dir = Path(__file__).parent / "static"
@@ -224,6 +227,14 @@ async def connect(sid, environ):
 async def disconnect(sid):
     """客户端断开连接事件"""
     print(f"客户端已断开: {sid}")
+
+    # 清理Coze订阅
+    try:
+        from app.services.coze_service import get_coze_service
+        coze_service = get_coze_service()
+        coze_service.remove_socket_subscriptions(sid)
+    except Exception as e:
+        print(f"清理Coze订阅失败: {e}")
 
 @sio.event
 async def get_file_versions(sid, data):
@@ -717,6 +728,168 @@ async def retry_failed_downloads(sid, data):
 
     except Exception as e:
         await sio.emit('retry_failed_error', {'error': str(e)}, room=sid)
+
+# ==================== Coze 插件 WebSocket 事件 ====================
+
+@sio.event
+async def subscribe_coze_data(sid, data):
+    """订阅Coze数据推送"""
+    try:
+        from app.models.coze_models import CozeSubscribeRequest
+        from app.services.coze_service import get_coze_service
+
+        # 验证请求数据
+        client_id = data.get('client_id')
+        if not client_id:
+            await sio.emit('coze_subscribe_error', {
+                'error': 'client_id不能为空'
+            }, room=sid)
+            return
+
+        workflow_id = data.get('workflow_id')
+
+        # 创建订阅请求
+        request = CozeSubscribeRequest(
+            client_id=client_id,
+            workflow_id=workflow_id
+        )
+
+        # 执行订阅
+        coze_service = get_coze_service()
+        response = await coze_service.subscribe(request, sid)
+
+        if response.success:
+            await sio.emit('coze_subscribed', {
+                'success': True,
+                'client_id': response.client_id,
+                'message': response.message,
+                'subscribed_at': response.subscribed_at.isoformat() if response.subscribed_at else None
+            }, room=sid)
+
+            # 立即推送待发送的数据
+            await _push_pending_coze_data(coze_service, sid, client_id)
+        else:
+            await sio.emit('coze_subscribe_error', {
+                'error': response.message,
+                'client_id': client_id
+            }, room=sid)
+
+    except Exception as e:
+        print(f"Coze订阅失败: {e}")
+        await sio.emit('coze_subscribe_error', {
+            'error': str(e)
+        }, room=sid)
+
+
+@sio.event
+async def unsubscribe_coze_data(sid, data):
+    """取消订阅Coze数据推送"""
+    try:
+        from app.models.coze_models import CozeUnsubscribeRequest
+        from app.services.coze_service import get_coze_service
+
+        # 验证请求数据
+        client_id = data.get('client_id')
+        if not client_id:
+            await sio.emit('coze_unsubscribe_error', {
+                'error': 'client_id不能为空'
+            }, room=sid)
+            return
+
+        # 创建取消订阅请求
+        request = CozeUnsubscribeRequest(client_id=client_id)
+
+        # 执行取消订阅
+        coze_service = get_coze_service()
+        response = await coze_service.unsubscribe(request, sid)
+
+        await sio.emit('coze_unsubscribed', {
+            'success': response.success,
+            'client_id': response.client_id,
+            'message': response.message,
+            'unsubscribed_at': response.unsubscribed_at.isoformat() if response.unsubscribed_at else None
+        }, room=sid)
+
+    except Exception as e:
+        print(f"Coze取消订阅失败: {e}")
+        await sio.emit('coze_unsubscribe_error', {
+            'error': str(e)
+        }, room=sid)
+
+
+async def _push_pending_coze_data(coze_service, socket_id: str, client_id: str):
+    """推送待发送的Coze数据"""
+    try:
+        pending_data = coze_service.get_pending_data(client_id)
+
+        if not pending_data:
+            return
+
+        for cache_item in pending_data:
+            # 构建推送数据
+            push_data = {
+                'id': cache_item.id,
+                'client_id': cache_item.client_id,
+                'data': {
+                    'type': cache_item.data.type.value,
+                    'data': cache_item.data.data,
+                    'clientId': cache_item.data.client_id,
+                    'timestamp': cache_item.data.timestamp.isoformat() if cache_item.data.timestamp else None
+                },
+                'received_at': cache_item.received_at.isoformat(),
+                'is_read': False
+            }
+
+            # 推送数据
+            await sio.emit('coze_data_update', push_data, room=socket_id)
+
+            # 标记为已转发
+            coze_service.mark_data_forwarded(cache_item.id, client_id)
+
+            print(f"Coze数据推送: cache_id={cache_item.id}, client_id={client_id}, type={cache_item.data.type}")
+
+    except Exception as e:
+        print(f"推送Coze数据失败: {e}")
+
+
+async def broadcast_coze_data_to_subscribers(client_id: str, coze_data):
+    """向订阅指定client_id的所有客户端广播数据"""
+    try:
+        from app.services.coze_service import get_coze_service
+        coze_service = get_coze_service()
+
+        # 获取所有活跃订阅
+        subscriptions = coze_service.get_active_subscriptions(client_id)
+
+        if not subscriptions:
+            return
+
+        # 向每个订阅的Socket连接推送数据
+        for subscription in subscriptions:
+            try:
+                push_data = {
+                    'id': str(uuid.uuid4()),
+                    'client_id': client_id,
+                    'workflow_id': subscription.workflow_id,
+                    'data': {
+                        'type': coze_data.type.value,
+                        'data': coze_data.data,
+                        'clientId': coze_data.client_id,
+                        'timestamp': coze_data.timestamp.isoformat() if coze_data.timestamp else None
+                    },
+                    'received_at': datetime.now().isoformat(),
+                    'is_read': False
+                }
+
+                await sio.emit('coze_data_update', push_data, room=subscription.socket_id)
+                print(f"Coze数据广播: client_id={client_id}, socket_id={subscription.socket_id}, type={coze_data.type}")
+
+            except Exception as e:
+                print(f"向Socket推送Coze数据失败: {e}")
+
+    except Exception as e:
+        print(f"广播Coze数据失败: {e}")
+
 
 # 将Socket.IO集成到FastAPI
 socket_app = socketio.ASGIApp(sio, app)

@@ -7,7 +7,8 @@
       "mcp__deepwiki__read_wiki_contents",
       "mcp__deepwiki__ask_question",
       "mcp__github-repo-mcp__getRepoAllDirectories",
-      "mcp__github-repo-mcp__getRepoDirectories"
+      "mcp__github-repo-mcp__getRepoDirectories",
+      "mcp__fetcher-mcp__fetch_url"
     ],
     "deny": [],
     "ask": []

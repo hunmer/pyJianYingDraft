@@ -8,7 +8,6 @@ import {
   Select,
   MenuItem,
   Button,
-  Chip,
   Typography,
   Tooltip,
 } from '@mui/material';
@@ -43,23 +42,14 @@ const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
   onAccountManager,
 }) => {
   const handleAccountChange = (event: any) => {
-    onAccountSwitch(event.target.value);
+    onAccountSwitch(String(event.target.value));
   };
 
   const handleWorkspaceChange = (event: any) => {
-    onWorkspaceSwitch(event.target.value);
+    onWorkspaceSwitch(String(event.target.value));
   };
 
-  const getAccountStatusColor = (account: CozeAccount) => {
-    if (account.isActive) return 'success';
-    return 'default';
-  };
-
-  const getWorkspaceStatusColor = (workspace: CozeWorkspace) => {
-    if (workspace.status === 'active') return 'success';
-    return 'default';
-  };
-
+  
   return (
     <Box
       sx={{
@@ -83,7 +73,7 @@ const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
           账号
         </InputLabel>
         <Select
-          value={currentAccount?.id || ''}
+          value={String(currentAccount?.id ?? '')}
           label="账号"
           onChange={handleAccountChange}
           displayEmpty
@@ -103,18 +93,10 @@ const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
             </MenuItem>
           ) : (
             accounts.map((account) => (
-              <MenuItem key={account.id} value={account.id}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                  <Typography variant="body2" sx={{ flex: 1 }}>
-                    {account.name}
-                  </Typography>
-                  <Chip
-                    label={account.isActive ? '活跃' : '未激活'}
-                    size="small"
-                    color={getAccountStatusColor(account) as any}
-                    variant="outlined"
-                  />
-                </Box>
+              <MenuItem key={account.id} value={String(account.id)}>
+                <Typography variant="body2">
+                  {account.name}
+                </Typography>
               </MenuItem>
             ))
           )}
@@ -132,7 +114,7 @@ const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
           工作空间
         </InputLabel>
         <Select
-          value={currentWorkspace?.id || ''}
+          value={String(currentWorkspace?.id ?? '')}
           label="工作空间"
           onChange={handleWorkspaceChange}
           displayEmpty
@@ -152,52 +134,31 @@ const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
             </MenuItem>
           ) : (
             workspaces.map((workspace) => (
-              <MenuItem key={workspace.id} value={workspace.id}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-                  <Typography variant="body2" sx={{ flex: 1 }}>
-                    {workspace.name}
-                  </Typography>
-                  <Chip
-                    label={workspace.status === 'active' ? '活跃' : '未激活'}
-                    size="small"
-                    color={getWorkspaceStatusColor(workspace) as any}
-                    variant="outlined"
-                  />
-                </Box>
+              <MenuItem key={workspace.id} value={String(workspace.id)}>
+                <Typography variant="body2">
+                  {workspace.name}
+                </Typography>
               </MenuItem>
             ))
           )}
         </Select>
       </FormControl>
 
-      {/* 状态信息 */}
-      {currentAccount && currentWorkspace && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Typography variant="body2" color="text.secondary">
-            当前环境:
-          </Typography>
-          <Chip
-            label={`${currentAccount.name} / ${currentWorkspace.name}`}
-            size="small"
-            color="primary"
-            variant="outlined"
-          />
-        </Box>
-      )}
-
       {/* 操作按钮 */}
       <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
         {/* 刷新按钮 */}
-        <Tooltip title="刷新数据">
-          <Button
-            variant="outlined"
-            size="small"
-            startIcon={<RefreshIcon />}
-            onClick={onRefresh}
-            disabled={refreshing || !currentAccount}
-          >
-            刷新
-          </Button>
+        <Tooltip title={refreshing || !currentAccount ? "" : "刷新数据"}>
+          <span>
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<RefreshIcon />}
+              onClick={onRefresh}
+              disabled={refreshing || !currentAccount}
+            >
+              刷新
+            </Button>
+          </span>
         </Tooltip>
 
         {/* 账号管理按钮 */}

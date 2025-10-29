@@ -51,8 +51,6 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({
     switch (status) {
       case 'active':
         return '活跃';
-      case 'inactive':
-        return '未激活';
       default:
         return '未知';
     }
