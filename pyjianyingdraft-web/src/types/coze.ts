@@ -57,7 +57,6 @@ export interface CozeZoneTabData {
   // Coze Zone 特有字段
   accountId: string;
   workspaceId: string;
-  activeSubTab: 'workflow' | 'monitor';
 
   // 数据
   accounts: CozeAccount[];

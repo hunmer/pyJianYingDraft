@@ -32,7 +32,6 @@ export interface TabData {
   // Coze Zone 相关字段
   accountId?: string;
   workspaceId?: string;
-  activeSubTab?: 'workflow' | 'files';
   accounts?: any[];
   workspaces?: any[];
   workflows?: any[];
@@ -156,7 +155,6 @@ export const useTabs = (): UseTabsResult => {
       type: 'coze_zone',
       accountId: accountId || 'default',
       workspaceId: '',
-      activeSubTab: 'workflow',
       accounts: [],
       workspaces: [],
       workflows: [],

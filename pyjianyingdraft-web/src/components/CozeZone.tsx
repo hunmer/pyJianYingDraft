@@ -111,10 +111,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
   // 处理子标签页切换
   const handleSubTabChange = useCallback((event: React.SyntheticEvent, newValue: 'workflow' | 'monitor') => {
     setActiveSubTab(newValue);
-    if (onTabUpdate) {
-      onTabUpdate(tab.id, { activeSubTab: newValue });
-    }
-  }, [tab.id, onTabUpdate]);
+  }, []);
 
   // 处理账号管理器
   const handleAccountManager = useCallback(() => {
@@ -219,11 +216,6 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     executing,
     error,
   ]);
-
-  // 同步初始状态
-  useEffect(() => {
-    setActiveSubTab(tab.activeSubTab || 'workflow');
-  }, [tab.activeSubTab]);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -359,7 +351,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
         {/* 内容面板 */}
         {currentAccount && currentWorkspace && (
           <>
-            <TabPanel value="workflow" index="workflow">
+            <TabPanel value={activeSubTab} index="workflow">
               <WorkflowPanel
                 workflows={workflows}
                 executions={executions}
@@ -372,7 +364,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
               />
             </TabPanel>
 
-            <TabPanel value="monitor" index="monitor">
+            <TabPanel value={activeSubTab} index="monitor">
               <WorkflowMonitor
                 workflows={workflows}
                 selectedWorkflow={selectedWorkflow}
