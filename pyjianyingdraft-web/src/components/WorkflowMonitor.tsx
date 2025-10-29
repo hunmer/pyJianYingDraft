@@ -235,7 +235,6 @@ const WorkflowMonitor: React.FC<WorkflowMonitorProps> = ({
                   <Button
                     variant="outlined"
                     color="error"
-                    startIcon={<StopAllIcon />}
                     onClick={handleStopAllMonitoring}
                     size="small"
                   >

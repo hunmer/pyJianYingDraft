@@ -29,7 +29,6 @@ interface UseCoZoneState {
 
   // 选中的数据
   selectedWorkflow: CozeWorkflow | null;
-  activeSubTab: 'workflow';
 }
 
 interface UseCoZoneResult extends UseCoZoneState {
@@ -79,7 +78,6 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     refreshing: false,
     executing: false,
     selectedWorkflow: null,
-    activeSubTab: 'workflow',
   });
 
   const pollingTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -184,9 +182,7 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
       error: null,
       refreshing: false,
       executing: false,
-      uploading: false,
       selectedWorkflow: null,
-      activeSubTab: 'workflow',
     });
   }, []);
 
