@@ -1,6 +1,6 @@
 {
   "PYJY_DRAFT_ROOT": "G:/jianyin5.9_drafts/JianyingPro Drafts/",
-  "ARIA2_PATH": "D:\\programming\\pyJianYingDraft\\pyjianyingdraft-web\\dist\\win-unpacked\\resources\\aria2",
+  "ARIA2_PATH": "/opt/homebrew/bin",
   "PYJY_RULE_GROUPS": [
     {
       "id": "group_1761116967876",
