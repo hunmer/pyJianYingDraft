@@ -66,6 +66,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     workflows,
     executions,
     executionHistory,
+    eventLogs,
     loading,
     error,
     refreshing,
@@ -91,6 +92,11 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     pollExecutionStatus,
     loadExecutionHistory,
     setSelectedWorkflow,
+
+    // 事件日志管理
+    addEventLog,
+    clearEventLogs,
+    getEventLogs,
 
     // 工具方法
     clearError,
@@ -153,10 +159,12 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
   // 处理工作流执行
   const handleWorkflowExecute = useCallback(async (workflowId: string, parameters?: Record<string, any>) => {
     try {
-      await executeWorkflow(workflowId, parameters);
+      const response = await executeWorkflow(workflowId, parameters);
       showMessage('工作流执行已启动', 'success');
+      return response;
     } catch (error) {
       showMessage('工作流执行失败', 'error');
+      throw error;
     }
   }, [executeWorkflow, showMessage]);
 
@@ -360,9 +368,11 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
                 executionHistory={executionHistory}
                 selectedWorkflow={selectedWorkflow}
                 executing={executing}
+                eventLogs={eventLogs}
                 onWorkflowSelect={setSelectedWorkflow}
                 onWorkflowExecute={handleWorkflowExecute}
                 onExecutionHistoryLoad={loadExecutionHistory}
+                onEventLogsClear={clearEventLogs}
                 apiConfig={currentAccount ? {
                   apiBase: currentAccount.baseUrl,
                   apiKey: currentAccount.apiKey,

@@ -24,10 +24,13 @@ import {
   Speed as StatusIcon,
   Code as CodeIcon,
   Schedule as ScheduleIcon,
+  ListAlt as EventLogIcon,
+  Clear as ClearIcon,
 } from '@mui/icons-material';
-import { CozeWorkflow, WorkflowExecution, WorkflowExecutionStatus } from '@/types/coze';
+import { CozeWorkflow, WorkflowExecution, WorkflowExecutionStatus, WorkflowEventLog } from '@/types/coze';
 import WorkflowCard from './WorkflowCard';
 import WorkflowExecutionDialog from './WorkflowExecutionDialog';
+import WorkflowEventLogsDialog from './WorkflowEventLogsDialog';
 
 interface WorkflowPanelProps {
   workflows: CozeWorkflow[];
@@ -35,9 +38,11 @@ interface WorkflowPanelProps {
   executionHistory: WorkflowExecution[];
   selectedWorkflow: CozeWorkflow | null;
   executing: boolean;
+  eventLogs: WorkflowEventLog[];
   onWorkflowSelect: (workflow: CozeWorkflow | null) => void;
-  onWorkflowExecute: (workflowId: string, parameters?: Record<string, any>) => Promise<any>;
+  onWorkflowExecute: (workflowId: string, parameters?: Record<string, any>, onEvent?: (event: any) => void) => Promise<any>;
   onExecutionHistoryLoad: () => void;
+  onEventLogsClear: () => void;
   apiConfig?: {
     apiBase: string;
     apiKey: string;
@@ -51,14 +56,17 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
   executionHistory,
   selectedWorkflow,
   executing,
+  eventLogs,
   onWorkflowSelect,
   onWorkflowExecute,
   onExecutionHistoryLoad,
+  onEventLogsClear,
   apiConfig,
   workspaceId,
 }) => {
   const [executionDialogOpen, setExecutionDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
+  const [eventLogsDialogOpen, setEventLogsDialogOpen] = useState(false);
   const [selectedWorkflowForHistory, setSelectedWorkflowForHistory] = useState<CozeWorkflow | null>(null);
 
   const handleExecuteClick = (workflow: CozeWorkflow) => {
@@ -70,10 +78,10 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
     setExecutionDialogOpen(false);
   };
 
-  const handleExecutionConfirm = async (parameters?: Record<string, any>) => {
+  const handleExecutionConfirm = async (parameters?: Record<string, any>, onEvent?: (event: any) => void) => {
     if (selectedWorkflow) {
       try {
-        await onWorkflowExecute(selectedWorkflow.id, parameters);
+        await onWorkflowExecute(selectedWorkflow.id, parameters, onEvent);
       } catch (error) {
         console.error('工作流执行失败:', error);
       }
@@ -91,6 +99,18 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
   const handleHistoryDialogClose = () => {
     setHistoryDialogOpen(false);
     setSelectedWorkflowForHistory(null);
+  };
+
+  const handleEventLogsClick = () => {
+    setEventLogsDialogOpen(true);
+  };
+
+  const handleEventLogsDialogClose = () => {
+    setEventLogsDialogOpen(false);
+  };
+
+  const handleClearEventLogs = () => {
+    onEventLogsClear();
   };
 
   const getStatusColor = (status: WorkflowExecutionStatus) => {
@@ -144,6 +164,24 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
               </IconButton>
             </Tooltip>
           </Badge>
+
+          {/* 事件日志按钮 */}
+          <Badge badgeContent={eventLogs.length} color="info">
+            <Tooltip title="事件日志">
+              <IconButton size="small" onClick={handleEventLogsClick}>
+                <EventLogIcon />
+              </IconButton>
+            </Tooltip>
+          </Badge>
+
+          {/* 清除事件日志按钮 */}
+          {eventLogs.length > 0 && (
+            <Tooltip title="清除事件日志">
+              <IconButton size="small" onClick={handleClearEventLogs}>
+                <ClearIcon />
+              </IconButton>
+            </Tooltip>
+          )}
 
           {/* 历史记录按钮 */}
           <Tooltip title="执行历史">
@@ -240,6 +278,7 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
         onCancel={handleExecutionDialogClose}
         apiConfig={apiConfig}
         workspaceId={workspaceId}
+        eventLogs={eventLogs}
       />
 
       {/* 执行历史对话框 */}
@@ -324,6 +363,13 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
           <Button onClick={handleHistoryDialogClose}>关闭</Button>
         </DialogActions>
       </Dialog>
+
+      {/* 事件日志对话框 */}
+      <WorkflowEventLogsDialog
+        open={eventLogsDialogOpen}
+        onClose={handleEventLogsDialogClose}
+        eventLogs={eventLogs}
+      />
     </Box>
   );
 };

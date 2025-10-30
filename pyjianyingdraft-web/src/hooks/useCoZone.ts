@@ -8,8 +8,11 @@ import {
   WorkflowExecution,
   WorkflowExecutionStatus,
   CozeZoneTabData,
+  ExecuteWorkflowResponse,
+  WorkflowEventLog,
 } from '@/types/coze';
 import { CozeApiClient, CozeApiError, CozeErrorCode } from '@/lib/coze-api';
+import { WorkflowEvent, WorkflowEventType, WorkflowEventInterrupt } from '@coze/api';
 
 interface UseCoZoneState {
   // 基础数据
@@ -20,6 +23,9 @@ interface UseCoZoneState {
   workflows: CozeWorkflow[];
   executions: WorkflowExecution[];
   executionHistory: WorkflowExecution[];
+
+  // 事件日志
+  eventLogs: WorkflowEventLog[];
 
   // 状态
   loading: boolean;
@@ -47,10 +53,15 @@ interface UseCoZoneResult extends UseCoZoneState {
   // 工作流管理
   loadWorkflows: (workspaceId: string) => Promise<void>;
   refreshWorkflows: () => Promise<void>;
-  executeWorkflow: (workflowId: string, parameters?: Record<string, any>) => Promise<void>;
+  executeWorkflow: (workflowId: string, parameters?: Record<string, any>, onEvent?: (event: any) => void) => Promise<ExecuteWorkflowResponse>;
   pollExecutionStatus: (executionId: string) => Promise<void>;
   loadExecutionHistory: (workflowId?: string) => Promise<void>;
   setSelectedWorkflow: (workflow: CozeWorkflow | null) => void;
+
+  // 事件日志管理
+  addEventLog: (event: WorkflowEventLog) => void;
+  clearEventLogs: () => void;
+  getEventLogs: () => WorkflowEventLog[];
 
   // 工具方法
   clearError: () => void;
@@ -73,6 +84,7 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     workflows: [],
     executions: [],
     executionHistory: [],
+    eventLogs: [],
     loading: false,
     error: null,
     refreshing: false,
@@ -436,7 +448,87 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     setState(prev => ({ ...prev, refreshing: false }));
   }, [state.currentWorkspace, loadWorkflows]);
 
-  const executeWorkflow = useCallback(async (workflowId: string, parameters?: Record<string, any>) => {
+  // 事件日志管理方法
+  const addEventLog = useCallback((event: WorkflowEventLog) => {
+    setState(prev => ({
+      ...prev,
+      eventLogs: [...prev.eventLogs, event],
+    }));
+  }, []);
+
+  const clearEventLogs = useCallback(() => {
+    setState(prev => ({ ...prev, eventLogs: [] }));
+  }, []);
+
+  const getEventLogs = useCallback(() => {
+    return state.eventLogs;
+  }, [state.eventLogs]);
+
+  // 将 WorkflowEvent 转换为 WorkflowEventLog
+  const convertEventToLog = useCallback((
+    event: WorkflowEvent,
+    workflowId: string,
+    executeId?: string,
+    workflowName?: string
+  ): WorkflowEventLog => {
+    const timestamp = new Date().toISOString();
+
+    let level: 'info' | 'warning' | 'error' | 'success' = 'info';
+    let message = '';
+
+    switch (event.event) {
+      case WorkflowEventType.INTERRUPT:
+        level = 'warning';
+        message = `工作流需要用户输入: ${(event as WorkflowEventInterrupt).interrupt_data.type}`;
+        break;
+      case WorkflowEventType.MESSAGE:
+        level = 'info';
+        const eventData = event as any;
+        if (eventData.data) {
+          if (eventData.data.node_title) {
+            message = `工作流消息 - ${eventData.data.node_title}`;
+          } else if (eventData.data.node_type) {
+            message = `工作流消息 - ${eventData.data.node_type}`;
+          } else {
+            message = '工作流消息';
+          }
+        } else {
+          message = '工作流消息';
+        }
+        break;
+      default:
+        if (event.event.includes('started')) {
+          level = 'info';
+          message = '开始执行';
+        } else if (event.event.includes('finished') || event.event.includes('completed')) {
+          level = 'success';
+          message = '执行完成';
+        } else if (event.event.includes('error') || event.event.includes('failed')) {
+          level = 'error';
+          message = '执行失败';
+        }
+        break;
+    }
+
+    return {
+      id: `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      executeId,
+      workflowId,
+      workflowName,
+      event: event.event,
+      data: event.data,
+      timestamp,
+      level,
+      message,
+      details: event,
+    };
+  }, []);
+
+  const executeWorkflow = useCallback(async (
+    workflowId: string,
+    parameters?: Record<string, any>,
+    onEvent?: (event: any) => void
+  ): Promise<ExecuteWorkflowResponse> => {
     try {
       if (!clientRef.current || !state.currentWorkspace) {
         throw new Error('请先选择工作空间');
@@ -444,18 +536,60 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
 
       setState(prev => ({ ...prev, executing: true, error: null }));
 
-      const response = await clientRef.current.executeWorkflow(state.currentWorkspace.id, {
-        workflow_id: workflowId,
-        parameters,
-        stream: false,
+      // 获取工作流名称用于日志
+      const workflow = state.workflows.find(w => w.id === workflowId);
+      const workflowName = workflow?.name || workflowId;
+
+      // 添加开始执行日志
+      addEventLog({
+        id: `log_${Date.now()}_start`,
+        workflowId,
+        workflowName,
+        event: 'workflow_execution_start',
+        data: { parameters },
+        timestamp: new Date().toISOString(),
+        level: 'info',
+        message: '开始执行工作流',
       });
 
-      // 对于同步执行，直接将结果添加到执行列表
+      // 使用流式执行
+      const response = await clientRef.current.executeWorkflowStream(
+        state.currentWorkspace.id,
+        {
+          workflow_id: workflowId,
+          parameters,
+        },
+        (event: WorkflowEvent) => {
+          // 将每个事件转换为日志并添加到状态中
+          const eventLog = convertEventToLog(event, workflowId, undefined, workflowName);
+          addEventLog(eventLog);
+
+          // 如果有外部回调，也调用它
+          if (onEvent) {
+            onEvent(event);
+          }
+        }
+      );
+
+      // 添加完成日志
+      addEventLog({
+        id: `log_${Date.now()}_end`,
+        executeId: response.data?.id,
+        workflowId,
+        workflowName,
+        event: 'workflow_execution_complete',
+        data: response.data,
+        timestamp: new Date().toISOString(),
+        level: response.status === 'success' ? 'success' : 'error',
+        message: response.status === 'success' ? '工作流执行成功' : '工作流执行失败',
+      });
+
+      // 对于流式执行，将结果添加到执行列表
       if (response.data) {
         const execution: WorkflowExecution = {
           id: response.data.id,
           workflow_id: workflowId,
-          workflow_name: '', // 可以从工作流列表中获取
+          workflow_name: workflowName,
           status: response.data.status,
           input_data: response.data.input_data,
           output_data: response.data.output_data,
@@ -477,11 +611,22 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
       // 返回执行结果给调用者
       return response;
     } catch (error) {
+      // 添加错误日志
+      addEventLog({
+        id: `log_${Date.now()}_error`,
+        workflowId,
+        event: 'workflow_execution_error',
+        data: { error: error instanceof Error ? error.message : String(error) },
+        timestamp: new Date().toISOString(),
+        level: 'error',
+        message: '工作流执行出错',
+      });
+
       setState(prev => ({ ...prev, executing: false }));
       handleError(error);
       throw error;
     }
-  }, [state.currentWorkspace, handleError, loadExecutionHistory]);
+  }, [state.currentWorkspace, state.workflows, handleError, loadExecutionHistory, addEventLog, convertEventToLog]);
 
   const setSelectedWorkflow = useCallback((workflow: CozeWorkflow | null) => {
     setState(prev => ({ ...prev, selectedWorkflow: workflow }));
@@ -515,13 +660,16 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     validateAccount,
     loadWorkspaces,
     switchWorkspace,
-    refreshWorkspaces,
+    refreshWorkflows,
     loadWorkflows,
     refreshWorkflows,
     executeWorkflow,
     pollExecutionStatus,
     loadExecutionHistory,
     setSelectedWorkflow,
+    addEventLog,
+    clearEventLogs,
+    getEventLogs,
     clearError,
     resetState,
     getClient,
