@@ -36,26 +36,6 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({
   onHistory,
   onSelect,
 }) => {
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return 'success';
-      case 'inactive':
-        return 'default';
-      default:
-        return 'default';
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'active':
-        return '活跃';
-      default:
-        return '未知';
-    }
-  };
-
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('zh-CN', {
       year: 'numeric',
@@ -101,15 +81,6 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({
             >
               {workflow.name}
             </Typography>
-
-            {/* 状态标签 */}
-            <Chip
-              label={getStatusText(workflow.status)}
-              size="small"
-              color={getStatusColor(workflow.status) as any}
-              variant="outlined"
-              sx={{ mb: 1 }}
-            />
           </Box>
 
           {/* 运行状态指示器 */}
@@ -152,20 +123,9 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({
 
         {/* 元信息 */}
         <Box sx={{ mb: 2 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-            <CodeIcon sx={{ fontSize: 14, color: 'text.secondary' }} />
-            <Typography variant="caption" color="text.secondary">
-              版本: v{workflow.version}
-            </Typography>
-          </Box>
-
-          <Typography variant="caption" color="text.secondary">
-            创建时间: {formatDate(workflow.created_time)}
-          </Typography>
-
           {workflow.updated_time !== workflow.created_time && (
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-              更新时间: {formatDate(workflow.updated_time)}
+              更新时间: {formatDate(workflow.updated_time * 1000)}
             </Typography>
           )}
         </Box>
@@ -180,7 +140,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({
               e.stopPropagation();
               onExecute();
             }}
-            disabled={isExecuting || workflow.status !== 'active'}
+            disabled={isExecuting}
             sx={{ flex: 1 }}
           >
             {isExecuting ? '执行中' : '执行'}

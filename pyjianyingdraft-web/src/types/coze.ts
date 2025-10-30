@@ -16,7 +16,6 @@ export interface CozeWorkspace {
   name: string;
   description?: string;
   icon?: string;
-  status: 'active' | 'inactive';
   created_time: string;
   updated_time: string;
 }
@@ -26,7 +25,6 @@ export interface CozeWorkflow {
   id: string;
   name: string;
   description?: string;
-  status: 'active' | 'inactive';
   created_time: string;
   updated_time: string;
   version: number;
