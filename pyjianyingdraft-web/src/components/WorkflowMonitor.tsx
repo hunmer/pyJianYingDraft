@@ -21,6 +21,10 @@ import {
   DialogContent,
   DialogActions,
   Badge,
+  Tooltip,
+  Menu,
+  MenuList,
+  MenuItem as MenuItemComponent,
 } from '@mui/material';
 import {
   PlayArrow as StartIcon,
@@ -30,6 +34,9 @@ import {
   Settings as SettingsIcon,
   Visibility as ViewIcon,
   Refresh as RefreshIcon,
+  MonitorHeart as MonitorIcon,
+  Notifications as NotificationIcon,
+  MoreVert as MoreVertIcon,
 } from '@mui/icons-material';
 import { CozeWorkflow } from '@/types/coze';
 import { useCozeMonitoring } from '@/hooks/useCozeMonitoring';
@@ -48,6 +55,145 @@ interface StartMonitorDialogProps {
   onClose: () => void;
   onConfirm: (clientId: string) => void;
 }
+
+// 精简的监控状态组件
+const MonitoringStatusIndicator: React.FC<{
+  monitoredWorkflows: any[];
+  isMonitoring: boolean;
+  totalDataReceived: number;
+  unreadDataCount: number;
+  onStopMonitoring: (clientId: string) => void;
+  onStopAllMonitoring: () => void;
+}> = ({
+  monitoredWorkflows,
+  isMonitoring,
+  totalDataReceived,
+  unreadDataCount,
+  onStopMonitoring,
+  onStopAllMonitoring,
+}) => {
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+
+  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
+    setMenuAnchor(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+  };
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      {/* 监控状态指示器 */}
+      <Tooltip title={isMonitoring ? '监控运行中' : '监控已停止'}>
+        <Box sx={{ position: 'relative', display: 'inline-flex' }}>
+          <MonitorIcon color={isMonitoring ? 'success' : 'action'} />
+          {isMonitoring && (
+            <Box
+              sx={{
+                position: 'absolute',
+                top: -6,
+                right: -6,
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                backgroundColor: 'success.main',
+                border: '2px solid white',
+              }}
+            />
+          )}
+        </Box>
+      </Tooltip>
+
+      {/* 未读数据通知 */}
+      {unreadDataCount > 0 && (
+        <Tooltip title={`${unreadDataCount} 条未读数据`}>
+          <Badge badgeContent={unreadDataCount} color="warning">
+            <NotificationIcon color="action" />
+          </Badge>
+        </Tooltip>
+      )}
+
+      {/* 更多操作菜单 */}
+      <Tooltip title="监控详情">
+        <IconButton size="small" onClick={handleMenuClick}>
+          <MoreVertIcon />
+        </IconButton>
+      </Tooltip>
+
+      <Menu
+        anchorEl={menuAnchor}
+        open={Boolean(menuAnchor)}
+        onClose={handleMenuClose}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+      >
+        <MenuList dense>
+          <MenuItemComponent>
+            <Typography variant="body2" color="text.secondary">
+              总数据: {totalDataReceived} 条
+            </Typography>
+          </MenuItemComponent>
+          {unreadDataCount > 0 && (
+            <MenuItemComponent>
+              <Typography variant="body2" color="warning.main">
+                未读: {unreadDataCount} 条
+              </Typography>
+            </MenuItemComponent>
+          )}
+
+          {monitoredWorkflows.length > 0 && (
+            <>
+              <MenuItemComponent divider />
+              {monitoredWorkflows.map((workflow) => (
+                <MenuItemComponent key={`${workflow.clientId}_${workflow.workflowId}`}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+                    <Box>
+                      <Typography variant="body2" fontWeight="bold">
+                        {workflow.workflowName}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        {workflow.clientId} | {workflow.dataCount} 条
+                      </Typography>
+                    </Box>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onStopMonitoring(workflow.clientId);
+                      }}
+                    >
+                      <StopIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                </MenuItemComponent>
+              ))}
+
+              {monitoredWorkflows.length > 1 && (
+                <MenuItemComponent onClick={handleMenuClose}>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onStopAllMonitoring();
+                      handleMenuClose();
+                    }}
+                    fullWidth
+                  >
+                    停止所有监控
+                  </Button>
+                </MenuItemComponent>
+              )}
+            </>
+          )}
+        </MenuList>
+      </Menu>
+    </Box>
+  );
+};
 
 const StartMonitorDialog: React.FC<StartMonitorDialogProps> = ({
   open,
@@ -200,176 +346,87 @@ const WorkflowMonitor: React.FC<WorkflowMonitorProps> = ({
       <Card sx={{ mb: 2 }}>
         <CardContent>
           <Grid container spacing={2} alignItems="center">
-            {/* 工作流选择 */}
-            <Grid size={{ xs: 12, md: 4 }}>
-              <FormControl fullWidth size="small">
-                <InputLabel>选择工作流</InputLabel>
-                <Select
-                  value={String(selectedWorkflow?.id || '')}
-                  label="选择工作流"
-                  onChange={(e) => handleWorkflowSelect(String(e.target.value))}
-                >
-                  {workflows.map((workflow) => (
-                    <MenuItem key={workflow.id} value={String(workflow.id)}>
-                      {workflow.name}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-            </Grid>
-
-            {/* 监控控制按钮 */}
+            {/* 工作流选择和控制按钮 */}
             <Grid size={{ xs: 12, md: 8 }}>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                <Button
-                  variant="contained"
-                  startIcon={<StartIcon />}
-                  onClick={() => handleStartMonitoring()}
-                  disabled={!selectedWorkflow}
-                  size="small"
-                >
-                  启动监控
-                </Button>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                {/* 工作流选择 */}
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel>选择工作流</InputLabel>
+                  <Select
+                    value={String(selectedWorkflow?.id || '')}
+                    label="选择工作流"
+                    onChange={(e) => handleWorkflowSelect(String(e.target.value))}
+                  >
+                    {workflows.map((workflow) => (
+                      <MenuItem key={workflow.id} value={String(workflow.id)}>
+                        {workflow.name}
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
 
-                {monitoredWorkflows.length > 0 && (
+                {/* 监控控制按钮 */}
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                   <Button
-                    variant="outlined"
-                    color="error"
-                    onClick={handleStopAllMonitoring}
+                    variant="contained"
+                    startIcon={<StartIcon />}
+                    onClick={() => handleStartMonitoring()}
+                    disabled={!selectedWorkflow}
                     size="small"
                   >
-                    停止所有
+                    启动监控
                   </Button>
-                )}
 
-                <Button
-                  variant="outlined"
-                  startIcon={<MarkReadIcon />}
-                  onClick={() => markAllAsRead()}
-                  disabled={unreadDataCount === 0}
-                  size="small"
-                >
-                  标记已读
-                </Button>
+                  {monitoredWorkflows.length > 0 && (
+                    <Button
+                      variant="outlined"
+                      color="error"
+                      onClick={handleStopAllMonitoring}
+                      size="small"
+                    >
+                      停止所有
+                    </Button>
+                  )}
 
-                <Button
-                  variant="outlined"
-                  startIcon={<ClearAllIcon />}
-                  onClick={() => clearData()}
-                  disabled={filteredData.length === 0}
-                  size="small"
-                >
-                  清除数据
-                </Button>
+                  <Button
+                    variant="outlined"
+                    startIcon={<MarkReadIcon />}
+                    onClick={() => markAllAsRead()}
+                    disabled={unreadDataCount === 0}
+                    size="small"
+                  >
+                    标记已读
+                  </Button>
+
+                  <Button
+                    variant="outlined"
+                    startIcon={<ClearAllIcon />}
+                    onClick={() => clearData()}
+                    disabled={filteredData.length === 0}
+                    size="small"
+                  >
+                    清除数据
+                  </Button>
+                </Box>
+              </Box>
+            </Grid>
+
+            {/* 右侧监控状态指示器 */}
+            <Grid size={{ xs: 12, md: 4 }}>
+              <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <MonitoringStatusIndicator
+                  monitoredWorkflows={monitoredWorkflows}
+                  isMonitoring={isMonitoring}
+                  totalDataReceived={totalDataReceived}
+                  unreadDataCount={unreadDataCount}
+                  onStopMonitoring={handleStopMonitoring}
+                  onStopAllMonitoring={handleStopAllMonitoring}
+                />
               </Box>
             </Grid>
           </Grid>
         </CardContent>
       </Card>
-
-      {/* 监控状态和统计 */}
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        {/* 监控状态 */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                监控状态
-                <Badge
-                  badgeContent={isMonitoring ? '运行中' : '已停止'}
-                  color={isMonitoring ? 'success' : 'default'}
-                  sx={{ ml: 2 }}
-                />
-              </Typography>
-
-              {monitoredWorkflows.length === 0 ? (
-                <Alert severity="info">
-                  请选择工作流并启动监控以开始接收Coze插件数据
-                </Alert>
-              ) : (
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {monitoredWorkflows.map((workflow) => (
-                    <Box
-                      key={`${workflow.clientId}_${workflow.workflowId}`}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        p: 1,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        borderRadius: 1,
-                      }}
-                    >
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="body2" fontWeight="bold">
-                          {workflow.workflowName}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          Client ID: {workflow.clientId}
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                          数据: {workflow.dataCount} 条 |
-                          启动: {new Date(workflow.startedAt).toLocaleTimeString()}
-                        </Typography>
-                      </Box>
-
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleStopMonitoring(workflow.clientId)}
-                      >
-                        <StopIcon />
-                      </IconButton>
-                    </Box>
-                  ))}
-                </Box>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-
-        {/* 数据统计 */}
-        <Grid size={{ xs: 12, md: 6 }}>
-          <Card>
-            <CardContent>
-              <Typography variant="h6" gutterBottom>
-                数据统计
-              </Typography>
-
-              <Grid container spacing={2}>
-                <Grid size={6}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h4" color="primary">
-                      {totalDataReceived}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      总接收数据
-                    </Typography>
-                  </Box>
-                </Grid>
-
-                <Grid size={6}>
-                  <Box sx={{ textAlign: 'center' }}>
-                    <Typography variant="h4" color={unreadDataCount > 0 ? 'warning' : 'text.secondary'}>
-                      {unreadDataCount}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      未读数据
-                    </Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-
-              {filteredData.length > 0 && (
-                <Alert severity="success" sx={{ mt: 2 }}>
-                  正在显示 {filteredData.length} 条数据
-                </Alert>
-              )}
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
 
       {/* 数据展示区域 */}
       <Card sx={{ flex: 1, display: 'flex', flexDirection: 'column' }}>

@@ -255,12 +255,14 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
         <Tabs
           value={activeSubTab}
           onChange={handleSubTabChange}
+          variant="fullWidth"
           aria-label="Coze Zone 子标签页"
           sx={{
             minHeight: 48,
             '& .MuiTab-root': {
               minHeight: 48,
               py: 1,
+              flex: 1,
             },
           }}
         >
