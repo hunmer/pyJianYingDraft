@@ -71,6 +71,26 @@ export const useWorkflowExecution = (options: UseWorkflowExecutionOptions) => {
               newState.status = 'failed';
               newState.endTime = event.timestamp;
               newState.error = event.data?.message || '执行出错';
+            } else if (event.event === 'message' || event.event === 'Message') {
+              // 处理普通消息事件
+              console.log('收到消息事件:', event);
+
+              // 如果消息包含输出数据，可以设置为当前输出
+              if (event.data && event.data.content) {
+                try {
+                  if (typeof event.data.content === 'string') {
+                    const parsedContent = JSON.parse(event.data.content);
+                    newState.output = parsedContent;
+                    console.log('解析消息内容为输出:', parsedContent);
+                  } else {
+                    newState.output = event.data.content;
+                    console.log('直接使用消息内容作为输出:', event.data.content);
+                  }
+                } catch (e) {
+                  newState.output = { message: event.data.content };
+                  console.log('JSON解析失败，使用原始消息:', event.data.content);
+                }
+              }
             }
 
             return newState;

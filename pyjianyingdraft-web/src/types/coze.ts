@@ -267,6 +267,20 @@ export interface WorkflowMonitorState {
   unreadDataCount: number;
 }
 
+// 工作流事件日志条目
+export interface WorkflowEventLog {
+  id: string;
+  executeId?: string;
+  workflowId: string;
+  workflowName?: string;
+  event: string;
+  data: any;
+  timestamp: string;
+  level: 'info' | 'warning' | 'error' | 'success';
+  message?: string;
+  details?: any;
+}
+
 // 工作流流式响应事件类型
 export interface WorkflowStreamEvent {
   event: 'workflow_started' | 'node_started' | 'node_finished' | 'workflow_finished' | 'error' | 'message' | 'data';
@@ -280,7 +294,7 @@ export interface WorkflowStreamEvent {
 // 工作流流式执行状态
 export interface WorkflowStreamState {
   isStreaming: boolean;
-  events: WorkflowStreamEvent[];
+  events: WorkflowEventLog[];
   currentStep?: string;
   status: 'running' | 'completed' | 'failed' | 'cancelled';
   startTime?: string;

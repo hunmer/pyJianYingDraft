@@ -3,7 +3,13 @@
  * 使用官方 @coze/api 替代原有的自定义 API 客户端
  */
 
-import { CozeAPI, COZE_CN_BASE_URL } from '@coze/api';
+import {
+  CozeAPI,
+  COZE_CN_BASE_URL,
+  WorkflowEvent,
+  WorkflowEventType,
+  WorkflowEventInterrupt,
+} from '@coze/api';
 
 import {
   CozeAccount,
@@ -145,11 +151,11 @@ export class CozeJsClient {
     request: ExecuteWorkflowRequest
   ): Promise<ExecuteWorkflowResponse> {
     try {
-      // 使用 @coze/api 的工作流执行 API
+      // 使用 @coze/api 的工作流执行 API（同步方式）
       const response = await this.client.workflows.runs.create({
         workflow_id: request.workflow_id,
         parameters: request.parameters,
-        is_async: request.stream || false,
+        is_async: false,
       });
 
       // 根据API文档，响应数据在data字段中，且是字符串形式的JSON
@@ -194,6 +200,155 @@ export class CozeJsClient {
     } catch (error) {
       console.error('执行工作流失败:', error);
       throw this.parseError(error);
+    }
+  }
+
+  /**
+   * 执行工作流（异步流式方式）
+   * @param workspaceId 工作空间 ID
+   * @param request 执行请求
+   * @param onEvent 事件回调函数
+   * @returns Promise<ExecuteWorkflowResponse>
+   */
+  async executeWorkflowStream(
+    workspaceId: string,
+    request: ExecuteWorkflowRequest,
+    onEvent?: (event: WorkflowEvent) => void
+  ): Promise<ExecuteWorkflowResponse> {
+    try {
+      // 使用 @coze/api 的异步流式执行 API
+      const workflow = await this.client.workflows.runs.stream({
+        workflow_id: request.workflow_id,
+        parameters: request.parameters,
+        bot_id: request.bot_id,
+      });
+
+      // 处理流式事件
+      return await this.handleStreamEvents(workflow, request.workflow_id, request.parameters, onEvent);
+    } catch (error) {
+      console.error('流式执行工作流失败:', error);
+      throw this.parseError(error);
+    }
+  }
+
+  /**
+   * 处理流式事件
+   * @private
+   */
+  private async handleStreamEvents(
+    workflow: AsyncGenerator<WorkflowEvent, void>,
+    workflowId: string,
+    parameters: Record<string, any> | undefined,
+    onEvent?: (event: WorkflowEvent) => void
+  ): Promise<ExecuteWorkflowResponse> {
+    let finalOutput: any = {};
+    let executeId = '';
+    let conversationId = '';
+    let status: 'success' | 'failed' = 'success';
+    let createTime = new Date().toISOString();
+
+    try {
+      for await (const event of workflow) {
+        console.log(event)
+        // 触发用户提供的回调
+        if (onEvent) {
+          onEvent(event);
+        }
+
+        // 处理不同类型的事件
+        if (event.event === WorkflowEventType.INTERRUPT) {
+          // 处理中断事件（需要用户输入）
+          const interrupt = event as WorkflowEventInterrupt;
+          console.warn('工作流需要用户输入:', interrupt.interrupt_data);
+
+          // 这里需要调用方提供中断处理逻辑
+          // 暂时抛出错误，提示需要处理中断
+          throw new Error(`工作流需要用户输入: ${interrupt.interrupt_data.type}`);
+        } else if (event.event === WorkflowEventType.MESSAGE) {
+          // 处理消息事件 - 提取内容作为最终输出
+          const eventData = event as any;
+          console.log('工作流消息:', eventData);
+
+          // 提取消息内容作为最终输出
+          if (eventData.data && eventData.data.content) {
+            try {
+              // 尝试解析 JSON 格式的 content
+              if (typeof eventData.data.content === 'string') {
+                const parsedContent = JSON.parse(eventData.data.content);
+                finalOutput = parsedContent;
+                console.log('成功解析消息内容:', parsedContent);
+              } else {
+                finalOutput = eventData.data.content;
+                console.log('直接使用消息内容:', eventData.data.content);
+              }
+            } catch (e) {
+              // 如果不是有效 JSON，直接使用原始内容
+              finalOutput = eventData.data.content;
+              console.log('JSON解析失败，使用原始内容:', eventData.data.content);
+            }
+          }
+
+          // 提取其他有用信息
+          if (eventData.data && eventData.data.node_execute_uuid) {
+            executeId = eventData.data.node_execute_uuid;
+          }
+        } else {
+          // 处理其他事件类型，提取有用信息
+          const eventData = event as any;
+          if (eventData.output) {
+            finalOutput = eventData.output;
+          }
+          if (eventData.execute_id) {
+            executeId = String(eventData.execute_id);
+          }
+          if (eventData.conversation_id) {
+            conversationId = String(eventData.conversation_id);
+          }
+          if (eventData.create_time) {
+            createTime = eventData.create_time;
+          }
+          if (eventData.error_message) {
+            status = 'failed';
+            throw new Error(eventData.error_message);
+          }
+        }
+      }
+
+      // 处理 output 数据
+      let outputData = {};
+      if (finalOutput) {
+        console.log('处理最终输出数据:', finalOutput);
+        if (typeof finalOutput === 'string') {
+          try {
+            outputData = JSON.parse(finalOutput);
+            console.log('解析字符串输出:', outputData);
+          } catch (e) {
+            outputData = { output: finalOutput };
+            console.log('JSON解析失败，使用字符串:', outputData);
+          }
+        } else {
+          outputData = finalOutput;
+          console.log('直接使用对象输出:', outputData);
+        }
+      } else {
+        console.log('警告: 没有最终输出数据');
+      }
+
+      return {
+        conversation_id: conversationId || executeId,
+        status,
+        data: {
+          id: executeId,
+          workflow_id: workflowId,
+          status,
+          input_data: parameters || {},
+          output_data: outputData,
+          created_time: createTime,
+        },
+      };
+    } catch (error) {
+      console.error('处理流式事件失败:', error);
+      throw error;
     }
   }
 
@@ -428,7 +583,7 @@ export const cozeJsApi = {
   },
 
   /**
-   * 执行工作流（使用默认客户端）
+   * 执行工作流（使用默认客户端，同步方式）
    */
   executeWorkflow: async (
     apiKey: string,
@@ -445,4 +600,24 @@ export const cozeJsApi = {
     });
   },
 
-  };
+  /**
+   * 执行工作流（使用默认客户端，异步流式方式）
+   */
+  executeWorkflowStream: async (
+    apiKey: string,
+    workspaceId: string,
+    workflowId: string,
+    parameters?: Record<string, any>,
+    onEvent?: (event: WorkflowEvent) => void,
+    baseUrl?: string
+  ): Promise<ExecuteWorkflowResponse> => {
+    const client = getDefaultCozeClient(apiKey, baseUrl);
+    return await client.executeWorkflowStream(workspaceId, {
+      workflow_id: workflowId,
+      parameters,
+    }, onEvent);
+  },
+};
+
+// 导出 Coze API 事件类型，方便用户使用
+export type { WorkflowEvent, WorkflowEventType, WorkflowEventInterrupt };
