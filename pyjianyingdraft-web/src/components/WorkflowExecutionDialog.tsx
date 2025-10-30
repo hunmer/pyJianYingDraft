@@ -515,7 +515,7 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
           {/* 右侧：事件日志 */}
           <Grid item xs={12} md={6}>
             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <WorkflowEventLogPanel
+              <MemoizedWorkflowEventLogPanel
                 eventLogs={eventLogs}
                 workflowId={workflow?.id}
                 workflowName={workflow?.name}
@@ -549,4 +549,6 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   );
 };
 
-export default WorkflowExecutionDialog;
+const MemoizedWorkflowEventLogPanel = React.memo(WorkflowEventLogPanel);
+
+export default React.memo(WorkflowExecutionDialog);

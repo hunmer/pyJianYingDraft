@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo  } from 'react';
 import {
   Box,
   Grid,
@@ -147,6 +147,14 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
     return executions.filter(e => e.status === WorkflowExecutionStatus.RUNNING).length;
   };
 
+  // 缓存 eventLogs 的长度，避免不必要的重新渲染
+  const eventLogsCount = useMemo(() => eventLogs.length, [eventLogs.length]);
+
+  // 缓存运行中的执行计数
+  const runningExecutionsCount = useMemo(() => {
+    return executions.filter(e => e.status === WorkflowExecutionStatus.RUNNING).length;
+  }, [executions]);
+
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
       {/* 头部信息 */}
@@ -157,7 +165,7 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           {/* 运行中的任务计数 */}
-          <Badge badgeContent={getRunningExecutionsCount()} color="warning">
+          <Badge badgeContent={runningExecutionsCount} color="warning">
             <Tooltip title="运行中的工作流">
               <IconButton size="small">
                 <StatusIcon />
@@ -166,7 +174,7 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
           </Badge>
 
           {/* 事件日志按钮 */}
-          <Badge badgeContent={eventLogs.length} color="info">
+          <Badge badgeContent={eventLogsCount} color="info">
             <Tooltip title="事件日志">
               <IconButton size="small" onClick={handleEventLogsClick}>
                 <EventLogIcon />
@@ -175,7 +183,7 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
           </Badge>
 
           {/* 清除事件日志按钮 */}
-          {eventLogs.length > 0 && (
+          {eventLogsCount > 0 && (
             <Tooltip title="清除事件日志">
               <IconButton size="small" onClick={handleClearEventLogs}>
                 <ClearIcon />
@@ -374,4 +382,4 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
   );
 };
 
-export default WorkflowPanel;
+export default React.memo(WorkflowPanel);

@@ -448,21 +448,41 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     setState(prev => ({ ...prev, refreshing: false }));
   }, [state.currentWorkspace, loadWorkflows]);
 
-  // 事件日志管理方法
-  const addEventLog = useCallback((event: WorkflowEventLog) => {
-    setState(prev => ({
-      ...prev,
-      eventLogs: [...prev.eventLogs, event],
-    }));
-  }, []);
+  // 使用 useRef 来存储事件日志，避免频繁的状态更新
+  const eventLogsRef = useRef<WorkflowEventLog[]>([]);
+  const updateTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const clearEventLogs = useCallback(() => {
-    setState(prev => ({ ...prev, eventLogs: [] }));
+  // 事件日志管理方法 - 使用防抖机制减少状态更新频率
+  const addEventLog = useCallback((event: WorkflowEventLog) => {
+    eventLogsRef.current = [...eventLogsRef.current, event];
+
+    // 清除之前的定时器
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+
+    // 设置新的定时器来批量更新状态
+    updateTimeoutRef.current = setTimeout(() => {
+      setState(prev => ({
+        ...prev,
+        eventLogs: [...eventLogsRef.current], // 创建新的数组引用
+      }));
+      updateTimeoutRef.current = null;
+    }, 100); // 100ms 防抖延迟，给用户更好的响应体验
   }, []);
 
   const getEventLogs = useCallback(() => {
-    return state.eventLogs;
+    return state.eventLogs.length > 0 ? state.eventLogs : eventLogsRef.current;
   }, [state.eventLogs]);
+
+  const clearEventLogs = useCallback(() => {
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+      updateTimeoutRef.current = null;
+    }
+    setState(prev => ({ ...prev, eventLogs: [] }));
+    eventLogsRef.current = [];
+  }, []);
 
   // 将 WorkflowEvent 转换为 WorkflowEventLog
   const convertEventToLog = useCallback((
@@ -639,6 +659,10 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
       if (pollingTimerRef.current) {
         clearTimeout(pollingTimerRef.current);
         pollingTimerRef.current = null;
+      }
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+        updateTimeoutRef.current = null;
       }
     };
   }, []);

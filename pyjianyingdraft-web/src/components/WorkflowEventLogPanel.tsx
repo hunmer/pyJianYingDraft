@@ -48,6 +48,9 @@ const WorkflowEventLogPanel: React.FC<WorkflowEventLogPanelProps> = ({
     return eventLogs.filter(log => log.workflowId === workflowId);
   }, [eventLogs, workflowId]);
 
+  // 缓存日志计数，避免每次渲染重新计算
+  const logCount = useMemo(() => filteredLogs.length, [filteredLogs.length]);
+
   // 切换展开状态
   const toggleExpand = (logId: string) => {
     setExpandedRows(prev => {
@@ -120,7 +123,7 @@ const WorkflowEventLogPanel: React.FC<WorkflowEventLogPanelProps> = ({
           事件日志
         </Typography>
         <Chip
-          label={`共 ${filteredLogs.length} 条`}
+          label={`共 ${logCount} 条`}
           size="small"
           color="primary"
         />
