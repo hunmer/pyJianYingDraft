@@ -26,15 +26,13 @@ import {
   PlayArrow as ExecuteIcon,
   Code as CodeIcon,
   Info as InfoIcon,
-  Terminal as TerminalIcon,
   Stop as StopIcon,
   Input as InputIcon,
   Output as OutputIcon,
-  Settings as SettingsIcon,
-  EventNote as EventIcon,
 } from '@mui/icons-material';
-import { CozeWorkflow, WorkflowStreamEvent, WorkflowStreamState } from '@/types/coze';
+import { CozeWorkflow, WorkflowStreamEvent, WorkflowStreamState, WorkflowEventLog } from '@/types/coze';
 import WorkflowParameterEditor from './WorkflowParameterEditor';
+import WorkflowEventLogPanel from './WorkflowEventLogPanel';
 import { json } from '@codemirror/lang-json';
 import CodeMirror from '@uiw/react-codemirror';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
@@ -50,6 +48,7 @@ interface WorkflowExecutionDialogProps {
     apiBase: string;
     apiKey: string;
   };
+  eventLogs: WorkflowEventLog[];
 }
 
 const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
@@ -60,6 +59,7 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   onCancel,
   workspaceId,
   apiConfig,
+  eventLogs,
 }) => {
   const [parameters, setParameters] = useState<Record<string, any>>({});
 
@@ -76,7 +76,6 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
     setParameters(newParameters);
   }, []);
   const [outputData, setOutputData] = useState<any>(null);
-  const [streamEnabled, setStreamEnabled] = useState(true);
   const [streamState, setStreamState] = useState<WorkflowStreamState>({
     isStreaming: false,
     events: [],
@@ -85,14 +84,12 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
 
   // Tab状态管理
   const [leftTabValue, setLeftTabValue] = useState(0);
-  const [rightTabValue, setRightTabValue] = useState(0);
 
   // 工作流详细信息状态
   const [detailedWorkflow, setDetailedWorkflow] = useState<CozeWorkflow | null>(null);
   const [loadingWorkflowInfo, setLoadingWorkflowInfo] = useState(false);
   const [workflowInfoError, setWorkflowInfoError] = useState<string | null>(null);
 
-  const eventLogRef = useRef<HTMLTextAreaElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const fetchedWorkflowIdRef = useRef<string | null>(null);
 
@@ -256,14 +253,6 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
     }
   }, [open, workflow?.id, apiConfig?.apiKey, apiConfig?.apiBase, fetchWorkflowDetails]);
 
-
-  useEffect(() => {
-    // 自动滚动事件日志到底部
-    if (eventLogRef.current) {
-      eventLogRef.current.scrollTop = eventLogRef.current.scrollHeight;
-    }
-  }, [streamState.events]);
-
   const addStreamEvent = (event: WorkflowStreamEvent) => {
     setStreamState(prev => ({
       ...prev,
@@ -352,23 +341,6 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
       abortControllerRef.current.abort();
     }
     onCancel();
-  };
-
-  const formatEventLog = () => {
-    return streamState.events.map(event => {
-      const timestamp = new Date(event.timestamp).toLocaleTimeString();
-      const statusIcon = {
-        workflow_started: '🚀',
-        node_started: '▶️',
-        node_finished: '✅',
-        workflow_finished: '🎉',
-        error: '❌',
-        message: '💬',
-        data: '📊',
-      }[event.event] || '📝';
-
-      return `[${timestamp}] ${statusIcon} ${event.event.toUpperCase()}: ${JSON.stringify(event.data, null, 2)}`;
-    }).join('\n\n');
   };
 
   // 暴露方法供外部调用以接收流式事件
@@ -540,128 +512,15 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
             </Box>
           </Grid>
 
-          {/* 右侧：执行配置和事件日志 */}
+          {/* 右侧：事件日志 */}
           <Grid item xs={12} md={6}>
             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
-                <Tabs value={rightTabValue} onChange={(_, newValue) => setRightTabValue(newValue)}>
-                  <Tab
-                    icon={<SettingsIcon fontSize="small" />}
-                    label="执行配置"
-                    iconPosition="start"
-                  />
-                  <Tab
-                    icon={<EventIcon fontSize="small" />}
-                    label="事件日志"
-                    iconPosition="start"
-                  />
-                </Tabs>
-              </Box>
-
-              <Box sx={{ flex: 1, overflow: 'auto' }}>
-                {rightTabValue === 0 && (
-                  <Box>
-                    <Alert
-                      severity={streamEnabled ? "info" : "warning"}
-                      sx={{ mb: 2 }}
-                    >
-                      <Typography variant="body2">
-                        {streamEnabled
-                          ? "已启用流式执行，可实时查看执行过程"
-                          : "已禁用流式执行，将在完成后显示结果"
-                        }
-                      </Typography>
-                    </Alert>
-
-                    {streamState.currentStep && (
-                      <Box sx={{ mb: 2 }}>
-                        <Typography variant="subtitle2" gutterBottom>
-                          当前步骤
-                        </Typography>
-                        <Chip
-                          label={streamState.currentStep}
-                          color="primary"
-                          size="small"
-                        />
-                      </Box>
-                    )}
-
-                    {streamState.status !== 'running' && (
-                      <Alert
-                        severity={
-                          streamState.status === 'completed' ? 'success' :
-                          streamState.status === 'failed' ? 'error' : 'info'
-                        }
-                        sx={{ mb: 2 }}
-                      >
-                        <Typography variant="body2">
-                          执行状态: {streamState.status.toUpperCase()}
-                          {streamState.endTime && ` - 完成时间: ${new Date(streamState.endTime).toLocaleTimeString()}`}
-                        </Typography>
-                        {streamState.error && (
-                          <Typography variant="body2" sx={{ mt: 1 }}>
-                            错误信息: {streamState.error}
-                          </Typography>
-                        )}
-                      </Alert>
-                    )}
-
-                    <Box sx={{ mt: 3, p: 2, backgroundColor: 'grey.50', borderRadius: 1 }}>
-                      <Typography variant="h6" gutterBottom>
-                        执行设置
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        • 流式执行：{streamEnabled ? '开启' : '关闭'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        • 工作流ID：{currentWorkflow.id}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        • 参数数量：{Object.keys(parameters).length} 个
-                      </Typography>
-                    </Box>
-                  </Box>
-                )}
-
-                {rightTabValue === 1 && (
-                  <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <TerminalIcon fontSize="small" />
-                      <Typography variant="h6">
-                        事件日志
-                      </Typography>
-                      {streamState.events.length > 0 && (
-                        <Chip
-                          label={streamState.events.length}
-                          size="small"
-                          color="primary"
-                        />
-                      )}
-                    </Box>
-
-                    <TextField
-                      multiline
-                      rows={20}
-                      fullWidth
-                      value={formatEventLog()}
-                      inputRef={eventLogRef}
-                      placeholder="执行事件将在这里显示..."
-                      InputProps={{
-                        readOnly: true,
-                        sx: {
-                          fontFamily: 'monospace',
-                          fontSize: '0.75rem',
-                          backgroundColor: 'grey.50',
-                          '& .MuiInputBase-input': {
-                            whiteSpace: 'pre-wrap',
-                            wordBreak: 'break-word',
-                          },
-                        },
-                      }}
-                    />
-                  </Box>
-                )}
-              </Box>
+              <WorkflowEventLogPanel
+                eventLogs={eventLogs}
+                workflowId={workflow?.id}
+                workflowName={workflow?.name}
+                height="100%"
+              />
             </Box>
           </Grid>
         </Grid>
