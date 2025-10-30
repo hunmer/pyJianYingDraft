@@ -332,6 +332,193 @@ export interface CozeZoneConfig {
   pollingInterval: number; // 执行状态轮询间隔（毫秒）
 }
 
+// 任务管理相关类型定义
+export interface Task {
+  id: string;                           // 后端生成的任务ID
+  name: string;                         // 任务名称
+  description?: string;                 // 任务描述
+  workflowId: string;                   // 关联的工作流ID (Coze服务端)
+  workflowName: string;                 // 工作流名称（冗余存储）
+  workflowVersion?: number;             // 工作流版本
+
+  // 输入输出数据
+  inputParameters: Record<string, any>; // 输入参数
+  outputData?: any;                     // 输出结果
+  errorMessage?: string;                // 错误信息
+
+  // 执行状态
+  status: TaskStatus;                   // 任务状态
+  executionStatus?: ExecutionStatus;    // 执行状态
+
+  // 时间信息
+  createdAt: string;                    // 创建时间
+  updatedAt: string;                    // 更新时间
+  executedAt?: string;                  // 执行时间
+  completedAt?: string;                 // 完成时间
+
+  // 执行关联
+  cozeExecutionId?: string;             // Coze执行ID（执行后关联）
+  cozeConversationId?: string;          // Coze会话ID
+
+  // 元数据
+  tags?: string[];                      // 标签
+  priority?: 'low' | 'medium' | 'high'; // 优先级
+  createdBy?: string;                   // 创建者
+  metadata?: Record<string, any>;       // 扩展元数据
+}
+
+// 任务状态枚举
+export enum TaskStatus {
+  DRAFT = 'draft',                      // 草稿状态（未执行）
+  EXECUTING = 'executing',              // 执行中
+  COMPLETED = 'completed',              // 执行完成
+  FAILED = 'failed',                    // 执行失败
+  CANCELLED = 'cancelled',              // 已取消
+}
+
+// 执行状态枚举
+export enum ExecutionStatus {
+  PENDING = 'pending',                  // 等待执行
+  RUNNING = 'running',                  // 运行中
+  SUCCESS = 'success',                  // 成功
+  FAILED = 'failed',                    // 失败
+  TIMEOUT = 'timeout',                  // 超时
+  CANCELLED = 'cancelled',              // 已取消
+}
+
+// 创建任务请求
+export interface CreateTaskRequest {
+  name?: string;                        // 任务名称（可选，默认使用工作流名称）
+  description?: string;                 // 任务描述
+  workflowId: string;                   // 工作流ID
+  workflowName?: string;                // 工作流名称（可选）
+  inputParameters: Record<string, any>; // 输入参数
+  tags?: string[];                      // 标签
+  priority?: 'low' | 'medium' | 'high'; // 优先级
+  metadata?: Record<string, any>;       // 扩展元数据
+}
+
+// 更新任务请求
+export interface UpdateTaskRequest {
+  name?: string;                        // 任务名称
+  description?: string;                 // 任务描述
+  inputParameters?: Record<string, any>; // 输入参数
+  outputData?: any;                     // 输出结果
+  status?: TaskStatus;                  // 任务状态
+  executionStatus?: ExecutionStatus;    // 执行状态
+  errorMessage?: string;                // 错误信息
+  executedAt?: string;                  // 执行时间
+  completedAt?: string;                 // 完成时间
+  cozeExecutionId?: string;             // Coze执行ID
+  cozeConversationId?: string;          // Coze会话ID
+  tags?: string[];                      // 标签
+  priority?: 'low' | 'medium' | 'high'; // 优先级
+  metadata?: Record<string, any>;       // 扩展元数据
+}
+
+// 执行任务请求
+export interface ExecuteTaskRequest {
+  taskId?: string;                      // 任务ID（可选，不携带则生成新任务）
+  workflowId: string;                   // 工作流ID
+  inputParameters?: Record<string, any>; // 输入参数（可选，使用任务存储的参数）
+  saveAsTask?: boolean;                 // 是否保存为任务（默认true）
+  taskName?: string;                    // 任务名称（保存为任务时使用）
+  taskDescription?: string;             // 任务描述（保存为任务时使用）
+}
+
+// 执行任务响应
+export interface ExecuteTaskResponse {
+  taskId?: string;                      // 任务ID（如果保存为任务）
+  executionId: string;                  // 执行ID
+  status: string;                       // 执行状态
+  message?: string;                     // 消息
+}
+
+// 任务查询过滤器
+export interface TaskFilter {
+  workflowId?: string;                  // 工作流ID
+  status?: TaskStatus;                  // 任务状态
+  executionStatus?: ExecutionStatus;    // 执行状态
+  tags?: string[];                      // 标签
+  priority?: 'low' | 'medium' | 'high'; // 优先级
+  createdAfter?: string;                // 创建时间筛选
+  createdBefore?: string;               // 创建时间筛选
+  limit?: number;                       // 限制数量
+  offset?: number;                      // 偏移量
+}
+
+// 任务列表响应
+export interface TaskListResponse {
+  tasks: Task[];                        // 任务列表
+  total: number;                        // 总数
+  hasMore: boolean;                     // 是否有更多
+}
+
+// 任务统计信息
+export interface TaskStatistics {
+  total: number;                        // 总任务数
+  byStatus: Record<TaskStatus, number>; // 按状态统计
+  byExecutionStatus: Record<ExecutionStatus, number>; // 按执行状态统计
+  byWorkflow: Record<string, number>;   // 按工作流统计
+  recentExecutions: Task[];             // 最近执行的任务
+}
+
+// 扩展现有的CozeZoneTabData接口
+export interface CozeZoneTabData {
+  id: string;
+  label: string;
+  type: 'coze_zone';
+  loading: boolean;
+  error: string | null;
+
+  // Coze Zone 特有字段
+  accountId: string;
+  workspaceId: string;
+
+  // 数据
+  accounts: CozeAccount[];
+  workspaces: CozeWorkspace[];
+  workflows: CozeWorkflow[];
+  executions: WorkflowExecution[];
+  selectedWorkflow?: CozeWorkflow;
+  executionHistory: WorkflowExecution[];
+
+  // 任务管理数据
+  tasks: Task[];                        // 任务列表
+  selectedWorkflowTasks: Task[];        // 当前选中工作流的任务
+  taskStatistics?: TaskStatistics;      // 任务统计信息
+
+  // 状态
+  refreshing: boolean;
+  executing: boolean;
+  taskLoading: boolean;                 // 任务加载状态
+  taskExecuting: string | null;         // 当前执行的任务ID
+}
+
+// 任务管理API类型
+export interface TaskApi {
+  // 获取任务列表
+  getTasks(filters?: TaskFilter): Promise<TaskListResponse>;
+
+  // 获取单个任务
+  getTask(taskId: string): Promise<Task>;
+
+  // 创建任务
+  createTask(request: CreateTaskRequest): Promise<Task>;
+
+  // 更新任务
+  updateTask(taskId: string, request: UpdateTaskRequest): Promise<Task>;
+
+  // 删除任务
+  deleteTask(taskId: string): Promise<void>;
+
+  // 执行任务
+  executeTask(request: ExecuteTaskRequest): Promise<ExecuteTaskResponse>;
+
+  // 获取任务统计
+  getTaskStatistics(workflowId?: string): Promise<TaskStatistics>;
+}
+
 // 默认配置
 export const DEFAULT_COZE_CONFIG: CozeZoneConfig = {
   defaultBaseUrl: 'https://api.coze.cn',

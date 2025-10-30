@@ -1,6 +1,11 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
+
+/**
+ * API基础配置 - 添加fallback机制防止undefined
+ */
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 import {
   CozeAccount,
   CozeWorkspace,
@@ -10,6 +15,15 @@ import {
   CozeZoneTabData,
   ExecuteWorkflowResponse,
   WorkflowEventLog,
+  Task,
+  TaskStatus,
+  ExecutionStatus,
+  CreateTaskRequest,
+  UpdateTaskRequest,
+  ExecuteTaskRequest,
+  TaskFilter,
+  TaskListResponse,
+  TaskStatistics,
 } from '@/types/coze';
 import { CozeApiClient, CozeApiError, CozeErrorCode } from '@/lib/coze-api';
 import { WorkflowEvent, WorkflowEventType, WorkflowEventInterrupt } from '@coze/api';
@@ -24,6 +38,11 @@ interface UseCoZoneState {
   executions: WorkflowExecution[];
   executionHistory: WorkflowExecution[];
 
+  // 任务管理数据
+  tasks: Task[];
+  selectedWorkflowTasks: Task[];
+  taskStatistics?: TaskStatistics;
+
   // 事件日志
   eventLogs: WorkflowEventLog[];
 
@@ -32,6 +51,8 @@ interface UseCoZoneState {
   error: string | null;
   refreshing: boolean;
   executing: boolean;
+  taskLoading: boolean;
+  taskExecuting: string | null;
 
   // 选中的数据
   selectedWorkflow: CozeWorkflow | null;
@@ -57,6 +78,14 @@ interface UseCoZoneResult extends UseCoZoneState {
   pollExecutionStatus: (executionId: string) => Promise<void>;
   loadExecutionHistory: (workflowId?: string) => Promise<void>;
   setSelectedWorkflow: (workflow: CozeWorkflow | null) => void;
+
+  // 任务管理
+  refreshTasks: (workflowId?: string) => Promise<void>;
+  createTask: (taskData: CreateTaskRequest) => Promise<Task>;
+  updateTask: (taskId: string, updates: UpdateTaskRequest) => Promise<Task>;
+  deleteTask: (taskId: string) => Promise<void>;
+  executeTask: (requestData: ExecuteTaskRequest) => Promise<any>;
+  getTaskStatistics: (workflowId?: string) => Promise<void>;
 
   // 事件日志管理
   addEventLog: (event: WorkflowEventLog) => void;
@@ -84,11 +113,16 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     workflows: [],
     executions: [],
     executionHistory: [],
+    tasks: [],
+    selectedWorkflowTasks: [],
+    taskStatistics: undefined,
     eventLogs: [],
     loading: false,
     error: null,
     refreshing: false,
     executing: false,
+    taskLoading: false,
+    taskExecuting: null,
     selectedWorkflow: null,
   });
 
@@ -667,13 +701,243 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     };
   }, []);
 
+  // ==================== 任务管理方法 ====================
+
+  // 刷新任务列表
+  const refreshTasks = useCallback(async (workflowId?: string) => {
+    setState(prev => ({ ...prev, taskLoading: true, error: null }));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/coze/tasks${workflowId ? `?workflow_id=${workflowId}` : ''}`);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: TaskListResponse = await response.json();
+
+      setState(prev => ({
+        ...prev,
+        tasks: data.tasks,
+        taskLoading: false,
+      }));
+
+      // 如果��定了工作流ID，更新选中工作流的任务列表
+      if (workflowId) {
+        const workflowTasks = data.tasks.filter(task => task.workflow_id === workflowId);
+        setState(prev => ({
+          ...prev,
+          selectedWorkflowTasks: workflowTasks,
+        }));
+      }
+
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        taskLoading: false,
+        error: error instanceof Error ? error.message : '刷新任务列表失败',
+      }));
+    }
+  }, []);
+
+  // 创建任务
+  const createTask = useCallback(async (taskData: CreateTaskRequest): Promise<Task> => {
+    setState(prev => ({ ...prev, taskLoading: true, error: null }));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/coze/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(taskData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const newTask: Task = await response.json();
+
+      setState(prev => ({
+        ...prev,
+        tasks: [newTask, ...prev.tasks],
+        taskLoading: false,
+      }));
+
+      // 如果是当前选中工作流的任务，更新选中工作流的任务列表
+      if (state.selectedWorkflow && newTask.workflow_id === state.selectedWorkflow.id) {
+        setState(prev => ({
+          ...prev,
+          selectedWorkflowTasks: [newTask, ...prev.selectedWorkflowTasks],
+        }));
+      }
+
+      return newTask;
+
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        taskLoading: false,
+        error: error instanceof Error ? error.message : '创建任务失败',
+      }));
+      throw error;
+    }
+  }, [state.selectedWorkflow]);
+
+  // 更新任务
+  const updateTask = useCallback(async (taskId: string, updates: UpdateTaskRequest): Promise<Task> => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/coze/tasks/${taskId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(updates),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const updatedTask: Task = await response.json();
+
+      setState(prev => ({
+        ...prev,
+        tasks: prev.tasks.map(task => task.id === taskId ? updatedTask : task),
+        selectedWorkflowTasks: prev.selectedWorkflowTasks.map(task =>
+          task.id === taskId ? updatedTask : task
+        ),
+      }));
+
+      return updatedTask;
+
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : '更新任务失败',
+      }));
+      throw error;
+    }
+  }, []);
+
+  // 删除任务
+  const deleteTask = useCallback(async (taskId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/coze/tasks/${taskId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      setState(prev => ({
+        ...prev,
+        tasks: prev.tasks.filter(task => task.id !== taskId),
+        selectedWorkflowTasks: prev.selectedWorkflowTasks.filter(task => task.id !== taskId),
+      }));
+
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : '删除任务失败',
+      }));
+      throw error;
+    }
+  }, []);
+
+  // 执行任务
+  const executeTask = useCallback(async (requestData: ExecuteTaskRequest) => {
+    setState(prev => ({
+      ...prev,
+      taskExecuting: requestData.task_id || 'new',
+      error: null
+    }));
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/coze/tasks/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestData),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+
+      // 刷新任务列表以获取最新状态
+      await refreshTasks(requestData.workflow_id);
+
+      return result;
+
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        taskExecuting: null,
+        error: error instanceof Error ? error.message : '执行任务失败',
+      }));
+      throw error;
+    } finally {
+      setState(prev => ({ ...prev, taskExecuting: null }));
+    }
+  }, [refreshTasks]);
+
+  // 获取任务统计
+  const getTaskStatistics = useCallback(async (workflowId?: string) => {
+    try {
+      const url = workflowId
+        ? `${API_BASE_URL}/api/coze/tasks/statistics?workflow_id=${workflowId}`
+        : `${API_BASE_URL}/api/coze/tasks/statistics`;
+
+      const response = await fetch(url);
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const statistics: TaskStatistics = await response.json();
+
+      setState(prev => ({
+        ...prev,
+        taskStatistics: statistics,
+      }));
+
+    } catch (error) {
+      setState(prev => ({
+        ...prev,
+        error: error instanceof Error ? error.message : '获取任务统计失败',
+      }));
+    }
+  }, []);
+
   // 当前账号或工作空间变化时，加载对应数据
   useEffect(() => {
     if (state.currentAccount && state.currentWorkspace) {
       loadWorkflows(state.currentWorkspace.id);
       loadExecutionHistory();
+      refreshTasks(); // 加载所有任务
     }
-  }, [state.currentAccount, state.currentWorkspace, loadWorkflows, loadExecutionHistory]);
+  }, [state.currentAccount, state.currentWorkspace, loadWorkflows, loadExecutionHistory, refreshTasks]);
+
+  // 选中工作流变化时，更新任务列表和统计
+  useEffect(() => {
+    if (state.selectedWorkflow) {
+      // 筛选当前工作流的任务
+      const workflowTasks = state.tasks.filter(task => task.workflow_id === state.selectedWorkflow?.id);
+      setState(prev => ({
+        ...prev,
+        selectedWorkflowTasks: workflowTasks,
+      }));
+
+      // 获取统计信息
+      getTaskStatistics(state.selectedWorkflow.id);
+    }
+  }, [state.selectedWorkflow, state.tasks, getTaskStatistics]);
 
   return {
     ...state,
@@ -697,5 +961,12 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     clearError,
     resetState,
     getClient,
+    // 任务管理方法
+    refreshTasks,
+    createTask,
+    updateTask,
+    deleteTask,
+    executeTask,
+    getTaskStatistics,
   };
 };
