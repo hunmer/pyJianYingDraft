@@ -284,14 +284,15 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
     }
   }, [state.currentWorkspace]);
 
-  const pollExecutionStatus = useCallback(async (executionId: string) => {
+  const pollExecutionStatus = useCallback(async (executionId: string, workflowId?: string) => {
     if (!clientRef.current || !state.currentWorkspace) return;
 
     const poll = async () => {
       try {
         const execution = await clientRef.current!.getWorkflowExecutionStatus(
           state.currentWorkspace!.id,
-          executionId
+          executionId,
+          workflowId
         );
 
         setState(prev => ({
@@ -449,17 +450,38 @@ export const useCoZone = (tabId?: string): UseCoZoneResult => {
         stream: false,
       });
 
-      // 开始轮询执行状态
-      if (response.data?.id) {
-        await pollExecutionStatus(response.data.id);
+      // 对于同步执行，直接将结果添加到执行列表
+      if (response.data) {
+        const execution: WorkflowExecution = {
+          id: response.data.id,
+          workflow_id: workflowId,
+          workflow_name: '', // 可以从工作流列表中获取
+          status: response.data.status,
+          input_data: response.data.input_data,
+          output_data: response.data.output_data,
+          created_time: response.data.created_time,
+          completed_time: new Date().toISOString(),
+        };
+
+        setState(prev => ({
+          ...prev,
+          executions: [...prev.executions, execution],
+        }));
+
+        // 加载执行历史
+        await loadExecutionHistory();
       }
 
       setState(prev => ({ ...prev, executing: false }));
+
+      // 返回执行结果给调用者
+      return response;
     } catch (error) {
       setState(prev => ({ ...prev, executing: false }));
       handleError(error);
+      throw error;
     }
-  }, [state.currentWorkspace, handleError, pollExecutionStatus]);
+  }, [state.currentWorkspace, handleError, loadExecutionHistory]);
 
   const setSelectedWorkflow = useCallback((workflow: CozeWorkflow | null) => {
     setState(prev => ({ ...prev, selectedWorkflow: workflow }));

@@ -36,8 +36,13 @@ interface WorkflowPanelProps {
   selectedWorkflow: CozeWorkflow | null;
   executing: boolean;
   onWorkflowSelect: (workflow: CozeWorkflow | null) => void;
-  onWorkflowExecute: (workflowId: string, parameters?: Record<string, any>) => void;
+  onWorkflowExecute: (workflowId: string, parameters?: Record<string, any>) => Promise<any>;
   onExecutionHistoryLoad: () => void;
+  apiConfig?: {
+    apiBase: string;
+    apiKey: string;
+  };
+  workspaceId?: string;
 }
 
 const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
@@ -49,6 +54,8 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
   onWorkflowSelect,
   onWorkflowExecute,
   onExecutionHistoryLoad,
+  apiConfig,
+  workspaceId,
 }) => {
   const [executionDialogOpen, setExecutionDialogOpen] = useState(false);
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false);
@@ -63,11 +70,16 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
     setExecutionDialogOpen(false);
   };
 
-  const handleExecutionConfirm = (parameters?: Record<string, any>) => {
+  const handleExecutionConfirm = async (parameters?: Record<string, any>) => {
     if (selectedWorkflow) {
-      onWorkflowExecute(selectedWorkflow.id, parameters);
+      try {
+        await onWorkflowExecute(selectedWorkflow.id, parameters);
+      } catch (error) {
+        console.error('工作流执行失败:', error);
+      }
     }
-    setExecutionDialogOpen(false);
+    // 不立即关闭对话框，让用户看到执行结果
+    // setExecutionDialogOpen(false);
   };
 
   const handleHistoryClick = (workflow: CozeWorkflow) => {
@@ -224,8 +236,10 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
         open={executionDialogOpen}
         workflow={selectedWorkflow}
         onClose={handleExecutionDialogClose}
-        onConfirm={handleExecutionConfirm}
-        executing={executing}
+        onExecute={onWorkflowExecute}
+        onCancel={handleExecutionDialogClose}
+        apiConfig={apiConfig}
+        workspaceId={workspaceId}
       />
 
       {/* 执行历史对话框 */}
