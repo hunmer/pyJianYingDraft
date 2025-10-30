@@ -164,6 +164,21 @@ export class CozeJsClient {
         throw new Error('工作流执行失败');
       }
 
+      // 处理 output 数据 - 可��已经是对象，也可能是 JSON 字符串
+      let outputData = {};
+      if (executionData.output) {
+        if (typeof executionData.output === 'string') {
+          try {
+            outputData = JSON.parse(executionData.output);
+          } catch (e) {
+            // 如果不是有效 JSON，直接使用字符串值
+            outputData = { output: executionData.output };
+          }
+        } else {
+          outputData = executionData.output;
+        }
+      }
+
       return {
         conversation_id: String(executionData.execute_id || executionData.conversation_id),
         status: executionData.execute_status === 'Success' ? 'success' as const : 'failed' as const,
@@ -172,7 +187,7 @@ export class CozeJsClient {
           workflow_id: String(request.workflow_id),
           status: executionData.execute_status === 'Success' ? 'success' as const : 'failed' as const,
           input_data: request.parameters || {},
-          output_data: executionData.output ? JSON.parse(executionData.output) : {},
+          output_data: outputData,
           created_time: executionData.create_time,
         },
       };
@@ -204,13 +219,29 @@ export class CozeJsClient {
       }
 
       const history = historyList[0]; // 取最新的记录
+
+      // 处理 output 数据 - 可能是对象，也可能是 JSON 字符串
+      let outputData = {};
+      if (history.output) {
+        if (typeof history.output === 'string') {
+          try {
+            outputData = JSON.parse(history.output);
+          } catch (e) {
+            // 如果不是有效 JSON，直接使用字符串值
+            outputData = { output: history.output };
+          }
+        } else {
+          outputData = history.output;
+        }
+      }
+
       return {
         id: String(history.execute_id),
         workflow_id: String(workflowId),
         workflow_name: '', // API没有返回workflow_name
         status: history.execute_status.toLowerCase() as 'running' | 'success' | 'failed' | 'cancelled',
         input_data: {}, // API没有返回input_data
-        output_data: history.output ? JSON.parse(history.output) : {},
+        output_data: outputData,
         error_message: history.error_message,
         created_time: history.create_time,
         completed_time: history.update_time,

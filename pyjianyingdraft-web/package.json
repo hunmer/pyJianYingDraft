@@ -37,6 +37,8 @@
     "@mui/material": "^6.0.0",
     "@mui/material-nextjs": "^6.0.0",
     "@mui/system": "^6.0.0",
+    "@uiw/codemirror-theme-vscode": "^4.25.2",
+    "@uiw/react-codemirror": "^4.25.2",
     "@xzdarcy/react-timeline-editor": "^0.1.9",
     "autoprefixer": "^10.4.21",
     "axios": "^1.13.1",

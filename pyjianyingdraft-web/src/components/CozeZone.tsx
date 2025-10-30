@@ -363,6 +363,11 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
                 onWorkflowSelect={setSelectedWorkflow}
                 onWorkflowExecute={handleWorkflowExecute}
                 onExecutionHistoryLoad={loadExecutionHistory}
+                apiConfig={currentAccount ? {
+                  apiBase: currentAccount.baseUrl,
+                  apiKey: currentAccount.apiKey,
+                } : undefined}
+                workspaceId={currentWorkspace?.id}
               />
             </TabPanel>
 

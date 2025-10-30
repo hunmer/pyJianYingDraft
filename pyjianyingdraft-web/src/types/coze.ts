@@ -21,6 +21,56 @@ export interface CozeWorkspace {
 }
 
 
+// Coze API 返回的工作流详细信息结构
+export interface CozeWorkflowDetail {
+  workflow_name: string;
+  app_id: string;
+  creator: {
+    id: string;
+    name: string;
+  };
+  updated_at: number; // Unix 时间戳
+  workflow_id: string;
+  description?: string;
+  icon_url?: string;
+  created_at: number; // Unix 时间戳
+}
+
+export interface CozeWorkflowInput {
+  parameters: Record<string, {
+    type: string;
+    required?: boolean;
+    description?: string;
+    default_value?: any;
+    items?: any; // 当类型为 array 时定义子类型
+    properties?: Record<string, any>; // 当类型为 object 时定义属性
+  }>;
+}
+
+export interface CozeWorkflowOutput {
+  parameters?: Record<string, {
+    type: string;
+  }>;
+  terminate_plan?: 'return_variables' | 'use_answer_content';
+  content?: string; // 当 terminate_plan 为 use_answer_content 时
+}
+
+export interface CozeWorkflowInfo {
+  workflow_detail: CozeWorkflowDetail;
+  input?: CozeWorkflowInput;
+  output?: CozeWorkflowOutput;
+}
+
+export interface CozeWorkflowApiResponse {
+  data: CozeWorkflowInfo;
+  code: number;
+  msg: string;
+  detail: {
+    logid: string;
+  };
+}
+
+// 兼容性接口 - 内部使用的格式
 export interface CozeWorkflow {
   id: string;
   name: string;
@@ -30,6 +80,30 @@ export interface CozeWorkflow {
   version: number;
   input_schema?: any;
   output_schema?: any;
+  status: 'active' | 'inactive' | 'draft';
+  workflow_definition?: any;
+  publish_status?: string;
+
+  // 详细信息字段（从API获取）
+  icon_url?: string;
+  app_id?: string;
+  creator_id?: string;
+  creator_name?: string;
+  category?: string;
+  tags?: string[];
+  template_id?: string;
+  is_template?: boolean;
+  use_count?: number;
+  like_count?: number;
+  publish_time?: string;
+  last_used_time?: string;
+  node_count?: number;
+  connection_count?: number;
+  workflow_config?: {
+    timeout?: number;
+    max_retry_times?: number;
+    variables?: Record<string, any>;
+  };
 }
 
 export interface WorkflowExecution {
@@ -81,6 +155,9 @@ export interface ExecuteWorkflowRequest {
   workflow_id: string;
   parameters?: Record<string, any>;
   stream?: boolean;
+  conversation_id?: string;
+  bot_id?: string;
+  user_id?: string;
 }
 
 export interface ExecuteWorkflowResponse {
@@ -188,6 +265,28 @@ export interface WorkflowMonitorState {
   // 统计信息
   totalDataReceived: number;
   unreadDataCount: number;
+}
+
+// 工作流流式响应事件类型
+export interface WorkflowStreamEvent {
+  event: 'workflow_started' | 'node_started' | 'node_finished' | 'workflow_finished' | 'error' | 'message' | 'data';
+  data: any;
+  conversation_id?: string;
+  workflow_id?: string;
+  node_id?: string;
+  timestamp: string;
+}
+
+// 工作流流式执行状态
+export interface WorkflowStreamState {
+  isStreaming: boolean;
+  events: WorkflowStreamEvent[];
+  currentStep?: string;
+  status: 'running' | 'completed' | 'failed' | 'cancelled';
+  startTime?: string;
+  endTime?: string;
+  output?: any;
+  error?: string;
 }
 
 // WebSocket 订阅请求
