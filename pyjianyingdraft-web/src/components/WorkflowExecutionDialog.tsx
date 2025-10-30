@@ -51,6 +51,35 @@ interface WorkflowExecutionDialogProps {
   eventLogs: WorkflowEventLog[];
 }
 
+// 创建一个独立的事件日志上下文，避免通过 props 传递
+const EventLogsContext = React.createContext<WorkflowEventLog[]>([]);
+
+// 独立的事件日志组件，使用 context 获取数据
+const IsolatedEventLogPanel: React.FC<{ workflowId?: string; workflowName?: string; height?: string | number }> = React.memo(({
+  workflowId,
+  workflowName,
+  height = "100%"
+}) => {
+  const eventLogs = React.useContext(EventLogsContext);
+
+  return (
+    <WorkflowEventLogPanel
+      eventLogs={eventLogs}
+      workflowId={workflowId}
+      workflowName={workflowName}
+      height={height}
+    />
+  );
+});
+
+const EventLogsProvider: React.FC<{ children: React.ReactNode; eventLogs: WorkflowEventLog[] }> = React.memo(({ children, eventLogs }) => {
+  return (
+    <EventLogsContext.Provider value={eventLogs}>
+      {children}
+    </EventLogsContext.Provider>
+  );
+});
+
 const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   open,
   workflow,
@@ -63,6 +92,7 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
 }) => {
   const [parameters, setParameters] = useState<Record<string, any>>({});
 
+  
   // 使用 useRef 存储上一次的参数，避免不必要的更新
   const lastParametersRef = useRef<Record<string, any>>({});
 
@@ -93,22 +123,26 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   const abortControllerRef = useRef<AbortController | null>(null);
   const fetchedWorkflowIdRef = useRef<string | null>(null);
 
-  
-  // 获取工作流详细信息
+  // 使用 ref 来跟踪是否已经初始化过，避免重复初始化
+  const initializedRef = useRef<boolean>(false);
+
+
+  // 获取工作流详细信息 - 使用 ref 来稳定函数引用
   const fetchWorkflowDetails = useCallback(async (workflowId: string, fallbackWorkflow?: CozeWorkflow) => {
     setLoadingWorkflowInfo(true);
     setWorkflowInfoError(null);
 
     try {
-      if (!apiConfig) {
+      const currentApiConfig = apiConfig;
+      if (!currentApiConfig) {
         throw new Error('缺少 API 配置信息，请确保已正确配置 Coze 账号');
       }
 
       // 参考 coze-js-client.ts:66~98 的实现方式，使用 REST API 获取工作流详细信息
       // 接口：GET /v1/workflows/:workflow_id
       const { COZE_CN_BASE_URL } = await import('@coze/api');
-      const baseUrl = apiConfig.apiBase || COZE_CN_BASE_URL;
-      const token = apiConfig.apiKey;
+      const baseUrl = currentApiConfig.apiBase || COZE_CN_BASE_URL;
+      const token = currentApiConfig.apiKey;
 
       const url = new URL(`${baseUrl}/v1/workflows/${workflowId}`);
       url.searchParams.append('include_input_output', 'true');
@@ -208,7 +242,7 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
         description: workflow_detail.description,
         created_time: new Date(workflow_detail.created_at * 1000).toISOString(),
         updated_time: new Date(workflow_detail.updated_at * 1000).toISOString(),
-        version: workflow.version || 1,
+        version: fallbackWorkflow?.version || 1,
         input_schema: convertToSchema(input),
         output_schema: convertOutputToSchema(output),
         status: 'active', // API不返回状态信息，使用默认值
@@ -229,29 +263,38 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
     } finally {
       setLoadingWorkflowInfo(false);
     }
-  }, [apiConfig]);
+  }, []); // 移除 apiConfig 依赖，在函数内部获取
   
   useEffect(() => {
     if (open) {
-      setParameters({});
-      lastParametersRef.current = {};
-      setOutputData(null);
-      setStreamState({
-        isStreaming: false,
-        events: [],
-        status: 'running',
-      });
-      setDetailedWorkflow(null);
-      setWorkflowInfoError(null);
-      fetchedWorkflowIdRef.current = null;
+      // 只有当对话框第一次打开或者工作流发生变化时才重置状态
+      const isWorkflowChanged = workflow?.id !== fetchedWorkflowIdRef.current;
+
+      if (!initializedRef.current || isWorkflowChanged) {
+        setParameters({});
+        lastParametersRef.current = {};
+        setOutputData(null);
+        setStreamState({
+          isStreaming: false,
+          events: [],
+          status: 'running',
+        });
+        setDetailedWorkflow(null);
+        setWorkflowInfoError(null);
+        initializedRef.current = true;
+      }
 
       // 当对话框打开且有工作流ID和API配置时，获取详细信息
       if (workflow?.id && apiConfig && workflow.id !== fetchedWorkflowIdRef.current) {
         fetchWorkflowDetails(workflow.id, workflow);
         fetchedWorkflowIdRef.current = workflow.id;
       }
+    } else {
+      // 对话框关闭时重置初始化状态
+      initializedRef.current = false;
+      fetchedWorkflowIdRef.current = null;
     }
-  }, [open, workflow?.id, apiConfig?.apiKey, apiConfig?.apiBase, fetchWorkflowDetails]);
+  }, [open, workflow?.id]); // 移除 apiConfig 和 fetchWorkflowDetails 依赖，避免不必要的重新执行
 
   const addStreamEvent = (event: WorkflowStreamEvent) => {
     setStreamState(prev => ({
@@ -515,12 +558,13 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
           {/* 右侧：事件日志 */}
           <Grid item xs={12} md={6}>
             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <MemoizedWorkflowEventLogPanel
-                eventLogs={eventLogs}
-                workflowId={workflow?.id}
-                workflowName={workflow?.name}
-                height="100%"
-              />
+              <EventLogsProvider eventLogs={eventLogs}>
+                <IsolatedEventLogPanel
+                  workflowId={workflow?.id}
+                  workflowName={workflow?.name}
+                  height="100%"
+                />
+              </EventLogsProvider>
             </Box>
           </Grid>
         </Grid>
