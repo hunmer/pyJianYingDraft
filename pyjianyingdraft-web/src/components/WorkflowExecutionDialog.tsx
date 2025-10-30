@@ -29,10 +29,12 @@ import {
   Stop as StopIcon,
   Input as InputIcon,
   Output as OutputIcon,
+  AddTask as AddTaskIcon,
 } from '@mui/icons-material';
-import { CozeWorkflow, WorkflowStreamEvent, WorkflowStreamState, WorkflowEventLog } from '@/types/coze';
+import { CozeWorkflow, WorkflowStreamEvent, WorkflowStreamState, WorkflowEventLog, CreateTaskRequest } from '@/types/coze';
 import WorkflowParameterEditor from './WorkflowParameterEditor';
 import WorkflowEventLogPanel from './WorkflowEventLogPanel';
+import WorkflowQuickCreateTaskPanel from './WorkflowQuickCreateTaskPanel';
 import { json } from '@codemirror/lang-json';
 import CodeMirror from '@uiw/react-codemirror';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
@@ -49,6 +51,8 @@ interface WorkflowExecutionDialogProps {
     apiKey: string;
   };
   eventLogs: WorkflowEventLog[];
+  onCreateTask?: (taskData: CreateTaskRequest) => void;
+  onCreateAndExecuteTask?: (taskData: CreateTaskRequest) => void;
 }
 
 // 创建一个独立的事件日志上下文，避免通过 props 传递
@@ -89,6 +93,8 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   workspaceId,
   apiConfig,
   eventLogs,
+  onCreateTask,
+  onCreateAndExecuteTask,
 }) => {
   const [parameters, setParameters] = useState<Record<string, any>>({});
 
@@ -483,6 +489,11 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
                     label="输出结果"
                     iconPosition="start"
                   />
+                  <Tab
+                    icon={<AddTaskIcon fontSize="small" />}
+                    label="快速创建任务"
+                    iconPosition="start"
+                  />
                 </Tabs>
               </Box>
 
@@ -529,6 +540,21 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
                         />
                       </Box>
                     )}
+                  </Box>
+                )}
+                {leftTabValue === 2 && currentWorkflow && (
+                  <Box sx={{ height: '100%', overflow: 'auto' }}>
+                    <WorkflowQuickCreateTaskPanel
+                      workflow={currentWorkflow}
+                      parameters={parameters}
+                      onSave={(taskData) => {
+                        onCreateTask?.(taskData);
+                      }}
+                      onSaveAndExecute={(taskData) => {
+                        onCreateAndExecuteTask?.(taskData);
+                      }}
+                      loading={streamState.isStreaming}
+                    />
                   </Box>
                 )}
               </Box>
