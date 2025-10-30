@@ -15,6 +15,7 @@ import {
   Refresh as RefreshIcon,
   AccountTree as WorkflowIcon,
   Assessment as MonitorIcon,
+  Assignment as TaskIcon,
 } from '@mui/icons-material';
 import { CozeZoneTabData } from '@/types/coze';
 import { useCoZone } from '@/hooks/useCoZone';
@@ -22,6 +23,7 @@ import CozeZoneToolbar from './CozeZoneToolbar';
 import WorkflowPanel from './WorkflowPanel';
 import AccountManager from './AccountManager';
 import WorkflowMonitor from './WorkflowMonitor';
+import TaskManagementPanel from './TaskManagementPanel';
 
 interface CozeZoneProps {
   tab: CozeZoneTabData;
@@ -30,8 +32,8 @@ interface CozeZoneProps {
 
 interface TabPanelProps {
   children?: React.ReactNode;
-  index: 'workflow' | 'monitor';
-  value: 'workflow' | 'monitor';
+  index: 'workflow' | 'monitor' | 'tasks';
+  value: 'workflow' | 'monitor' | 'tasks';
 }
 
 function TabPanel({ children, value, index }: TabPanelProps) {
@@ -49,7 +51,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
 }
 
 const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
-  const [activeSubTab, setActiveSubTab] = useState<'workflow' | 'monitor'>('workflow');
+  const [activeSubTab, setActiveSubTab] = useState<'workflow' | 'monitor' | 'tasks'>('workflow');
   const [accountManagerOpen, setAccountManagerOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -287,6 +289,13 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
             icon={<MonitorIcon />}
             iconPosition="start"
           />
+          <Tab
+            value="tasks"
+            label="任务管理"
+            icon={<TaskIcon />}
+            iconPosition="start"
+            disabled={!currentWorkspace}
+          />
         </Tabs>
       </Paper>
 
@@ -386,6 +395,16 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
                 workflows={workflows}
                 selectedWorkflow={selectedWorkflow}
                 onWorkflowSelect={setSelectedWorkflow}
+              />
+            </TabPanel>
+
+            <TabPanel value={activeSubTab} index="tasks">
+              <TaskManagementPanel
+                workflowId={selectedWorkflow?.id}
+                onTaskExecute={(task) => {
+                  // 可以在这里处理任务执行后的逻辑，比如刷新工作流状态
+                  console.log('任务已执行:', task);
+                }}
               />
             </TabPanel>
           </>
