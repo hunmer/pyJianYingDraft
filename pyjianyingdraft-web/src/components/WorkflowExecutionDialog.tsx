@@ -444,10 +444,10 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
                 variant="outlined"
               />
               <Chip
-                label={`状态: ${currentWorkflow.status}`}
+                label={`创建: ${new Date(currentWorkflow.created_time).toLocaleString()}`}
                 size="small"
-                color={currentWorkflow.status === 'active' ? 'success' : 'warning'}
-                sx={{ ml: 1 }}
+                sx={{ ml: 2 }}
+                variant="outlined"
               />
           </Box>
           {streamState.isStreaming && (
@@ -463,23 +463,6 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
               {currentWorkflow.description}
             </Typography>
-          )}
-
-          <Grid container spacing={2}>
-            <Grid item xs={12} md={6}>
-              <Typography variant="caption" color="text.secondary">
-                创建时间: {new Date(currentWorkflow.created_time).toLocaleString()}
-              </Typography>
-            </Grid>
-          </Grid>
-
-          {loadingWorkflowInfo && (
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
-              <CircularProgress size={16} />
-              <Typography variant="body2" color="text.secondary">
-                正在获取工作流详细信息...
-              </Typography>
-            </Box>
           )}
         </Box>
 
@@ -537,9 +520,6 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
                       </Box>
                     ) : (
                       <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        <Typography variant="h6" gutterBottom>
-                          输出结果
-                        </Typography>
                         <CodeMirror
                           value={JSON.stringify(outputData || {}, null, 2)}
                           height="400px"

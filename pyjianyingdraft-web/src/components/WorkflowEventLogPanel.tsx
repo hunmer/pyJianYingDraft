@@ -119,9 +119,6 @@ const WorkflowEventLogPanel: React.FC<WorkflowEventLogPanelProps> = ({
     <Box sx={{ height, display: 'flex', flexDirection: 'column' }}>
       {/* 头部信息 */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-        <Typography variant="h6" component="h3">
-          事件日志
-        </Typography>
         <Chip
           label={`共 ${logCount} 条`}
           size="small"
