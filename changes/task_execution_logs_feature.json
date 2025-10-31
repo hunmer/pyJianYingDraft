@@ -1,0 +1,78 @@
+{
+  "feature": "任务执行记录查看功能",
+  "description": "从TaskCard打开工作流对话框时，传递taskId并从后端获取该任务的执行记录显示在右侧事件记录列表",
+  "timestamp": "2025-10-31T13:26:02Z",
+  "changes": [
+    {
+      "file": "pyJianYingDraftServer/app/services/event_log_service.py",
+      "type": "修改",
+      "description": "在get_logs方法中添加execute_id参数支持，允许按执行ID筛选事件日志",
+      "changes": [
+        "在get_logs方法签名中添加execute_id: Optional[str] = None参数",
+        "在筛选逻辑中添加按execute_id过滤的条件"
+      ]
+    },
+    {
+      "file": "pyJianYingDraftServer/app/routers/coze.py",
+      "type": "修改",
+      "description": "在get_event_logs路由中添加execute_id查询参数支持",
+      "changes": [
+        "在路由函数参数中添加execute_id: Optional[str] = Query(...)",
+        "在调用event_log_service.get_logs时传递execute_id参数",
+        "更新API文档说明execute_id用于按任务ID筛选"
+      ]
+    },
+    {
+      "file": "pyjianyingdraft-web/src/lib/api.ts",
+      "type": "修改",
+      "description": "在cozeApi.getEventLogs方法中添加executeId参数支持",
+      "changes": [
+        "在options接口中添加executeId?: string属性",
+        "在构建请求参数时处理executeId，映射为execute_id"
+      ]
+    },
+    {
+      "file": "pyjianyingdraft-web/src/components/TaskManagementPanel.tsx",
+      "type": "修改",
+      "description": "修改任务管理面板，支持传递taskId到工作流对话框",
+      "changes": [
+        "添加selectedTaskId状态管理选中的任务ID",
+        "在handleOpenWorkflow中设置selectedTaskId为task.id",
+        "在WorkflowExecutionDialog组件中传递taskId属性",
+        "在关闭对话框时清空selectedTaskId"
+      ]
+    },
+    {
+      "file": "pyjianyingdraft-web/src/components/WorkflowExecutionDialog.tsx",
+      "type": "修改",
+      "description": "修改工作流执行对话框，支持接收taskId并加载该任务的执行记录",
+      "changes": [
+        "在WorkflowExecutionDialogProps接口中添加taskId?: string属性",
+        "添加taskEventLogs和loadingTaskLogs状态管理任务执行记录",
+        "实现fetchTaskEventLogs方法从后端获取任务执行记录",
+        "在useEffect中当taskId存在时自动加载执行记录",
+        "修改事件日志显示逻辑：有taskId时显示taskEventLogs，否则显示streamState.events",
+        "在加载任务日志时显示加载指示器"
+      ]
+    }
+  ],
+  "功能流程": [
+    "1. 用户在TaskCard上点击'打开工作流对话框'按钮",
+    "2. TaskManagementPanel的handleOpenWorkflow接收task对象，提取task.id",
+    "3. 打开WorkflowExecutionDialog时传递taskId属性",
+    "4. WorkflowExecutionDialog接收到taskId后调用fetchTaskEventLogs",
+    "5. fetchTaskEventLogs通过api.coze.getEventLogs传递executeId参数",
+    "6. 后端coze路由接收execute_id参数并调用event_log_service.get_logs",
+    "7. event_log_service按execute_id筛选日志并返回",
+    "8. 前端接收日志数据并通过taskEventLogs状态存储",
+    "9. EventLogsProvider使用taskEventLogs而非streamState.events",
+    "10. 右侧事件记录列表显示该任务的历史执行记录"
+  ],
+  "技术要点": [
+    "后端支持按execute_id筛选事件日志",
+    "前端API层支持executeId参数传递",
+    "组件状态管理区分实时执行事件和历史任务记录",
+    "使用条件渲染根据taskId存在与否显示不同数据源",
+    "保持向后兼容：没有taskId时仍显示实时执行事件"
+  ]
+}

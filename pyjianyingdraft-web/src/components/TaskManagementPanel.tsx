@@ -33,6 +33,7 @@ import {
 import { Task, TaskStatus, ExecutionStatus, CozeWorkflow, CreateTaskRequest } from '@/types/coze';
 import TaskCard from './TaskCard';
 import NewTaskDialog from './NewTaskDialog';
+import WorkflowExecutionDialog from './WorkflowExecutionDialog';
 import { useCoZone } from '@/hooks/useCoZone';
 
 interface TaskManagementPanelProps {
@@ -54,6 +55,9 @@ const TaskManagementPanel: React.FC<TaskManagementPanelProps> = ({
     createTask,
     executeTask,
     deleteTask,
+    accountId,
+    workspaceId,
+    getEventLogs,
   } = useCoZone();
 
   // 状态管理
@@ -62,6 +66,9 @@ const TaskManagementPanel: React.FC<TaskManagementPanelProps> = ({
   const [newTaskDialogOpen, setNewTaskDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
+  const [workflowForDialog, setWorkflowForDialog] = useState<CozeWorkflow | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(undefined);
 
   // 筛选状态
   const [statusFilter, setStatusFilter] = useState<TaskStatus | ''>('');
@@ -141,10 +148,12 @@ const TaskManagementPanel: React.FC<TaskManagementPanelProps> = ({
       }
 
       const result = await executeTask?.({
-        task_id: task.id,
-        workflow_id: task.workflow_id,
-        input_parameters: task.input_parameters,
-        save_as_task: false, // 使用现有任务
+        taskId: task.id,
+        workflowId: task.workflow_id,
+        inputParameters: task.input_parameters,
+        saveAsTask: false, // 使用现有任务
+        taskDescription: task.description,
+        taskName: task.name
       });
 
       if (result) {
@@ -169,6 +178,17 @@ const TaskManagementPanel: React.FC<TaskManagementPanelProps> = ({
     setTaskToDelete(task);
     setDeleteDialogOpen(true);
   }, []);
+
+  // 处理打开工作流对话框
+  const handleOpenWorkflow = useCallback((task: Task) => {
+    // 查找任务关联的工作流
+    const workflow = workflows.find(w => w.id === task.workflow_id);
+    if (workflow) {
+      setWorkflowForDialog(workflow);
+      setSelectedTaskId(task.id);
+      setWorkflowDialogOpen(true);
+    }
+  }, [workflows]);
 
   const confirmDeleteTask = useCallback(async () => {
     if (!taskToDelete) return;
@@ -365,6 +385,7 @@ const TaskManagementPanel: React.FC<TaskManagementPanelProps> = ({
                   onExecute={handleTaskExecute}
                   onView={handleTaskView}
                   onDelete={handleTaskDelete}
+                  onOpenWorkflow={handleOpenWorkflow}
                 />
               </Grid2>
             ))}
@@ -409,6 +430,36 @@ const TaskManagementPanel: React.FC<TaskManagementPanelProps> = ({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 工作流执行对话框 */}
+      <WorkflowExecutionDialog
+        open={workflowDialogOpen}
+        workflow={workflowForDialog}
+        taskId={selectedTaskId}
+        onClose={() => {
+          setWorkflowDialogOpen(false);
+          setWorkflowForDialog(null);
+          setSelectedTaskId(undefined);
+        }}
+        onExecute={async (workflowId, parameters, onStreamEvent) => {
+          // 执行工作流
+          if (!executeTask) return;
+          return executeTask({
+            workflowId,
+            inputParameters: parameters,
+            saveAsTask: false,
+            onEvent: onStreamEvent,
+          });
+        }}
+        onCancel={() => {
+          setWorkflowDialogOpen(false);
+        }}
+        accountId={accountId}
+        workspaceId={workspaceId}
+        eventLogs={[]}
+        onCreateTask={handleCreateTask}
+        onCreateAndExecuteTask={handleCreateAndExecute}
+      />
     </Box>
   );
 };

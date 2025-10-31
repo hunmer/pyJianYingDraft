@@ -46,6 +46,7 @@ import api from '@/lib/api';
 interface WorkflowExecutionDialogProps {
   open: boolean;
   workflow: CozeWorkflow | null;
+  taskId?: string; // 任务ID，用于加载该任务的执行记录
   onClose: () => void;
   onExecute: (workflowId: string, parameters: Record<string, any>, onStreamEvent?: (event: WorkflowStreamEvent) => void) => Promise<any>;
   onCancel: () => void;
@@ -89,6 +90,7 @@ const EventLogsProvider: React.FC<{ children: React.ReactNode; eventLogs: Workfl
 const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   open,
   workflow,
+  taskId,
   onClose,
   onExecute,
   onCancel,
@@ -128,6 +130,10 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   const [detailedWorkflow, setDetailedWorkflow] = useState<CozeWorkflow | null>(null);
   const [loadingWorkflowInfo, setLoadingWorkflowInfo] = useState(false);
   const [workflowInfoError, setWorkflowInfoError] = useState<string | null>(null);
+  
+  // 任务执行记录状态
+  const [taskEventLogs, setTaskEventLogs] = useState<WorkflowEventLog[]>([]);
+  const [loadingTaskLogs, setLoadingTaskLogs] = useState(false);
 
   const abortControllerRef = useRef<AbortController | null>(null);
   const fetchedWorkflowIdRef = useRef<string | null>(null);
@@ -185,10 +191,45 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
     }
   }, [accountId]); // 依赖 accountId
   
+  // 加载任务执行记录
+  const fetchTaskEventLogs = useCallback(async (taskId: string) => {
+    setLoadingTaskLogs(true);
+    try {
+      const result = await api.coze.getEventLogs({
+        executeId: taskId,
+        limit: 1000
+      });
+      setTaskEventLogs(result.logs.map(log => ({
+        id: log.id,
+        executeId: log.executeId,
+        workflowId: log.workflowId,
+        workflowName: log.workflowName,
+        event: log.event,
+        data: log.data,
+        timestamp: log.timestamp,
+        level: log.level,
+        message: log.message,
+        details: log.details
+      })));
+    } catch (error) {
+      console.error('获取任务执行记录失败:', error);
+      setTaskEventLogs([]);
+    } finally {
+      setLoadingTaskLogs(false);
+    }
+  }, []);
+  
   useEffect(() => {
     if (open) {
       // 只有当对话框第一次打开或者工作流发生变化时才重置状态
       const isWorkflowChanged = workflow?.id !== fetchedWorkflowIdRef.current;
+      
+      // 如果有taskId，加载该任务的执行记录
+      if (taskId) {
+        fetchTaskEventLogs(taskId);
+      } else {
+        setTaskEventLogs([]);
+      }
 
       if (!initializedRef.current || isWorkflowChanged) {
         setParameters({});
@@ -519,13 +560,19 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
           {/* 右侧：事件日志 */}
           <Grid item xs={12} md={6}>
             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <EventLogsProvider eventLogs={streamState.events}>
-                <IsolatedEventLogPanel
-                  workflowId={workflow?.id}
-                  workflowName={workflow?.name}
-                  height="100%"
-                />
-              </EventLogsProvider>
+              {loadingTaskLogs ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
+                  <CircularProgress />
+                </Box>
+              ) : (
+                <EventLogsProvider eventLogs={taskId ? taskEventLogs : streamState.events}>
+                  <IsolatedEventLogPanel
+                    workflowId={workflow?.id}
+                    workflowName={workflow?.name}
+                    height="100%"
+                  />
+                </EventLogsProvider>
+              )}
             </Box>
           </Grid>
         </Grid>

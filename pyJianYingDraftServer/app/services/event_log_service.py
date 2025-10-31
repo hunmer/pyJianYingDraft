@@ -189,6 +189,7 @@ class EventLogService:
         limit: int = 200,
         offset: int = 0,
         workflow_id: Optional[str] = None,
+        execute_id: Optional[str] = None,
         level: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
@@ -198,6 +199,7 @@ class EventLogService:
             limit: 返回数量限制
             offset: 偏移量
             workflow_id: 按工作流ID筛选
+            execute_id: 按执行ID筛选
             level: 按日志级别筛选
         
         Returns:
@@ -211,6 +213,9 @@ class EventLogService:
         
         if workflow_id:
             filtered_logs = [log for log in filtered_logs if log.workflow_id == workflow_id]
+        
+        if execute_id:
+            filtered_logs = [log for log in filtered_logs if log.execute_id == execute_id]
         
         if level:
             filtered_logs = [log for log in filtered_logs if log.level == level]

@@ -872,6 +872,7 @@ async def get_event_logs(
     limit: int = Query(default=200, ge=1, le=1000, description="返回数量限制"),
     offset: int = Query(default=0, ge=0, description="偏移量"),
     workflow_id: Optional[str] = Query(default=None, description="按工作流ID筛选"),
+    execute_id: Optional[str] = Query(default=None, description="按执行ID筛选"),
     level: Optional[str] = Query(default=None, description="按日志级别筛选")
 ):
     """
@@ -880,6 +881,7 @@ async def get_event_logs(
     - **limit**: 返回数量限制（1-1000）
     - **offset**: 偏移量
     - **workflow_id**: 按工作流ID筛选
+    - **execute_id**: 按执行ID筛选（任务ID）
     - **level**: 按日志级别筛选（info/warning/error/success）
     
     **注意**: 事件日志仅在内存中保存最近1000条，不持久化
@@ -890,6 +892,7 @@ async def get_event_logs(
             limit=limit,
             offset=offset,
             workflow_id=workflow_id,
+            execute_id=execute_id,
             level=level
         )
         
