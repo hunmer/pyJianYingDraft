@@ -1,0 +1,61 @@
+{
+  "workflow_id": "7566894726704988212",
+  "total": 2,
+  "histories": [
+    {
+      "execute_id": "bd96bacf-b86b-4bb3-884f-b005e65e8de5",
+      "workflow_id": "7566894726704988212",
+      "create_time": 1761915054546,
+      "update_time": 1761915061195,
+      "execute_status": "success",
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "message": {
+          "content": "{\"en\":\"Hello! How can I assist you today? Is there anything specific you'd like to talk about? \",\"zh\":\"你好！有什么我可以帮助你的吗？无论是闲聊、解答问题还是提供建议，都可以随时和我交流哦。 \"}"
+        }
+      },
+      "input_parameters": {
+        "input": "你好"
+      },
+      "bot_id": null,
+      "conversation_id": null,
+      "debug_url": null,
+      "run_mode": 1,
+      "connector_id": null,
+      "connector_uid": null,
+      "is_output_trimmed": false,
+      "usage": null,
+      "node_execute_status": null,
+      "metadata": {}
+    },
+    {
+      "execute_id": "73928417-d17e-4245-85fe-c80bf57d2824",
+      "workflow_id": "7566894726704988212",
+      "create_time": 1761914928136,
+      "update_time": 1761914930464,
+      "execute_status": "success",
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "message": {
+          "content": "{\"en\":\"Hello! How can I assist you today? Is there anything specific you'd like to talk about? \",\"zh\":\"你好呀！今天过得怎么样？有什么想和我聊聊的吗？ \"}"
+        }
+      },
+      "input_parameters": {
+        "input": "你好"
+      },
+      "bot_id": null,
+      "conversation_id": null,
+      "debug_url": null,
+      "run_mode": 1,
+      "connector_id": null,
+      "connector_uid": null,
+      "is_output_trimmed": false,
+      "usage": null,
+      "node_execute_status": null,
+      "metadata": {}
+    }
+  ],
+  "updated_at": 1761915061195
+}

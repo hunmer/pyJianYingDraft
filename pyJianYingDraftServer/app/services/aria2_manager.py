@@ -69,8 +69,6 @@ class Aria2ProcessManager:
     - 健康检查和自动恢复
     """
 
-    # 类变量: 跟踪所有实例化次数
-    _instance_count = 0
     _creation_lock = threading.Lock()
 
     def __init__(
@@ -104,18 +102,6 @@ class Aria2ProcessManager:
             log_level: 日志级别，默认notice
             verbose: 是否显示详细日志，默认True
         """
-        # 跟踪实例创建
-        with Aria2ProcessManager._creation_lock:
-            Aria2ProcessManager._instance_count += 1
-            if Aria2ProcessManager._instance_count > 1:
-                import warnings
-                warnings.warn(
-                    f"检测到创建了第 {Aria2ProcessManager._instance_count} 个 Aria2ProcessManager 实例! "
-                    "这可能导致多个 aria2c 进程同时运行。"
-                    "请使用 get_aria2_manager() 获取单例,或使用 Aria2Controller 进行信息查询。",
-                    RuntimeWarning,
-                    stacklevel=2
-                )
 
         self.verbose = verbose
         self.rpc_port = rpc_port
