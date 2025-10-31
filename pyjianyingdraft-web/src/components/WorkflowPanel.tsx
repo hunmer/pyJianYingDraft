@@ -27,7 +27,7 @@ import {
   ListAlt as EventLogIcon,
   Clear as ClearIcon,
 } from '@mui/icons-material';
-import { CozeWorkflow, WorkflowExecution, WorkflowExecutionStatus, WorkflowEventLog } from '@/types/coze';
+import { CozeWorkflow, WorkflowExecution, WorkflowExecutionStatus, WorkflowEventLog, CreateTaskRequest } from '@/types/coze';
 import WorkflowCard from './WorkflowCard';
 import WorkflowExecutionDialog from './WorkflowExecutionDialog';
 import WorkflowEventLogsDialog from './WorkflowEventLogsDialog';
@@ -43,6 +43,8 @@ interface WorkflowPanelProps {
   onWorkflowExecute: (workflowId: string, parameters?: Record<string, any>, onEvent?: (event: any) => void) => Promise<any>;
   onExecutionHistoryLoad: () => void;
   onEventLogsClear: () => void;
+  onCreateTask?: (taskData: CreateTaskRequest) => Promise<any>;
+  onCreateAndExecuteTask?: (taskData: CreateTaskRequest) => Promise<any>;
   apiConfig?: {
     apiBase: string;
     apiKey: string;
@@ -61,6 +63,8 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
   onWorkflowExecute,
   onExecutionHistoryLoad,
   onEventLogsClear,
+  onCreateTask,
+  onCreateAndExecuteTask,
   apiConfig,
   workspaceId,
 }) => {
@@ -284,6 +288,8 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
         onClose={handleExecutionDialogClose}
         onExecute={onWorkflowExecute}
         onCancel={handleExecutionDialogClose}
+        onCreateTask={onCreateTask}
+        onCreateAndExecuteTask={onCreateAndExecuteTask}
         apiConfig={apiConfig}
         workspaceId={workspaceId}
         eventLogs={eventLogs}

@@ -17,11 +17,10 @@ import {
   Assessment as MonitorIcon,
   Assignment as TaskIcon,
 } from '@mui/icons-material';
-import { CozeZoneTabData } from '@/types/coze';
+import { CozeZoneTabData, CreateTaskRequest } from '@/types/coze';
 import { useCoZone } from '@/hooks/useCoZone';
 import CozeZoneToolbar from './CozeZoneToolbar';
 import WorkflowPanel from './WorkflowPanel';
-import AccountManager from './AccountManager';
 import WorkflowMonitor from './WorkflowMonitor';
 import TaskManagementPanel from './TaskManagementPanel';
 
@@ -52,7 +51,6 @@ function TabPanel({ children, value, index }: TabPanelProps) {
 
 const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
   const [activeSubTab, setActiveSubTab] = useState<'workflow' | 'monitor' | 'tasks'>('workflow');
-  const [accountManagerOpen, setAccountManagerOpen] = useState(false);
   const [snackbar, setSnackbar] = useState({
     open: false,
     message: '',
@@ -61,8 +59,6 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
 
   const {
     // 状态
-    accounts,
-    currentAccount,
     workspaces,
     currentWorkspace,
     workflows,
@@ -75,13 +71,6 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     executing,
     selectedWorkflow,
 
-    // 账号管理
-    addAccount,
-    switchAccount,
-    deleteAccount,
-    updateAccount,
-    validateAccount,
-
     // 工作空间管理
     loadWorkspaces,
     switchWorkspace,
@@ -91,7 +80,6 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     loadWorkflows,
     refreshWorkflows,
     executeWorkflow,
-    pollExecutionStatus,
     loadExecutionHistory,
     setSelectedWorkflow,
 
@@ -103,8 +91,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     // 工具方法
     clearError,
     resetState,
-    getClient,
-  } = useCoZone(tab.id);
+  } = useCoZone('default'); // 使用默认账号（配置在后端）
 
   // 显示消息
   const showMessage = useCallback((message: string, severity: 'success' | 'error' | 'warning' | 'info' = 'success') => {
@@ -121,24 +108,6 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     setActiveSubTab(newValue);
   }, []);
 
-  // 处理账号管理器
-  const handleAccountManager = useCallback(() => {
-    setAccountManagerOpen(true);
-  }, []);
-
-  const handleAccountManagerClose = useCallback(() => {
-    setAccountManagerOpen(false);
-  }, []);
-
-  // 处理账号切换
-  const handleAccountSwitch = useCallback(async (accountId: string) => {
-    try {
-      await switchAccount(accountId);
-      showMessage('账号切换成功', 'success');
-    } catch (error) {
-      showMessage('账号切换失败', 'error');
-    }
-  }, [switchAccount, showMessage]);
 
   // 处理工作空间切换
   const handleWorkspaceSwitch = useCallback((workspaceId: string) => {
@@ -170,28 +139,46 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     }
   }, [executeWorkflow, showMessage]);
 
-  
-  // 处理账号添加
-  const handleAccountAdd = useCallback(async (accountData: any) => {
+  // 处理创建任务（不执行）
+  const handleCreateTask = useCallback(async (taskData: CreateTaskRequest) => {
     try {
-      await addAccount(accountData);
-      showMessage('账号添加成功', 'success');
-    } catch (error) {
-      showMessage('账号添加失败', 'error');
+      // 导入 API 客户端
+      const api = (await import('@/lib/api')).default;
+
+      // 创建任务请求
+      const task = await api.coze.createTask(taskData);
+
+      showMessage('任务创建成功', 'success');
+      return task;
+    } catch (error: any) {
+      showMessage(`任务创建失败: ${error.message}`, 'error');
+      throw error;
     }
-  }, [addAccount, showMessage]);
+  }, [showMessage]);
 
-  // 处理账号删除
-  const handleAccountDelete = useCallback((accountId: string) => {
-    deleteAccount(accountId);
-    showMessage('账号删除成功', 'success');
-  }, [deleteAccount, showMessage]);
+  // 处理创建并执行任务
+  const handleCreateAndExecuteTask = useCallback(async (taskData: CreateTaskRequest) => {
+    try {
+      // 导入 API 客户端
+      const api = (await import('@/lib/api')).default;
 
-  // 处理账号更新
-  const handleAccountUpdate = useCallback((accountId: string, updates: any) => {
-    updateAccount(accountId, updates);
-    showMessage('账号更新成功', 'success');
-  }, [updateAccount, showMessage]);
+      // 执行任务（会自动创建任务）
+      const result = await api.coze.executeTask({
+        workflowId: taskData.workflowId,
+        inputParameters: taskData.inputParameters,
+        saveAsTask: true,
+        taskName: taskData.name,
+        taskDescription: taskData.description,
+      });
+
+      showMessage('任务创建并执行成功', 'success');
+      return result;
+    } catch (error: any) {
+      showMessage(`任务执行失败: ${error.message}`, 'error');
+      throw error;
+    }
+  }, [showMessage]);
+
 
   // 清除错误
   const handleErrorClose = useCallback(() => {
@@ -202,7 +189,6 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
   useEffect(() => {
     if (onTabUpdate) {
       onTabUpdate(tab.id, {
-        accounts,
         workspaces,
         workflows,
         executions,
@@ -216,7 +202,6 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
   }, [
     tab.id,
     onTabUpdate,
-    accounts,
     workspaces,
     workflows,
     executions,
@@ -231,15 +216,12 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* 工具栏 */}
       <CozeZoneToolbar
-        accounts={accounts}
-        currentAccount={currentAccount}
         workspaces={workspaces}
         currentWorkspace={currentWorkspace}
         refreshing={refreshing}
-        onAccountSwitch={handleAccountSwitch}
         onWorkspaceSwitch={handleWorkspaceSwitch}
         onRefresh={handleRefresh}
-        onAccountManager={handleAccountManager}
+        accountId="default"
       />
 
       {/* 错误提示 */}
@@ -327,27 +309,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
         )}
 
         {/* 空状态 */}
-        {!currentAccount && (
-          <Box
-            sx={{
-              height: '100%',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              flexDirection: 'column',
-              gap: 2,
-            }}
-          >
-            <Typography variant="h6" color="text.secondary">
-              请先配置 Coze 账号
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              点击右上角的"账号管理"按钮添加账号
-            </Typography>
-          </Box>
-        )}
-
-        {!currentWorkspace && currentAccount && (
+        {!currentWorkspace && (
           <Box
             sx={{
               height: '100%',
@@ -362,13 +324,16 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
               请选择工作空间
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              在上方工具栏中选择要使用的工作空间
+              {workspaces.length === 0
+                ? '请确保后端 config.json 中已配置 Coze API Token'
+                : '在上方工具栏中选择要使用的工作空间'
+              }
             </Typography>
           </Box>
         )}
 
         {/* 内容面板 */}
-        {currentAccount && currentWorkspace && (
+        {currentWorkspace && (
           <>
             <TabPanel value={activeSubTab} index="workflow">
               <WorkflowPanel
@@ -380,12 +345,10 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
                 eventLogs={eventLogs}
                 onWorkflowSelect={setSelectedWorkflow}
                 onWorkflowExecute={handleWorkflowExecute}
+                onCreateTask={handleCreateTask}
+                onCreateAndExecuteTask={handleCreateAndExecuteTask}
                 onExecutionHistoryLoad={loadExecutionHistory}
                 onEventLogsClear={clearEventLogs}
-                apiConfig={currentAccount ? {
-                  apiBase: currentAccount.baseUrl,
-                  apiKey: currentAccount.apiKey,
-                } : undefined}
                 workspaceId={currentWorkspace?.id}
               />
             </TabPanel>
@@ -410,17 +373,6 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
           </>
         )}
       </Box>
-
-      {/* 账号管理对话框 */}
-      <AccountManager
-        open={accountManagerOpen}
-        accounts={accounts}
-        onClose={handleAccountManagerClose}
-        onAccountAdd={handleAccountAdd}
-        onAccountDelete={handleAccountDelete}
-        onAccountUpdate={handleAccountUpdate}
-        onAccountValidate={validateAccount}
-      />
 
       {/* 消息提示 */}
       <Snackbar

@@ -1,8 +1,11 @@
 """
-Coze插件相关的API路由
+Coze API 路由
+提供工作流、任务管理和插件数据接收功能
 """
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional
+
 from app.models.coze_models import (
     CozeSendDataRequest,
     CozeSendDataResponse,
@@ -11,16 +14,19 @@ from app.models.coze_models import (
     UpdateTaskRequest,
     ExecuteTaskRequest,
     ExecuteTaskResponse,
-    TaskFilter,
     TaskListResponse,
     TaskStatistics,
     TaskStatus,
     ExecutionStatus,
 )
 from app.services.coze_service import get_coze_service
+from app.services.coze_workflow_service import get_workflow_service
+from app.services.coze_client import get_coze_client
 
 router = APIRouter()
 
+
+# ==================== 插件数据接收（保留原有功能） ====================
 
 @router.post("/send-data", response_model=CozeSendDataResponse, summary="Coze插件数据接收")
 async def send_coze_data(request: CozeSendDataRequest):
@@ -36,7 +42,6 @@ async def send_coze_data(request: CozeSendDataRequest):
     try:
         coze_service = get_coze_service()
         response = await coze_service.receive_data(request)
-
         return response
 
     except Exception as e:
@@ -94,37 +99,129 @@ async def health_check():
         )
 
 
-# ==================== 任务管理API ====================
+# ==================== 工作空间管理 ====================
 
-# 内存存储任务数据（生产环境应使用数据库）
-_tasks_storage: dict[str, Task] = {}
-_task_counter = 0
+@router.get("/workspaces", summary="获取工作空间列表")
+async def get_workspaces(account_id: str = Query(default="default", description="账号ID")):
+    """
+    获取工作空间列表
 
+    - **account_id**: 账号ID（默认为 default）
+    """
+    try:
+        client = get_coze_client(account_id)
+        if not client:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无法获取 Coze 客户端（账号: {account_id}），请检查配置"
+            )
 
-def _generate_task_id() -> str:
-    """生成任务ID"""
-    global _task_counter
-    _task_counter += 1
-    return f"task_{_task_counter}_{int(__import__('time').time() * 1000)}"
+        workspaces = await client.list_workspaces()
 
+        return {
+            "success": True,
+            "workspaces": workspaces,
+            "count": len(workspaces)
+        }
 
-def _get_task_or_404(task_id: str) -> Task:
-    """获取任务或抛出404异常"""
-    if task_id not in _tasks_storage:
+    except HTTPException:
+        raise
+    except Exception as e:
         raise HTTPException(
-            status_code=404,
-            detail=f"任务 {task_id} 不存在"
+            status_code=500,
+            detail=f"获取工作空间列表失败: {str(e)}"
         )
-    return _tasks_storage[task_id]
 
+
+# ==================== 工作流管理 ====================
+
+@router.get("/workflows/{workflow_id}", summary="获取工作流详情")
+async def get_workflow(
+    workflow_id: str,
+    account_id: str = Query(default="default", description="账号ID")
+):
+    """
+    获取工作流详情
+
+    - **workflow_id**: 工作流ID
+    - **account_id**: 账号ID
+    """
+    try:
+        client = get_coze_client(account_id)
+        if not client:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无法获取 Coze 客户端（账号: {account_id}），请检查配置"
+            )
+
+        workflow = await client.retrieve_workflow(workflow_id)
+
+        return {
+            "success": True,
+            "workflow": workflow
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取工作流详情失败: {str(e)}"
+        )
+
+
+@router.get("/workflows/{workflow_id}/history", summary="获取工作流执行历史")
+async def get_workflow_history(
+    workflow_id: str,
+    account_id: str = Query(default="default", description="账号ID"),
+    page_size: int = Query(default=20, ge=1, le=100, description="每页数量"),
+    page_index: int = Query(default=1, ge=1, description="页码")
+):
+    """
+    获取工作流执行历史
+
+    - **workflow_id**: 工作流ID
+    - **account_id**: 账号ID
+    - **page_size**: 每页数量（1-100）
+    - **page_index**: 页码（从1开始）
+    """
+    try:
+        client = get_coze_client(account_id)
+        if not client:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无法获取 Coze 客户端（账号: {account_id}），请检查配置"
+            )
+
+        history = await client.get_execution_history(
+            workflow_id=workflow_id,
+            page_size=page_size,
+            page_index=page_index
+        )
+
+        return {
+            "success": True,
+            **history
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取执行历史失败: {str(e)}"
+        )
+
+
+# ==================== 任务管理 ====================
 
 @router.get("/tasks", response_model=TaskListResponse, summary="获取任务列表")
 async def get_tasks(
-    workflow_id: str | None = None,
-    status: TaskStatus | None = None,
-    execution_status: ExecutionStatus | None = None,
-    limit: int = 50,
-    offset: int = 0
+    workflow_id: Optional[str] = Query(default=None, description="工作流ID筛选"),
+    status: Optional[TaskStatus] = Query(default=None, description="任务状态筛选"),
+    execution_status: Optional[ExecutionStatus] = Query(default=None, description="执行状态筛选"),
+    limit: int = Query(default=50, ge=1, le=200, description="限制返回数量"),
+    offset: int = Query(default=0, ge=0, description="偏移量")
 ):
     """
     获取任务列表，支持筛选和分页
@@ -132,34 +229,20 @@ async def get_tasks(
     - **workflow_id**: 按工作流ID筛选
     - **status**: 按任务状态筛选
     - **execution_status**: 按执行状态筛选
-    - **limit**: ���制返回数量
+    - **limit**: 限制返回数量（1-200）
     - **offset**: 偏移量
     """
     try:
-        # 筛选任务
-        filtered_tasks = []
-        for task in _tasks_storage.values():
-            if workflow_id and task.workflow_id != workflow_id:
-                continue
-            if status and task.status != status:
-                continue
-            if execution_status and task.execution_status != execution_status:
-                continue
-            filtered_tasks.append(task)
-
-        # 按创建时间倒序排序
-        filtered_tasks.sort(key=lambda t: t.created_at, reverse=True)
-
-        # 分页
-        total = len(filtered_tasks)
-        tasks = filtered_tasks[offset:offset + limit]
-        has_more = offset + limit < total
-
-        return TaskListResponse(
-            tasks=tasks,
-            total=total,
-            has_more=has_more
+        service = get_workflow_service()
+        result = await service.list_tasks(
+            workflow_id=workflow_id,
+            status=status,
+            execution_status=execution_status,
+            limit=limit,
+            offset=offset
         )
+
+        return TaskListResponse(**result)
 
     except Exception as e:
         raise HTTPException(
@@ -169,52 +252,19 @@ async def get_tasks(
 
 
 @router.get("/tasks/statistics", response_model=TaskStatistics, summary="获取任务统计")
-async def get_task_statistics(workflow_id: str | None = None):
+async def get_task_statistics(
+    workflow_id: Optional[str] = Query(default=None, description="工作流ID筛选")
+):
     """
     获取任务统计信息
 
     - **workflow_id**: 按工作流ID筛选统计
     """
     try:
-        # 筛选任务
-        tasks = list(_tasks_storage.values())
-        if workflow_id:
-            tasks = [t for t in tasks if t.workflow_id == workflow_id]
+        service = get_workflow_service()
+        stats = await service.get_task_statistics(workflow_id=workflow_id)
 
-        # 统计信息
-        total = len(tasks)
-        by_status = {}
-        by_execution_status = {}
-        by_workflow = {}
-
-        # 按状态统计
-        for status in TaskStatus:
-            by_status[status.value] = len([t for t in tasks if t.status == status])
-
-        # 按执行状态统计
-        for exec_status in ExecutionStatus:
-            by_execution_status[exec_status.value] = len([t for t in tasks if t.execution_status == exec_status])
-
-        # 按工作流统计
-        for task in tasks:
-            workflow_name = task.workflow_name
-            by_workflow[workflow_name] = by_workflow.get(workflow_name, 0) + 1
-
-        # 最近执行的任务（最多10个）
-        recent_executions = [
-            t for t in tasks
-            if t.executed_at is not None
-        ]
-        recent_executions.sort(key=lambda t: t.executed_at, reverse=True)
-        recent_executions = recent_executions[:10]
-
-        return TaskStatistics(
-            total=total,
-            by_status=by_status,
-            by_execution_status=by_execution_status,
-            by_workflow=by_workflow,
-            recent_executions=recent_executions
-        )
+        return TaskStatistics(**stats)
 
     except Exception as e:
         raise HTTPException(
@@ -227,8 +277,17 @@ async def get_task_statistics(workflow_id: str | None = None):
 async def get_task(task_id: str):
     """获取指定任务的详细信息"""
     try:
-        task = _get_task_or_404(task_id)
+        service = get_workflow_service()
+        task = await service.get_task(task_id)
+
+        if not task:
+            raise HTTPException(
+                status_code=404,
+                detail=f"任务 {task_id} 不存在"
+            )
+
         return task
+
     except HTTPException:
         raise
     except Exception as e:
@@ -239,9 +298,12 @@ async def get_task(task_id: str):
 
 
 @router.post("/tasks", response_model=Task, summary="创建任务")
-async def create_task(request: CreateTaskRequest):
+async def create_task(
+    request: CreateTaskRequest,
+    account_id: str = Query(default="default", description="账号ID")
+):
     """
-    创建新任务
+    创建新任务（不执行）
 
     - **name**: 任务名称（可选，默认使用工作流名称）
     - **description**: 任务描述
@@ -253,22 +315,8 @@ async def create_task(request: CreateTaskRequest):
     - **metadata**: 扩展元数据
     """
     try:
-        task_id = _generate_task_id()
-        task_name = request.name or request.workflow_name or f"任务_{task_id}"
-
-        task = Task(
-            id=task_id,
-            name=task_name,
-            description=request.description,
-            workflow_id=request.workflow_id,
-            workflow_name=request.workflow_name or request.workflow_id,
-            input_parameters=request.input_parameters,
-            tags=request.tags,
-            priority=request.priority,
-            metadata=request.metadata
-        )
-
-        _tasks_storage[task_id] = task
+        service = get_workflow_service()
+        task = await service.create_task(request, account_id=account_id)
 
         return task
 
@@ -287,22 +335,13 @@ async def update_task(task_id: str, request: UpdateTaskRequest):
     支持部分更新，只更新提供的字段
     """
     try:
-        task = _get_task_or_404(task_id)
+        service = get_workflow_service()
+        task = await service.update_task(task_id, request)
 
-        # 更新字段
-        update_data = request.dict(exclude_unset=True)
-        for field, value in update_data.items():
-            setattr(task, field, value)
-
-        # 更新时间戳
-        from datetime import datetime
-        task.updated_at = datetime.now()
-
-        _tasks_storage[task_id] = task
         return task
 
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -314,8 +353,14 @@ async def update_task(task_id: str, request: UpdateTaskRequest):
 async def delete_task(task_id: str):
     """删除指定任务"""
     try:
-        _get_task_or_404(task_id)
-        del _tasks_storage[task_id]
+        service = get_workflow_service()
+        success = await service.delete_task(task_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"任务 {task_id} 不存在"
+            )
 
         return {
             "success": True,
@@ -332,9 +377,12 @@ async def delete_task(task_id: str):
 
 
 @router.post("/tasks/execute", response_model=ExecuteTaskResponse, summary="执行任务")
-async def execute_task(request: ExecuteTaskRequest):
+async def execute_task(
+    request: ExecuteTaskRequest,
+    account_id: str = Query(default="default", description="账号ID")
+):
     """
-    执行工作流任务
+    执行工作流任务（真实调用 Coze API）
 
     - **task_id**: 任务ID（可选，不携带则生成新任务）
     - **workflow_id**: 工作流ID
@@ -342,121 +390,19 @@ async def execute_task(request: ExecuteTaskRequest):
     - **save_as_task**: 是否保存为任务（默认true）
     - **task_name**: 任务名称（保存为任务时使用）
     - **task_description**: 任务描述
+
+    **注意**: 此接口会真实调用 Coze API 执行工作流，并自动管理任务状态
     """
     try:
-        from datetime import datetime
-        import uuid
+        service = get_workflow_service()
+        response = await service.execute_task(request, account_id=account_id)
 
-        execution_id = str(uuid.uuid4())
-        task_id = None
-        task = None
+        return response
 
-        # 如果指定了任务ID，加载现有任务
-        if request.task_id:
-            task = _get_task_or_404(request.task_id)
-            task_id = task.id
-            # 更新任务状态为执行中
-            task.status = TaskStatus.EXECUTING
-            task.execution_status = ExecutionStatus.PENDING
-            task.executed_at = datetime.now()
-            task.updated_at = datetime.now()
-        # 如果需要保存为新任务
-        elif request.save_as_task:
-            # 创建新任务
-            task_id = _generate_task_id()
-            task_name = request.task_name or f"执行任务_{task_id}"
-
-            task = Task(
-                id=task_id,
-                name=task_name,
-                description=request.task_description,
-                workflow_id=request.workflow_id,
-                workflow_name=request.workflow_id,
-                input_parameters=request.input_parameters or {},
-                status=TaskStatus.EXECUTING,
-                execution_status=ExecutionStatus.PENDING,
-                executed_at=datetime.now()
-            )
-
-            _tasks_storage[task_id] = task
-
-        # 这里应该调用实际的工作流执行逻辑
-        # 暂时模拟执行过程
-        if task:
-            # 模拟异步执行（实际应该使用后台任务）
-            # 这里立即标记为成功，实际应该通过WebSocket或其他方式异步更新状态
-            task.status = TaskStatus.COMPLETED
-            task.execution_status = ExecutionStatus.SUCCESS
-            task.completed_at = datetime.now()
-            task.coze_execution_id = execution_id
-            task.output_data = {"message": "执行成功", "execution_id": execution_id}
-
-        return ExecuteTaskResponse(
-            task_id=task_id,
-            execution_id=execution_id,
-            status="success",
-            message="任务执行已启动"
-        )
-
-    except HTTPException:
-        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"执行任务时发生错误: {str(e)}"
-        )
-
-
-@router.get("/tasks/statistics", response_model=TaskStatistics, summary="获取任务统计")
-async def get_task_statistics(workflow_id: str | None = None):
-    """
-    获取任务统计信息
-
-    - **workflow_id**: 按工作流ID筛选统计
-    """
-    try:
-        # 筛选任务
-        tasks = list(_tasks_storage.values())
-        if workflow_id:
-            tasks = [t for t in tasks if t.workflow_id == workflow_id]
-
-        # 统计信息
-        total = len(tasks)
-        by_status = {}
-        by_execution_status = {}
-        by_workflow = {}
-
-        # 按状态统计
-        for status in TaskStatus:
-            by_status[status.value] = len([t for t in tasks if t.status == status])
-
-        # 按执行状态统计
-        for exec_status in ExecutionStatus:
-            by_execution_status[exec_status.value] = len([t for t in tasks if t.execution_status == exec_status])
-
-        # 按工作流统计
-        for task in tasks:
-            workflow_name = task.workflow_name
-            by_workflow[workflow_name] = by_workflow.get(workflow_name, 0) + 1
-
-        # 最近执行的任务（最多10个）
-        recent_executions = [
-            t for t in tasks
-            if t.executed_at is not None
-        ]
-        recent_executions.sort(key=lambda t: t.executed_at, reverse=True)
-        recent_executions = recent_executions[:10]
-
-        return TaskStatistics(
-            total=total,
-            by_status=by_status,
-            by_execution_status=by_execution_status,
-            by_workflow=by_workflow,
-            recent_executions=recent_executions
-        )
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"获取任务统计时发生错误: {str(e)}"
         )

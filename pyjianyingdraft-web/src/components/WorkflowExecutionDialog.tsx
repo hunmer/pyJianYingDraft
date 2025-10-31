@@ -51,8 +51,8 @@ interface WorkflowExecutionDialogProps {
     apiKey: string;
   };
   eventLogs: WorkflowEventLog[];
-  onCreateTask?: (taskData: CreateTaskRequest) => void;
-  onCreateAndExecuteTask?: (taskData: CreateTaskRequest) => void;
+  onCreateTask?: (taskData: CreateTaskRequest) => Promise<any>;
+  onCreateAndExecuteTask?: (taskData: CreateTaskRequest) => Promise<any>;
 }
 
 // 创建一个独立的事件日志上下文，避免通过 props 传递
