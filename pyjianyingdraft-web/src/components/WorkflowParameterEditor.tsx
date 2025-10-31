@@ -279,6 +279,24 @@ const WorkflowParameterEditor = forwardRef<WorkflowParameterEditorRef, WorkflowP
     validate: validateValues
   }), [validateValues]);
 
+  // 更新字段值的辅助函数
+  const updateFieldValue = useCallback((path: string, newValue: any) => {
+    const keys = path.split('.');
+    const result = { ...value };
+    let current = result;
+    
+    // 遍历路径，构建嵌套对象
+    for (let i = 0; i < keys.length - 1; i++) {
+      const key = keys[i];
+      current[key] = { ...(current[key] || {}) };
+      current = current[key];
+    }
+    
+    // 设置最终值
+    current[keys[keys.length - 1]] = newValue;
+    onChange(result);
+  }, [value, onChange]);
+
   // 渲染字段组件
   const renderField = useCallback((key: string, propSchema: ParameterSchema, currentValue: any, path: string) => {
     const isRequired = schema?.required?.includes(key) || false;
@@ -299,7 +317,7 @@ const WorkflowParameterEditor = forwardRef<WorkflowParameterEditorRef, WorkflowP
               <InputLabel>{propSchema.title || key}</InputLabel>
               <Select
                 value={currentValue || ''}
-                onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+                onChange={(e) => updateFieldValue(path, e.target.value)}
                 label={propSchema.title || key}
               >
                 {propSchema.enum.map((enumValue) => (
@@ -320,7 +338,7 @@ const WorkflowParameterEditor = forwardRef<WorkflowParameterEditorRef, WorkflowP
             {...commonFieldProps}
             label={propSchema.title || key}
             value={currentValue || ''}
-            onChange={(e) => onChange({ ...value, [key]: e.target.value })}
+            onChange={(e) => updateFieldValue(path, e.target.value)}
             placeholder={propSchema.description}
             helperText={hasDescription ? propSchema.description : undefined}
           />
@@ -333,7 +351,7 @@ const WorkflowParameterEditor = forwardRef<WorkflowParameterEditorRef, WorkflowP
             type="number"
             label={propSchema.title || key}
             value={currentValue ?? ''}
-            onChange={(e) => onChange({ ...value, [key]: Number(e.target.value) })}
+            onChange={(e) => updateFieldValue(path, Number(e.target.value))}
             inputProps={{
               min: propSchema.minimum,
               max: propSchema.maximum,
@@ -348,7 +366,7 @@ const WorkflowParameterEditor = forwardRef<WorkflowParameterEditorRef, WorkflowP
             control={
               <Switch
                 checked={Boolean(currentValue)}
-                onChange={(e) => onChange({ ...value, [key]: e.target.checked })}
+                onChange={(e) => updateFieldValue(path, e.target.checked)}
                 disabled={disabled}
               />
             }
@@ -375,7 +393,7 @@ const WorkflowParameterEditor = forwardRef<WorkflowParameterEditorRef, WorkflowP
               value={Array.isArray(currentValue) ? currentValue.join(', ') : ''}
               onChange={(e) => {
                 const arrayValue = e.target.value.split(',').map(item => item.trim()).filter(Boolean);
-                onChange({ ...value, [key]: arrayValue });
+                updateFieldValue(path, arrayValue);
               }}
               placeholder="用逗号分隔多个值"
               helperText={hasDescription ? propSchema.description : '多个值用逗号分隔'}
@@ -391,7 +409,7 @@ const WorkflowParameterEditor = forwardRef<WorkflowParameterEditorRef, WorkflowP
             onChange={(e) => {
               try {
                 const parsed = JSON.parse(e.target.value);
-                onChange({ ...value, [key]: parsed });
+                updateFieldValue(path, parsed);
               } catch {
                 // 忽略无效的 JSON
               }
@@ -412,7 +430,7 @@ const WorkflowParameterEditor = forwardRef<WorkflowParameterEditorRef, WorkflowP
               onChange={(e) => {
                 try {
                   const parsed = JSON.parse(e.target.value);
-                  onChange({ ...value, [key]: parsed });
+                  updateFieldValue(path, parsed);
                 } catch {
                   // 忽略无效的 JSON
                 }
@@ -506,7 +524,7 @@ const WorkflowParameterEditor = forwardRef<WorkflowParameterEditorRef, WorkflowP
       default:
         return null;
     }
-  }, [schema, onChange, disabled, expandedPaths, toggleExpanded]);
+  }, [schema, updateFieldValue, disabled, expandedPaths, toggleExpanded]);
 
   // 渲染表单模式
   const renderFormMode = useCallback(() => {

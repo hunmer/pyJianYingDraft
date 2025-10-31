@@ -1,0 +1,30 @@
+{
+  "workflow_id": "7565084499433013302",
+  "total": 1,
+  "histories": [
+    {
+      "execute_id": "d8b31c42-64ec-4c96-b823-fa86f95b5b99",
+      "workflow_id": "7565084499433013302",
+      "create_time": 1761918306338,
+      "update_time": 1761918309533,
+      "execute_status": "failed",
+      "error_code": null,
+      "error_message": "error_code=5000 error_message=\"The request parameter is illegal, see: value 'test' can't convert to file\"",
+      "output": null,
+      "input_parameters": {
+        "input": "test"
+      },
+      "bot_id": null,
+      "conversation_id": null,
+      "debug_url": null,
+      "run_mode": 1,
+      "connector_id": null,
+      "connector_uid": null,
+      "is_output_trimmed": false,
+      "usage": null,
+      "node_execute_status": null,
+      "metadata": {}
+    }
+  ],
+  "updated_at": 1761918309533
+}
