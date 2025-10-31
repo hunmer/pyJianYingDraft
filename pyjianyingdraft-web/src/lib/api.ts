@@ -844,7 +844,7 @@ export const cozeApi = {
   },
 
   /**
-   * 获取工作流执行历史
+   * 获取工作流执行历史列表
    */
   async getWorkflowHistory(
     workflowId: string,
@@ -856,6 +856,21 @@ export const cozeApi = {
       account_id: accountId,
       page_size: pageSize,
       page_index: pageIndex,
+    });
+    const response = await fetch(url);
+    return handleResponse<any>(response);
+  },
+
+  /**
+   * 获取单个执行记录详情
+   */
+  async getExecutionDetail(
+    workflowId: string,
+    executeId: string,
+    accountId: string = 'default'
+  ): Promise<any> {
+    const url = buildUrl(`/api/coze/workflows/${workflowId}/history/${executeId}`, {
+      account_id: accountId,
     });
     const response = await fetch(url);
     return handleResponse<any>(response);
@@ -1176,11 +1191,11 @@ export const cozeApi = {
           parsedOutput = { raw_content: data.message.content };
         }
 
-        // 创建工作流���成事件，包含解析后的输出
+        // 创建工作流完成事件，包含解析后的输出
         return {
           event: 'workflow_finished',
           data: {
-            ...parsedOutput,
+            output: parsedOutput,
             workflow_id: eventData.data?.workflow_id,
             status: 'completed',
             node_title: data.message.node_title,

@@ -344,7 +344,8 @@ class CozeWorkflowClient:
         page_index: int = 1
     ) -> Dict[str, Any]:
         """
-        获取工作流执行历史
+        获取工作流执行历史列表
+        注意: Coze SDK 没有提供 list 方法，需要直接调用 REST API
 
         Args:
             workflow_id: 工作流 ID
@@ -355,30 +356,97 @@ class CozeWorkflowClient:
             执行历史列表
         """
         try:
-            response = await self.client.workflows.run_histories.list(
+            import httpx
+
+            url = f"{self.config.base_url}/v1/workflows/{workflow_id}/run_histories"
+            params = {
+                "page_size": page_size,
+                "page_num": page_index
+            }
+
+            async with httpx.AsyncClient() as http_client:
+                response = await http_client.get(
+                    url,
+                    params=params,
+                    headers={
+                        "Authorization": f"Bearer {self.config.api_token}",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+                if response.status_code != 200:
+                    raise Exception(f"HTTP {response.status_code}: {response.text}")
+
+                result = response.json()
+
+                if result.get("code") != 0:
+                    raise Exception(result.get("msg", "获取执行历史列表失败"))
+
+                data = result.get("data", {})
+                run_histories = data.get("run_histories", [])
+
+                histories = []
+                for history in run_histories:
+                    histories.append({
+                        "execute_id": history.get("execute_id"),
+                        "workflow_id": workflow_id,
+                        "create_time": history.get("create_time"),
+                        "execute_status": history.get("execute_status", "unknown"),
+                        "error_message": history.get("error_message"),
+                    })
+
+                return {
+                    "histories": histories,
+                    "total": data.get("total", len(histories)),
+                    "has_more": data.get("has_more", False),
+                }
+
+        except Exception as e:
+            print(f"⚠️ 获取执行历史列表失败: {e}")
+            raise
+
+    async def get_execution_detail(
+        self,
+        workflow_id: str,
+        execute_id: str
+    ) -> Dict[str, Any]:
+        """
+        获取单个执行记录的详细信息
+
+        Args:
+            workflow_id: 工作流 ID
+            execute_id: 执行 ID
+
+        Returns:
+            执行记录详情
+        """
+        try:
+            run_history = await self.client.workflows.runs.run_histories.retrieve(
                 workflow_id=workflow_id,
-                page_size=page_size,
-                page_num=page_index
+                execute_id=execute_id
             )
 
-            histories = []
-            for history in response.run_histories or []:
-                histories.append({
-                    "execute_id": history.execute_id,
-                    "workflow_id": workflow_id,
-                    "create_time": history.create_time,
-                    "execute_status": getattr(history, "execute_status", "unknown"),
-                    "error_message": getattr(history, "error_message", None),
-                })
-
             return {
-                "histories": histories,
-                "total": getattr(response, "total", len(histories)),
-                "has_more": getattr(response, "has_more", False),
+                "execute_id": run_history.execute_id,
+                "workflow_id": workflow_id,
+                "create_time": run_history.create_time,
+                "update_time": run_history.update_time,
+                "execute_status": run_history.execute_status.value if hasattr(run_history.execute_status, 'value') else str(run_history.execute_status),
+                "error_code": run_history.error_code,
+                "error_message": run_history.error_message or None,
+                "output": run_history.output,
+                "debug_url": run_history.debug_url,
+                "run_mode": run_history.run_mode.value if hasattr(run_history.run_mode, 'value') else int(run_history.run_mode),
+                "bot_id": run_history.bot_id,
+                "connector_id": run_history.connector_id,
+                "connector_uid": run_history.connector_uid,
+                "is_output_trimmed": run_history.is_output_trimmed,
+                "usage": getattr(run_history, "usage", None),
+                "node_execute_status": getattr(run_history, "node_execute_status", None),
             }
 
         except Exception as e:
-            print(f"⚠️ 获取执行历史失败: {e}")
+            print(f"⚠️ 获取执行记录详情失败: {e}")
             raise
 
     async def cancel_workflow_execution(

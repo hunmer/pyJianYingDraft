@@ -293,28 +293,19 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
 
       const result = await onExecute(workflowToExecute.id, parameters, onStreamEvent);
 
-      // 执行完成，更新最终状态
-      setStreamState(prev => ({
-        ...prev,
-        status: 'completed',
-        isStreaming: false,
-        endTime: new Date().toISOString(),
-        output: result?.data?.output_data || prev.output || {},
-      }));
-
-      // 设置输出数据到状态中
-      if (result?.data?.output_data) {
-        setOutputData(result.data.output_data);
-      }
-
-      addStreamEvent({
-        event: 'workflow_finished',
-        data: {
-          message: '工作流执行完成',
-          output: result?.data?.output_data || {}
-        },
-        timestamp: new Date().toISOString(),
+      // 执行完成，更新最终状态（流式执行已经通过事件处理了状态更新）
+      setStreamState(prev => {
+        const hasOutputFromStream = Object.keys(prev.output || {}).length > 0;
+        return {
+          ...prev,
+          isStreaming: false,
+          endTime: new Date().toISOString(),
+          // 只有在流式执行没有设置输出数据时，才使用响应中的输出数据
+          output: hasOutputFromStream ? prev.output : (result?.data?.output_data || {}),
+        };
       });
+
+      // 这里不再手动添加 workflow_finished 事件，因为流式执行中已经处理了
 
     } catch (error) {
       console.error('工作流执行失败:', error);
