@@ -31,6 +31,16 @@
       "file": "pyjianyingdraft-web/src/components/WorkflowPanel.tsx",
       "type": "修改",
       "description": "移除eventLogs prop依赖，简化事件日志按钮显示"
+    },
+    {
+      "file": "pyJianYingDraftServer/app/routers/coze.py",
+      "type": "修改",
+      "description": "在流式执行工作流过程中集成事件日志记录，记录workflow_started/流式事件/workflow_error/workflow_exception/workflow_finished"
+    },
+    {
+      "file": "pyJianYingDraftServer/app/services/coze_workflow_service.py",
+      "type": "修改",
+      "description": "在同步执行任务过程中集成事件日志记录，记录task_execute_started/task_execute_success/task_execute_failed/task_execute_exception"
     }
   ],
   "features": [
@@ -88,8 +98,19 @@
     "日志持久化保存到 pyJianYingDraftServer/data/event_logs.json",
     "服务器重启后会自动从文件恢复日志",
     "前端不再本地维护事件日志状态",
-    "后端需要在工作流执行过程中调用event_log_service记录日志",
+    "流式执行和同步执行都已集成事件日志记录",
     "每次添加日志时都会自动保存到文件，使用线程锁保证线程安全"
+  ],
+  "event_types": {
+    "workflow_started": "工作流开始执行（流式）",
+    "workflow_finished": "工作流执行完成（流式）",
+    "workflow_error": "工作流执行错误（流式）",
+    "workflow_exception": "工作流执行异常（流式）",
+    "task_execute_started": "任务开始执行（同步）",
+    "task_execute_success": "任务执行成功（同步）",
+    "task_execute_failed": "任务执行失败（同步）",
+    "task_execute_exception": "任务执行异常（同步）",
+    "stream_events": "流式执行过程中的各种事件（如Message、NodeStarted等）"
   ],
   "storage": {
     "file_path": "pyJianYingDraftServer/data/event_logs.json",

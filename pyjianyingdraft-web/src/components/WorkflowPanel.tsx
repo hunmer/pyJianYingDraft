@@ -45,6 +45,7 @@ interface WorkflowPanelProps {
   onEventLogsClear: () => void;
   onCreateTask?: (taskData: CreateTaskRequest) => Promise<any>;
   onCreateAndExecuteTask?: (taskData: CreateTaskRequest) => Promise<any>;
+  onOpenWorkflowInNewTab?: (workflow: CozeWorkflow) => void; // 打开为新标签页的回调
   accountId?: string; // 账号ID，用于后端API调用
   workspaceId?: string;
 }
@@ -62,6 +63,7 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
   onEventLogsClear,
   onCreateTask,
   onCreateAndExecuteTask,
+  onOpenWorkflowInNewTab,
   accountId = 'default',
   workspaceId,
 }) => {
@@ -283,6 +285,10 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
         onCancel={handleExecutionDialogClose}
         onCreateTask={onCreateTask}
         onCreateAndExecuteTask={onCreateAndExecuteTask}
+        onOpenInNewTab={onOpenWorkflowInNewTab ? (workflow) => {
+          handleExecutionDialogClose();
+          onOpenWorkflowInNewTab(workflow);
+        } : undefined}
         accountId={accountId}
         workspaceId={workspaceId}
         eventLogs={eventLogs}

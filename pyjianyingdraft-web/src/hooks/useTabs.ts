@@ -6,7 +6,7 @@ import { CozeZoneTabData } from '@/types/coze';
 export interface TabData {
   id: string;
   label: string;
-  type: 'draft_editor' | 'file_diff' | 'test_data' | 'coze_zone';
+  type: 'draft_editor' | 'file_diff' | 'test_data' | 'coze_zone' | 'workflow_execution';
   // 草稿编辑器相关字段
   draftPath?: string;
   draftInfo?: any | null;
@@ -42,6 +42,14 @@ export interface TabData {
   refreshing?: boolean;
   executing?: boolean;
   uploading?: boolean;
+  // Workflow Execution 相关字段
+  workflowId?: string;
+  workflow?: any;
+  onExecuteWorkflow?: (workflowId: string, parameters: Record<string, any>, onStreamEvent?: (event: any) => void) => Promise<any>;
+  onCancelWorkflow?: () => void;
+  onCreateTask?: (taskData: any) => Promise<any>;
+  onCreateAndExecuteTask?: (taskData: any) => Promise<any>;
+  workflowEventLogs?: any[];
 
   // 通用字段
   loading: boolean;
@@ -79,6 +87,8 @@ export const useTabs = (): UseTabsResult => {
       return tabs.find(tab => tab.type === type && tab.testDataId === identifier);
     } else if (type === 'coze_zone') {
       return tabs.find(tab => tab.type === type && tab.accountId === identifier);
+    } else if (type === 'workflow_execution') {
+      return tabs.find(tab => tab.type === type && tab.workflowId === identifier);
     }
     return undefined;
   }, [tabs]);

@@ -114,15 +114,26 @@ class CozeWorkflowService:
         Returns:
             ExecuteTaskResponse 执行响应
         """
+        from app.services.event_log_service import get_event_log_service
+        
         execution_id = str(uuid.uuid4())
         task_id = None
         task = None
+        workflow_name = None
+        event_log_service = get_event_log_service()
 
         try:
             # 获取 Coze 客户端
             client = get_coze_client(account_id)
             if not client:
                 raise ValueError(f"无法获取 Coze 客户端（账号: {account_id}）")
+            
+            # 获取工作流名称
+            try:
+                workflow_detail = await client.retrieve_workflow(request.workflow_id)
+                workflow_name = workflow_detail.get('name', request.workflow_id)
+            except:
+                workflow_name = request.workflow_id
 
             # 1. 处理任务（加载现有任务 或 创建新任务）
             if request.task_id:
@@ -160,6 +171,20 @@ class CozeWorkflowService:
 
             # 2. 执行工作流
             print(f"🚀 开始执行工作流: {request.workflow_id}")
+            
+            # 记录开始执行日志
+            event_log_service.add_log(
+                event="task_execute_started",
+                workflow_id=request.workflow_id,
+                workflow_name=workflow_name,
+                execute_id=execution_id,
+                level="info",
+                message=f"开始执行任务",
+                data={
+                    "task_id": task_id,
+                    "parameters": request.input_parameters or {}
+                }
+            )
 
             # 更新任务状态为运行中
             if task:
@@ -185,12 +210,54 @@ class CozeWorkflowService:
                 if result.get("status") == "success":
                     task.status = TaskStatus.COMPLETED
                     task.execution_status = ExecutionStatus.SUCCESS
+                    
+                    # 记录成功日志
+                    event_log_service.add_log(
+                        event="task_execute_success",
+                        workflow_id=request.workflow_id,
+                        workflow_name=workflow_name,
+                        execute_id=execution_id,
+                        level="success",
+                        message=f"任务执行成功",
+                        data={
+                            "task_id": task_id,
+                            "output": result.get("output_data", {})
+                        }
+                    )
                 elif result.get("status") == "failed":
                     task.status = TaskStatus.FAILED
                     task.execution_status = ExecutionStatus.FAILED
+                    
+                    # 记录失败日志
+                    event_log_service.add_log(
+                        event="task_execute_failed",
+                        workflow_id=request.workflow_id,
+                        workflow_name=workflow_name,
+                        execute_id=execution_id,
+                        level="error",
+                        message=f"任务执行失败: {result.get('error_message')}",
+                        data={
+                            "task_id": task_id,
+                            "error": result.get('error_message')
+                        }
+                    )
                 else:
                     task.status = TaskStatus.FAILED
                     task.execution_status = ExecutionStatus.FAILED
+                    
+                    # 记录失败日志
+                    event_log_service.add_log(
+                        event="task_execute_failed",
+                        workflow_id=request.workflow_id,
+                        workflow_name=workflow_name,
+                        execute_id=execution_id,
+                        level="error",
+                        message=f"任务执行失败",
+                        data={
+                            "task_id": task_id,
+                            "status": result.get("status")
+                        }
+                    )
 
             # 4. 返回执行响应
             return ExecuteTaskResponse(
@@ -210,6 +277,20 @@ class CozeWorkflowService:
                 task.updated_at = datetime.now()
 
             print(f"⚠️ 任务执行失败: {e}")
+            
+            # 记录异常日志
+            event_log_service.add_log(
+                event="task_execute_exception",
+                workflow_id=request.workflow_id,
+                workflow_name=workflow_name or request.workflow_id,
+                execute_id=execution_id,
+                level="error",
+                message=f"任务执行异常: {str(e)}",
+                data={
+                    "task_id": task_id,
+                    "exception": str(e)
+                }
+            )
 
             return ExecuteTaskResponse(
                 task_id=task_id,

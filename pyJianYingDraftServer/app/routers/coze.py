@@ -592,11 +592,20 @@ async def stream_run_workflow(
             from app.services.execution_history_service import get_execution_history_service
 
             history_service = get_execution_history_service()
+            event_log_service = get_event_log_service()
             execution_id = None
             execute_status = "success"
             output_data = {}
             error_message = None
             error_code = None
+            workflow_name = None
+            
+            # 获取工作流名称
+            try:
+                workflow_detail = await client.retrieve_workflow(workflow_id)
+                workflow_name = workflow_detail.get('name', workflow_id)
+            except:
+                workflow_name = workflow_id
 
             try:
                 # 1. 创建执行记录（工作流开始）
@@ -607,6 +616,21 @@ async def stream_run_workflow(
                     conversation_id=conversation_id
                 )
                 execution_id = execution_record["execute_id"]
+
+                # 记录工作流开始事件日志
+                event_log_service.add_log(
+                    event="workflow_started",
+                    workflow_id=workflow_id,
+                    workflow_name=workflow_name,
+                    execute_id=execution_id,
+                    level="info",
+                    message=f"工作流开始执行",
+                    data={
+                        "parameters": parameters,
+                        "bot_id": bot_id,
+                        "conversation_id": conversation_id
+                    }
+                )
 
                 # 发送工作流开始事件
                 start_event = {
@@ -627,12 +651,13 @@ async def stream_run_workflow(
                     bot_id=bot_id,
                     conversation_id=conversation_id
                 ):
-                    # 安全地提取事件���据
+                    # 安全地提取事件数据
                     try:
+                        event_type = event.event.value if hasattr(event.event, 'value') else str(event.event)
                         event_data = {
                             "event": "data",
                             "data": {
-                                "type": event.event.value if hasattr(event.event, 'value') else str(event.event),
+                                "type": event_type,
                                 "execute_id": safe_serialize(getattr(event, 'execute_id', None)),
                                 "node_id": safe_serialize(getattr(event, 'node_id', None)),
                                 "status": safe_serialize(getattr(event, 'status', None)),
@@ -642,6 +667,17 @@ async def stream_run_workflow(
                             },
                             "timestamp": asyncio.get_event_loop().time()
                         }
+                        
+                        # 记录流式事件日志
+                        event_log_service.add_log(
+                            event=event_type,
+                            workflow_id=workflow_id,
+                            workflow_name=workflow_name,
+                            execute_id=execution_id,
+                            level="info",
+                            message=f"工作流事件: {event_type}",
+                            data=event_data["data"]
+                        )
 
                         # 收集输出和错误信息
                         if hasattr(event, "message") and event.message:
@@ -666,6 +702,17 @@ async def stream_run_workflow(
                             execute_status = "failed"
                             error_message = str(event.error)
                             error_code = getattr(event, "error_code", None)
+                            
+                            # 记录错误日志
+                            event_log_service.add_log(
+                                event="workflow_error",
+                                workflow_id=workflow_id,
+                                workflow_name=workflow_name,
+                                execute_id=execution_id,
+                                level="error",
+                                message=f"工作流执行错误: {error_message}",
+                                data={"error_code": error_code, "error": error_message}
+                            )
 
                         # 记录 Coze API 返回的执行 ID
                         if hasattr(event, "execute_id") and event.execute_id:
@@ -698,6 +745,17 @@ async def stream_run_workflow(
                 # 标记为失败
                 execute_status = "failed"
                 error_message = str(e)
+                
+                # 记录异常日志
+                event_log_service.add_log(
+                    event="workflow_exception",
+                    workflow_id=workflow_id,
+                    workflow_name=workflow_name,
+                    execute_id=execution_id,
+                    level="error",
+                    message=f"工作流执行异常: {error_message}",
+                    data={"exception": str(e)}
+                )
 
                 # 发送错误事件
                 error_event = {
@@ -719,6 +777,21 @@ async def stream_run_workflow(
                         output=output_data if output_data else None,
                         error_code=error_code,
                         error_message=error_message
+                    )
+                    
+                    # 记录工作流完成日志
+                    event_log_service.add_log(
+                        event="workflow_finished",
+                        workflow_id=workflow_id,
+                        workflow_name=workflow_name,
+                        execute_id=execution_id,
+                        level="success" if execute_status == "success" else "error",
+                        message=f"工作流执行{'成功' if execute_status == 'success' else '失败'}",
+                        data={
+                            "status": execute_status,
+                            "output": output_data if output_data else None,
+                            "error_message": error_message
+                        }
                     )
 
                 # 结束流

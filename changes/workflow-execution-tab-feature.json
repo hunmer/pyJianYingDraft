@@ -1,0 +1,105 @@
+{
+  "feature": "工作流执行对话框新增打开为新标签页功能",
+  "date": "2025-10-31",
+  "description": "在工作流执行对话框标题右侧添加打开为新tab的图标，点击后将当前弹出框的内容展示到一个新的tab页面中",
+  "changes": [
+    {
+      "type": "新增组件",
+      "file": "pyjianyingdraft-web/src/components/WorkflowExecutionPanel.tsx",
+      "description": "从 WorkflowExecutionDialog 中提取工作流执行的核心逻辑，创建独立组件供对话框和标签页复用",
+      "details": [
+        "包含完整的工作流执行逻辑",
+        "支持输入参数编辑、输出结果展示、快速创建任务",
+        "支持流式事件日志展示",
+        "可配置是否显示操作按钮（通过 showActions 属性）"
+      ]
+    },
+    {
+      "type": "类型定义更新",
+      "file": "pyjianyingdraft-web/src/hooks/useTabs.ts",
+      "description": "在 TabData 接口中添加 workflow_execution 类型和相关字段",
+      "details": [
+        "新增 workflow_execution 类型到 type 联合类型",
+        "新增 workflowId、workflow、onExecuteWorkflow、onCancelWorkflow、onCreateTask、onCreateAndExecuteTask、workflowEventLogs 字段",
+        "更新 findExistingTab 方法支持 workflow_execution 类型查找"
+      ]
+    },
+    {
+      "type": "组件功能增强",
+      "file": "pyjianyingdraft-web/src/components/WorkflowExecutionDialog.tsx",
+      "description": "在对话框标题右侧添加 OpenInNew 图标按钮",
+      "details": [
+        "导入 OpenInNewIcon 和 IconButton",
+        "新增 onOpenInNewTab 回调属性",
+        "在 DialogTitle 右侧添加图标按钮，点击时触发回调",
+        "导入并使用 WorkflowExecutionPanel 组件（为后续重构做准备）"
+      ]
+    },
+    {
+      "type": "组件功能增强",
+      "file": "pyjianyingdraft-web/src/components/WorkflowPanel.tsx",
+      "description": "添加打开为新标签页的回调支持",
+      "details": [
+        "新增 onOpenWorkflowInNewTab 回调属性",
+        "将回调传递给 WorkflowExecutionDialog",
+        "点击打开新标签页时自动关闭当前对话框"
+      ]
+    },
+    {
+      "type": "组件功能增强",
+      "file": "pyjianyingdraft-web/src/components/CozeZone.tsx",
+      "description": "添加创建工作流执行标签页的回调",
+      "details": [
+        "新增 onCreateWorkflowExecutionTab 回调属性",
+        "将回调传递给 WorkflowPanel 组件",
+        "封装工作流执行相关的回调函数（handleWorkflowExecute、handleCreateTask、handleCreateAndExecuteTask）"
+      ]
+    },
+    {
+      "type": "页面渲染逻辑更新",
+      "file": "pyjianyingdraft-web/src/app/page.tsx",
+      "description": "添加对 workflow_execution 标签页类型的渲染支持",
+      "details": [
+        "导入 WorkflowExecutionPanel 组件",
+        "在 CozeZone 组件上添加 onCreateWorkflowExecutionTab 回调",
+        "回调中创建新的 workflow_execution 类型标签页，传递工作流信息和执行回调",
+        "新增 workflow_execution 类型标签页的渲染逻辑，使用 WorkflowExecutionPanel 组件"
+      ]
+    }
+  ],
+  "features": [
+    {
+      "name": "打开为新标签页",
+      "description": "用户可以在工作流执行对话框标题右侧点击图标，将当前工作流执行界面打开为一个独立的标签页",
+      "benefit": "允许用户同时查看和操作多个工作流执行，提升多任务处理效率"
+    },
+    {
+      "name": "独立的工作流执行组件",
+      "description": "将工作流执行逻辑提取为独立的 WorkflowExecutionPanel 组件",
+      "benefit": "提高代码复用性，便于后续维护和功能扩展"
+    },
+    {
+      "name": "新的标签页类型",
+      "description": "新增 workflow_execution 标签页类型，支持在标签页中完整执行工作流",
+      "benefit": "提供更灵活的工作流执行方式，改善用户体验"
+    }
+  ],
+  "technical_notes": [
+    "WorkflowExecutionPanel 组件通过 showActions 属性控制是否显示底部操作按钮，在标签页中设置为 false",
+    "标签页创建时传递完整的工作流对象和执行回调，确保功能与对话框一致",
+    "使用回调链式传递：page.tsx -> CozeZone -> WorkflowPanel -> WorkflowExecutionDialog",
+    "标签页ID使用 workflow_id 和时间戳组合生成，确保唯一性",
+    "点击打开新标签页后自动关闭对话框，避免界面混乱"
+  ],
+  "files_modified": [
+    "pyjianyingdraft-web/src/components/WorkflowExecutionPanel.tsx",
+    "pyjianyingdraft-web/src/hooks/useTabs.ts",
+    "pyjianyingdraft-web/src/components/WorkflowExecutionDialog.tsx",
+    "pyjianyingdraft-web/src/components/WorkflowPanel.tsx",
+    "pyjianyingdraft-web/src/components/CozeZone.tsx",
+    "pyjianyingdraft-web/src/app/page.tsx"
+  ],
+  "files_created": [
+    "pyjianyingdraft-web/src/components/WorkflowExecutionPanel.tsx"
+  ]
+}
