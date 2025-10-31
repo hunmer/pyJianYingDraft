@@ -27,6 +27,12 @@ import TaskManagementPanel from './TaskManagementPanel';
 interface CozeZoneProps {
   tab: CozeZoneTabData;
   onTabUpdate?: (tabId: string, updates: Partial<CozeZoneTabData>) => void;
+  onCreateWorkflowExecutionTab?: (workflow: any, callbacks: {
+    onExecute: (workflowId: string, parameters: Record<string, any>, onStreamEvent?: (event: any) => void) => Promise<any>;
+    onCancel: () => void;
+    onCreateTask?: (taskData: any) => Promise<any>;
+    onCreateAndExecuteTask?: (taskData: any) => Promise<any>;
+  }) => void;
 }
 
 interface TabPanelProps {
@@ -49,7 +55,7 @@ function TabPanel({ children, value, index }: TabPanelProps) {
   );
 }
 
-const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
+const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate, onCreateWorkflowExecutionTab }) => {
   const [activeSubTab, setActiveSubTab] = useState<'workflow' | 'monitor' | 'tasks'>('workflow');
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -367,6 +373,14 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
                 onCreateAndExecuteTask={handleCreateAndExecuteTask}
                 onExecutionHistoryLoad={loadExecutionHistory}
                 onEventLogsClear={clearEventLogs}
+                onOpenWorkflowInNewTab={onCreateWorkflowExecutionTab ? (workflow) => {
+                  onCreateWorkflowExecutionTab(workflow, {
+                    onExecute: handleWorkflowExecute,
+                    onCancel: () => {},
+                    onCreateTask: handleCreateTask,
+                    onCreateAndExecuteTask: handleCreateAndExecuteTask,
+                  });
+                } : undefined}
                 accountId={currentAccount}
                 workspaceId={currentWorkspace?.id}
               />

@@ -20,6 +20,7 @@ import {
   Grid,
   Tab,
   Tabs,
+  IconButton,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -30,11 +31,13 @@ import {
   Input as InputIcon,
   Output as OutputIcon,
   AddTask as AddTaskIcon,
+  OpenInNew as OpenInNewIcon,
 } from '@mui/icons-material';
 import { CozeWorkflow, WorkflowStreamEvent, WorkflowStreamState, WorkflowEventLog, CreateTaskRequest } from '@/types/coze';
 import WorkflowParameterEditor from './WorkflowParameterEditor';
 import WorkflowEventLogPanel from './WorkflowEventLogPanel';
 import WorkflowQuickCreateTaskPanel from './WorkflowQuickCreateTaskPanel';
+import WorkflowExecutionPanel from './WorkflowExecutionPanel';
 import { json } from '@codemirror/lang-json';
 import CodeMirror from '@uiw/react-codemirror';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
@@ -51,6 +54,7 @@ interface WorkflowExecutionDialogProps {
   eventLogs: WorkflowEventLog[];
   onCreateTask?: (taskData: CreateTaskRequest) => Promise<any>;
   onCreateAndExecuteTask?: (taskData: CreateTaskRequest) => Promise<any>;
+  onOpenInNewTab?: (workflow: CozeWorkflow) => void; // 打开为新标签页的回调
 }
 
 // 创建一个独立的事件日志上下文，避免通过 props 传递
@@ -93,6 +97,7 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   eventLogs,
   onCreateTask,
   onCreateAndExecuteTask,
+  onOpenInNewTab,
 }) => {
   const [parameters, setParameters] = useState<Record<string, any>>({});
 
@@ -399,6 +404,16 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
           {streamState.isStreaming && (
             <CircularProgress size={16} />
           )}
+          {onOpenInNewTab && (
+            <IconButton
+              onClick={() => onOpenInNewTab(currentWorkflow)}
+              size="small"
+              sx={{ ml: 1 }}
+              title="在新标签页中打开"
+            >
+              <OpenInNewIcon fontSize="small" />
+            </IconButton>
+          )}
         </Box>
       </DialogTitle>
 
@@ -516,11 +531,12 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
         </Grid>
       </DialogContent>
 
-      <DialogActions sx={{ p: 3, pt: 3, borderTop: 1, borderColor: 'divider', gap: 2 }}>
+      <DialogActions sx={{ p: 3, pt: 2, borderTop: 1, borderColor: 'divider', gap: 2 }}>
         <Button
           onClick={handleCancel}
           disabled={!streamState.isStreaming}
           startIcon={<StopIcon />}
+          variant="outlined"
           sx={{ minWidth: 120 }}
         >
           {streamState.isStreaming ? '取消执行' : '关闭'}
