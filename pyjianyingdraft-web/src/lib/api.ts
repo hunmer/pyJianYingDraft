@@ -1250,6 +1250,60 @@ export const cozeApi = {
     const response = await fetch(url);
     return handleResponse<TaskStatistics>(response);
   },
+
+  // ==================== 事件日志管理 ====================
+
+  /**
+   * 获取事件日志列表（分页）
+   */
+  async getEventLogs(options?: {
+    limit?: number;
+    offset?: number;
+    workflowId?: string;
+    level?: string;
+  }): Promise<{
+    success: boolean;
+    logs: any[];
+    total: number;
+    limit: number;
+    offset: number;
+    has_more: boolean;
+  }> {
+    const params: Record<string, string | number> = {};
+    if (options?.limit) params.limit = options.limit;
+    if (options?.offset) params.offset = options.offset;
+    if (options?.workflowId) params.workflow_id = options.workflowId;
+    if (options?.level) params.level = options.level;
+
+    const url = buildUrl('/api/coze/event-logs', params);
+    const response = await fetch(url);
+    return handleResponse<{
+      success: boolean;
+      logs: any[];
+      total: number;
+      limit: number;
+      offset: number;
+      has_more: boolean;
+    }>(response);
+  },
+
+  /**
+   * 清空事件日志
+   */
+  async clearEventLogs(): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/coze/event-logs`, {
+      method: 'DELETE',
+    });
+    return handleResponse<{ success: boolean; message: string }>(response);
+  },
+
+  /**
+   * 获取事件日志总数
+   */
+  async getEventLogsCount(): Promise<{ success: boolean; count: number }> {
+    const response = await fetch(`${API_BASE_URL}/api/coze/event-logs/count`);
+    return handleResponse<{ success: boolean; count: number }>(response);
+  },
 };
 
 /**

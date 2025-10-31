@@ -1,0 +1,17 @@
+{
+  "task": "修复侧边栏折叠时占据空间问题",
+  "changes": [
+    {
+      "file": "pyjianyingdraft-web/src/components/SideBar.tsx",
+      "type": "修改",
+      "lines": "56-73",
+      "description": "修改Drawer样式，当open=false时通过transform移出视野，同时外层容器width设为0，确保不占据空间",
+      "details": {
+        "before": "使用position: absolute和overflow: hidden",
+        "after": "使用transform: translateX(-280px)移出视野，配合width: 0实现真正折叠"
+      }
+    }
+  ],
+  "technical_approach": "使用transform而非display/visibility，确保Drawer容器宽度为0时不占据布局空间",
+  "rollback": "恢复原有的position: absolute和overflow: hidden样式"
+}

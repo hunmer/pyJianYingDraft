@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import {
   Dialog,
   DialogTitle,
@@ -22,6 +22,7 @@ import {
   Collapse,
   IconButton,
   Tooltip,
+  CircularProgress,
 } from '@mui/material';
 import {
   ExpandMore as ExpandMoreIcon,
@@ -33,21 +34,79 @@ import {
   Code as CodeIcon,
 } from '@mui/icons-material';
 import { WorkflowEventLog } from '@/types/coze';
+import api from '@/lib/api';
 
 interface WorkflowEventLogsDialogProps {
   open: boolean;
   onClose: () => void;
-  eventLogs: WorkflowEventLog[];
 }
 
 const WorkflowEventLogsDialog: React.FC<WorkflowEventLogsDialogProps> = ({
   open,
   onClose,
-  eventLogs,
 }) => {
+  const [eventLogs, setEventLogs] = useState<WorkflowEventLog[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [total, setTotal] = useState(0);
+  const [offset, setOffset] = useState(0);
   const [filterLevel, setFilterLevel] = useState<string>('all');
   const [filterWorkflow, setFilterWorkflow] = useState<string>('all');
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  
+  const LIMIT = 200; // 每次加载200条
+
+  // 加载事件日志
+  const loadEventLogs = useCallback(async (reset: boolean = false) => {
+    if (reset) {
+      setLoading(true);
+      setOffset(0);
+      setEventLogs([]);
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const currentOffset = reset ? 0 : offset;
+      const result = await api.coze.getEventLogs({
+        limit: LIMIT,
+        offset: currentOffset,
+        workflowId: filterWorkflow !== 'all' ? filterWorkflow : undefined,
+        level: filterLevel !== 'all' ? filterLevel : undefined,
+      });
+
+      if (reset) {
+        setEventLogs(result.logs);
+      } else {
+        setEventLogs(prev => [...prev, ...result.logs]);
+      }
+
+      setHasMore(result.has_more);
+      setTotal(result.total);
+      setOffset(currentOffset + result.logs.length);
+    } catch (error) {
+      console.error('加载事件日志失败:', error);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, [offset, filterLevel, filterWorkflow]);
+
+  // 监听打开状态，加载数据
+  useEffect(() => {
+    if (open) {
+      loadEventLogs(true);
+    }
+  }, [open]);
+
+  // 监听筛选条件变化
+  useEffect(() => {
+    if (open) {
+      loadEventLogs(true);
+    }
+  }, [filterLevel, filterWorkflow]);
 
   // 获取所有工作流ID
   const workflows = useMemo(() => {
@@ -60,18 +119,17 @@ const WorkflowEventLogsDialog: React.FC<WorkflowEventLogsDialogProps> = ({
     return Array.from(workflowMap.entries());
   }, [eventLogs]);
 
-  // 过滤事件日志
-  const filteredLogs = useMemo(() => {
-    return eventLogs.filter(log => {
-      if (filterLevel !== 'all' && log.level !== filterLevel) {
-        return false;
-      }
-      if (filterWorkflow !== 'all' && log.workflowId !== filterWorkflow) {
-        return false;
-      }
-      return true;
-    });
-  }, [eventLogs, filterLevel, filterWorkflow]);
+  // 滚动事件处理
+  const handleScroll = useCallback(() => {
+    const container = tableContainerRef.current;
+    if (!container || loadingMore || !hasMore) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    // 当滚动到底部100px以内时加载更多
+    if (scrollHeight - scrollTop - clientHeight < 100) {
+      loadEventLogs(false);
+    }
+  }, [loadingMore, hasMore, loadEventLogs]);
 
   // 切换展开状态
   const toggleExpand = (logId: string) => {
@@ -150,7 +208,7 @@ const WorkflowEventLogsDialog: React.FC<WorkflowEventLogsDialogProps> = ({
       <DialogTitle>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Typography variant="h6">事件日志</Typography>
-          <Chip label={`共 ${filteredLogs.length} 条`} size="small" />
+          <Chip label={`已加载 ${eventLogs.length} / 共 ${total} 条`} size="small" />
         </Box>
       </DialogTitle>
 
@@ -190,7 +248,18 @@ const WorkflowEventLogsDialog: React.FC<WorkflowEventLogsDialogProps> = ({
         </Box>
 
         {/* 事件日志表格 */}
-        {filteredLogs.length === 0 ? (
+        {loading ? (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: 200,
+            }}
+          >
+            <CircularProgress />
+          </Box>
+        ) : eventLogs.length === 0 ? (
           <Box
             sx={{
               display: 'flex',
@@ -204,7 +273,13 @@ const WorkflowEventLogsDialog: React.FC<WorkflowEventLogsDialogProps> = ({
             </Typography>
           </Box>
         ) : (
-          <TableContainer component={Paper} variant="outlined">
+          <TableContainer 
+            component={Paper} 
+            variant="outlined"
+            ref={tableContainerRef}
+            onScroll={handleScroll}
+            sx={{ maxHeight: 'calc(80vh - 250px)', overflow: 'auto' }}
+          >
             <Table size="small" stickyHeader>
               <TableHead>
                 <TableRow>
@@ -217,7 +292,7 @@ const WorkflowEventLogsDialog: React.FC<WorkflowEventLogsDialogProps> = ({
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredLogs.map((log) => (
+                {eventLogs.map((log) => (
                   <React.Fragment key={log.id}>
                     <TableRow hover>
                       <TableCell>
@@ -348,6 +423,18 @@ const WorkflowEventLogsDialog: React.FC<WorkflowEventLogsDialogProps> = ({
                 ))}
               </TableBody>
             </Table>
+            {loadingMore && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                <CircularProgress size={24} />
+              </Box>
+            )}
+            {!hasMore && eventLogs.length > 0 && (
+              <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                <Typography variant="caption" color="text.secondary">
+                  已加载全部日志
+                </Typography>
+              </Box>
+            )}
           </TableContainer>
         )}
       </DialogContent>
