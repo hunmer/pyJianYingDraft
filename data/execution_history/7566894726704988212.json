@@ -1,7 +1,61 @@
 {
   "workflow_id": "7566894726704988212",
-  "total": 2,
+  "total": 4,
   "histories": [
+    {
+      "execute_id": "9612ff9e-d512-4238-954e-255345e4f80c",
+      "workflow_id": "7566894726704988212",
+      "create_time": 1761916694347,
+      "update_time": 1761916696944,
+      "execute_status": "success",
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "message": {
+          "content": "{\"en\":\"Hello! How can I assist you today? Is there something you'd like to talk about or a question you need answered? Let me know and I'll do my best to engage in a great conversation with you. \",\"zh\":\"Hello! How can I assist you today? Is there something you'd like to talk about, a question you need answered, or perhaps some information you're looking for? \"}"
+        }
+      },
+      "input_parameters": {
+        "input": "hello"
+      },
+      "bot_id": null,
+      "conversation_id": null,
+      "debug_url": null,
+      "run_mode": 1,
+      "connector_id": null,
+      "connector_uid": null,
+      "is_output_trimmed": false,
+      "usage": null,
+      "node_execute_status": null,
+      "metadata": {}
+    },
+    {
+      "execute_id": "d0e3becb-db6b-4909-b0f3-abea7df12d65",
+      "workflow_id": "7566894726704988212",
+      "create_time": 1761916676109,
+      "update_time": 1761916677965,
+      "execute_status": "success",
+      "error_code": null,
+      "error_message": null,
+      "output": {
+        "message": {
+          "content": "{\"en\":\"Hello! How can I assist you today? Is there anything specific you'd like to talk about? \",\"zh\":\"你好！有什么我可以帮助你的吗？无论是聊天、解答问题还是提供信息，都可以随时和我交流哦。 \"}"
+        }
+      },
+      "input_parameters": {
+        "input": "你好"
+      },
+      "bot_id": null,
+      "conversation_id": null,
+      "debug_url": null,
+      "run_mode": 1,
+      "connector_id": null,
+      "connector_uid": null,
+      "is_output_trimmed": false,
+      "usage": null,
+      "node_execute_status": null,
+      "metadata": {}
+    },
     {
       "execute_id": "bd96bacf-b86b-4bb3-884f-b005e65e8de5",
       "workflow_id": "7566894726704988212",
@@ -57,5 +111,5 @@
       "metadata": {}
     }
   ],
-  "updated_at": 1761915061195
+  "updated_at": 1761916696944
 }

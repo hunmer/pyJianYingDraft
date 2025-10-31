@@ -22,6 +22,7 @@ import {
   Error as FailedIcon,
   Cancel as CancelledIcon,
   AccessTime as PendingIcon,
+  OpenInNew as OpenWorkflowIcon,
 } from '@mui/icons-material';
 import { Task, TaskStatus, ExecutionStatus } from '@/types/coze';
 
@@ -30,6 +31,7 @@ interface TaskCardProps {
   onExecute?: (task: Task) => void;
   onView?: (task: Task) => void;
   onDelete?: (task: Task) => void;
+  onOpenWorkflow?: (task: Task) => void;
 }
 
 const TaskCard: React.FC<TaskCardProps> = ({
@@ -37,6 +39,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
   onExecute,
   onView,
   onDelete,
+  onOpenWorkflow,
 }) => {
   // 获取状态图标和颜色
   const getStatusIcon = (status: TaskStatus) => {
@@ -216,15 +219,26 @@ const TaskCard: React.FC<TaskCardProps> = ({
       <Divider />
 
       <CardActions sx={{ justifyContent: 'space-between', px: 2, py: 1 }}>
-        <Button
-          variant="contained"
-          startIcon={hasExecuted ? <ViewIcon /> : <ExecuteIcon />}
-          onClick={() => hasExecuted ? onView?.(task) : onExecute?.(task)}
-          size="small"
-          disabled={task.status === TaskStatus.EXECUTING}
-        >
-          {hasExecuted ? '查看' : '执行'}
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            variant="contained"
+            startIcon={hasExecuted ? <ViewIcon /> : <ExecuteIcon />}
+            onClick={() => hasExecuted ? onView?.(task) : onExecute?.(task)}
+            size="small"
+            disabled={task.status === TaskStatus.EXECUTING}
+          >
+            {hasExecuted ? '查看' : '执行'}
+          </Button>
+          <Tooltip title="打开工作流对话框">
+            <IconButton
+              size="small"
+              onClick={() => onOpenWorkflow?.(task)}
+              sx={{ border: 1, borderColor: 'divider' }}
+            >
+              <OpenWorkflowIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
 
         {/* 优先级 */}
         {task.priority && (

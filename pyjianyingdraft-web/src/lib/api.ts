@@ -51,7 +51,16 @@ async function handleResponse<T>(response: Response): Promise<T> {
     const errorData = await response.json().catch(() => ({
       detail: `HTTP ${response.status}: ${response.statusText}`,
     }));
-    throw new Error(errorData.detail || `请求失败: ${response.status}`);
+    // 处理 detail 可能是对象的情况
+    let errorMessage: string;
+    if (typeof errorData.detail === 'string') {
+      errorMessage = errorData.detail;
+    } else if (errorData.detail && typeof errorData.detail === 'object') {
+      errorMessage = JSON.stringify(errorData.detail);
+    } else {
+      errorMessage = errorData.message || `请求失败: ${response.status}`;
+    }
+    throw new Error(errorMessage);
   }
   return response.json();
 }
@@ -985,7 +994,7 @@ export const cozeApi = {
       await this.executeWorkflowStream(
         {
           workflow_id: request.workflowId,
-          parameters: request.inputParameters,
+          parameters: request.inputParameters || {},
         },
         (event) => {
           lastEvent = event;
@@ -1260,6 +1269,7 @@ export const cozeApi = {
     limit?: number;
     offset?: number;
     workflowId?: string;
+    executeId?: string;
     level?: string;
   }): Promise<{
     success: boolean;
@@ -1273,6 +1283,7 @@ export const cozeApi = {
     if (options?.limit) params.limit = options.limit;
     if (options?.offset) params.offset = options.offset;
     if (options?.workflowId) params.workflow_id = options.workflowId;
+    if (options?.executeId) params.execute_id = options.executeId;
     if (options?.level) params.level = options.level;
 
     const url = buildUrl('/api/coze/event-logs', params);
