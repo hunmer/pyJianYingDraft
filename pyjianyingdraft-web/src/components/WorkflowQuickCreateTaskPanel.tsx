@@ -100,9 +100,9 @@ const WorkflowQuickCreateTaskPanel: React.FC<WorkflowQuickCreateTaskPanelProps> 
     return {
       name: taskName,
       description: description,
-      workflow_id: workflow.id,
-      workflow_name: workflow.name,
-      input_parameters: parameters,
+      workflowId: workflow.id,
+      workflowName: workflow.name,
+      inputParameters: parameters,
       tags: tags,
       priority: priority,
       metadata: {

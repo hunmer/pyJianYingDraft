@@ -1,6 +1,12 @@
 {
   "PYJY_DRAFT_ROOT": "G:/jianyin5.9_drafts/JianyingPro Drafts/",
   "ARIA2_PATH": "D:/programming/pyJianYingDraft/pyJianYingDraftServer/aria2",
+  "COZE_API": {
+    "api_token": "sat_O1oI3aPe9CbWd1tyue9VPXVD1I2oUTLT9qrmJUmIneBp1PzayVYJ7OkTb3e50KWv",
+    "base_url": "https://api.coze.cn",
+    "timeout": 600,
+    "max_retries": 3
+  },
   "PYJY_RULE_GROUPS": [
     {
       "id": "group_1761116967876",

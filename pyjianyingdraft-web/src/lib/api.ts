@@ -14,6 +14,16 @@ import type {
   MaterialType,
 } from '@/types/draft';
 import type { RuleGroupTestRequest, RuleGroupTestResponse, RuleGroup } from '@/types/rule';
+import type {
+  Task,
+  CreateTaskRequest,
+  UpdateTaskRequest,
+  ExecuteTaskRequest,
+  ExecuteTaskResponse,
+  TaskListResponse,
+  TaskStatistics,
+  TaskFilter,
+} from '@/types/coze';
 
 /**
  * API基础配置
@@ -775,6 +785,180 @@ export const generationRecordsApi = {
 };
 
 /**
+ * Coze API - 任务管理
+ */
+export const cozeApi = {
+  // ==================== 工作空间管理 ====================
+
+  /**
+   * 获取工作空间列表
+   */
+  async getWorkspaces(accountId: string = 'default'): Promise<any> {
+    const url = buildUrl('/api/coze/workspaces', { account_id: accountId });
+    const response = await fetch(url);
+    return handleResponse<any>(response);
+  },
+
+  // ==================== 工作流管理 ====================
+
+  /**
+   * 获取工作流详情
+   */
+  async getWorkflow(workflowId: string, accountId: string = 'default'): Promise<any> {
+    const url = buildUrl(`/api/coze/workflows/${workflowId}`, { account_id: accountId });
+    const response = await fetch(url);
+    return handleResponse<any>(response);
+  },
+
+  /**
+   * 获取工作流执行历史
+   */
+  async getWorkflowHistory(
+    workflowId: string,
+    accountId: string = 'default',
+    pageSize: number = 20,
+    pageIndex: number = 1
+  ): Promise<any> {
+    const url = buildUrl(`/api/coze/workflows/${workflowId}/history`, {
+      account_id: accountId,
+      page_size: pageSize,
+      page_index: pageIndex,
+    });
+    const response = await fetch(url);
+    return handleResponse<any>(response);
+  },
+
+  // ==================== 任务管理 ====================
+
+  /**
+   * 获取任务列表
+   */
+  async getTasks(filter?: TaskFilter): Promise<TaskListResponse> {
+    const params = new URLSearchParams();
+    if (filter?.workflowId) params.append('workflow_id', filter.workflowId);
+    if (filter?.status) params.append('status', filter.status);
+    if (filter?.executionStatus) params.append('execution_status', filter.executionStatus);
+    if (filter?.limit) params.append('limit', String(filter.limit));
+    if (filter?.offset) params.append('offset', String(filter.offset));
+
+    const url = `${API_BASE_URL}/api/coze/tasks?${params.toString()}`;
+    const response = await fetch(url);
+    return handleResponse<TaskListResponse>(response);
+  },
+
+  /**
+   * 获取单个任务
+   */
+  async getTask(taskId: string): Promise<Task> {
+    const url = `${API_BASE_URL}/api/coze/tasks/${taskId}`;
+    const response = await fetch(url);
+    return handleResponse<Task>(response);
+  },
+
+  /**
+   * 创建任务
+   */
+  async createTask(request: CreateTaskRequest): Promise<Task> {
+    // 转换字段名：camelCase -> snake_case
+    const payload = {
+      name: request.name,
+      description: request.description,
+      workflow_id: request.workflowId,
+      workflow_name: request.workflowName,
+      input_parameters: request.inputParameters,
+      tags: request.tags,
+      priority: request.priority,
+      metadata: request.metadata,
+    };
+
+    const response = await fetch(`${API_BASE_URL}/api/coze/tasks`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<Task>(response);
+  },
+
+  /**
+   * 更新任务
+   */
+  async updateTask(taskId: string, request: UpdateTaskRequest): Promise<Task> {
+    // 转换字段名：camelCase -> snake_case
+    const payload: any = {};
+    if (request.name !== undefined) payload.name = request.name;
+    if (request.description !== undefined) payload.description = request.description;
+    if (request.inputParameters !== undefined) payload.input_parameters = request.inputParameters;
+    if (request.outputData !== undefined) payload.output_data = request.outputData;
+    if (request.status !== undefined) payload.status = request.status;
+    if (request.executionStatus !== undefined) payload.execution_status = request.executionStatus;
+    if (request.errorMessage !== undefined) payload.error_message = request.errorMessage;
+    if (request.executedAt !== undefined) payload.executed_at = request.executedAt;
+    if (request.completedAt !== undefined) payload.completed_at = request.completedAt;
+    if (request.cozeExecutionId !== undefined) payload.coze_execution_id = request.cozeExecutionId;
+    if (request.cozeConversationId !== undefined) payload.coze_conversation_id = request.cozeConversationId;
+    if (request.tags !== undefined) payload.tags = request.tags;
+    if (request.priority !== undefined) payload.priority = request.priority;
+    if (request.metadata !== undefined) payload.metadata = request.metadata;
+
+    const response = await fetch(`${API_BASE_URL}/api/coze/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<Task>(response);
+  },
+
+  /**
+   * 删除任务
+   */
+  async deleteTask(taskId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/coze/tasks/${taskId}`, {
+      method: 'DELETE',
+    });
+    return handleResponse<{ success: boolean; message: string }>(response);
+  },
+
+  /**
+   * 执行任务
+   */
+  async executeTask(request: ExecuteTaskRequest): Promise<ExecuteTaskResponse> {
+    // 转换字段名：camelCase -> snake_case
+    const payload = {
+      task_id: request.taskId,
+      workflow_id: request.workflowId,
+      input_parameters: request.inputParameters,
+      save_as_task: request.saveAsTask,
+      task_name: request.taskName,
+      task_description: request.taskDescription,
+    };
+
+    const response = await fetch(`${API_BASE_URL}/api/coze/tasks/execute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    return handleResponse<ExecuteTaskResponse>(response);
+  },
+
+  /**
+   * 获取任务统计信息
+   */
+  async getTaskStatistics(workflowId?: string): Promise<TaskStatistics> {
+    const url = workflowId
+      ? buildUrl('/api/coze/tasks/statistics', { workflow_id: workflowId })
+      : `${API_BASE_URL}/api/coze/tasks/statistics`;
+    const response = await fetch(url);
+    return handleResponse<TaskStatistics>(response);
+  },
+};
+
+/**
  * 所有API集合
  */
 const api = {
@@ -786,6 +970,7 @@ const api = {
   tracks: tracksApi,
   fileWatch: fileWatchApi,
   generationRecords: generationRecordsApi,
+  coze: cozeApi,
 };
 
 export default api;
