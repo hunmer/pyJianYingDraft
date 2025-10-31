@@ -288,37 +288,85 @@ class CozeWorkflowClient:
         Returns:
             执行结果
         """
+        from app.services.execution_history_service import get_execution_history_service
+
         output_data = {}
         error_message = None
         execution_id = None
         status = "success"
+        error_code = None
+
+        # 获取执行历史服务
+        history_service = get_execution_history_service()
 
         try:
+            # 1. 创建执行记录（工作流开始）
+            execution_record = await history_service.create_execution_record(
+                workflow_id=workflow_id,
+                parameters=parameters,
+                bot_id=bot_id,
+                conversation_id=conversation_id
+            )
+            execution_id = execution_record["execute_id"]
+
+            # 2. 执行工作流
             async for event in self.execute_workflow_stream(
                 workflow_id=workflow_id,
                 parameters=parameters,
                 bot_id=bot_id,
                 conversation_id=conversation_id
             ):
-                # 记录执行 ID
-                if hasattr(event, "execute_id"):
-                    execution_id = event.execute_id
+                # 记录执行 ID（从 Coze API 返回的）
+                if hasattr(event, "execute_id") and event.execute_id:
+                    # 如果 API 返回了执行 ID，更新记录
+                    if event.execute_id != execution_id:
+                        await history_service.update_execution_record(
+                            workflow_id=workflow_id,
+                            execute_id=execution_id,
+                            metadata={"coze_execute_id": event.execute_id}
+                        )
 
                 # 处理消息事件
                 if event.event == WorkflowEventType.MESSAGE:
                     if hasattr(event, "message") and event.message:
-                        output_data["message"] = event.message
+                        # 安全地序列化消息对象
+                        try:
+                            if hasattr(event.message, '__dict__'):
+                                # 如果是对象，提取可序列化的属性
+                                message_data = {}
+                                for attr in ['content', 'role', 'type']:
+                                    if hasattr(event.message, attr):
+                                        message_data[attr] = getattr(event.message, attr)
+                                output_data["message"] = message_data
+                            else:
+                                # 如果是基础类型，直接使用
+                                output_data["message"] = event.message
+                        except Exception as msg_error:
+                            # 序列化失败时使用字符串形式
+                            output_data["message"] = str(event.message)
+                            print(f"⚠️ 消息序列化失败，使用字符串形式: {msg_error}")
 
                 # 处理错误事件
                 elif event.event == WorkflowEventType.ERROR:
                     status = "failed"
                     if hasattr(event, "error") and event.error:
                         error_message = str(event.error)
+                        error_code = getattr(event, "error_code", None)
 
                 # 处理中断事件（暂不支持）
                 elif event.event == WorkflowEventType.INTERRUPT:
                     status = "interrupted"
                     error_message = "工作流执行被中断"
+
+            # 3. 更新执行记录（工作流完成）
+            await history_service.update_execution_record(
+                workflow_id=workflow_id,
+                execute_id=execution_id,
+                execute_status=status,
+                output=output_data,
+                error_code=error_code,
+                error_message=error_message
+            )
 
             return {
                 "execution_id": execution_id,
@@ -329,6 +377,15 @@ class CozeWorkflowClient:
             }
 
         except Exception as e:
+            # 更新执行记录为失败状态
+            if execution_id:
+                await history_service.update_execution_record(
+                    workflow_id=workflow_id,
+                    execute_id=execution_id,
+                    execute_status="failed",
+                    error_message=str(e)
+                )
+
             return {
                 "execution_id": execution_id,
                 "status": "failed",

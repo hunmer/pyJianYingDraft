@@ -313,12 +313,44 @@ export const useCoZone = (initialAccountId?: string): UseCoZoneResult => {
         1
       );
 
-      const history: WorkflowExecution[] = response.history || [];
-      setState(prev => ({ ...prev, executionHistory: history }));
+      // 处理API返回的数据结构，将后端字段映射到前端期望的格式
+      const histories: any[] = response.histories || [];
+      const transformedHistory: WorkflowExecution[] = histories.map(item => {
+        // 从当前工作流列表中查找对应的工作流名称
+        const workflow = state.workflows.find(w => w.id === item.workflow_id);
+
+        // API返回的时间戳是微秒级，需要转换为毫秒级
+        const createTime = Math.floor(item.create_time / 1000);
+        const updateTime = Math.floor(item.update_time / 1000);
+
+        return {
+          id: item.execute_id,
+          workflow_id: item.workflow_id,
+          workflow_name: workflow?.name || item.workflow_id,
+          status: item.execute_status === 'success' ? 'success' as const :
+                  item.execute_status === 'failed' ? 'failed' as const :
+                  item.execute_status === 'running' ? 'running' as const :
+                  'cancelled' as const,
+          input_data: item.input_parameters,
+          output_data: item.output,
+          error_message: item.error_message,
+          created_time: new Date(createTime).toISOString(),
+          completed_time: updateTime ? new Date(updateTime).toISOString() : undefined,
+          duration: updateTime && createTime ? updateTime - createTime : undefined,
+        };
+      });
+
+      setState(prev => ({ ...prev, executionHistory: transformedHistory }));
+      console.log('加载执行历史成功:', {
+        total: response.total,
+        historiesCount: histories.length,
+        transformedCount: transformedHistory.length,
+        firstItem: transformedHistory[0] || null
+      });
     } catch (error) {
       console.error('加载执行历史失败:', error);
     }
-  }, [state.currentWorkspace, state.currentAccount]);
+  }, [state.currentWorkspace, state.currentAccount, state.workflows]);
 
   const executeWorkflow = useCallback(async (
     workflowId: string,

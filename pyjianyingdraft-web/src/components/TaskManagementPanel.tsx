@@ -236,33 +236,6 @@ const TaskManagementPanel: React.FC<TaskManagementPanelProps> = ({
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', p: 2 }}>
-      {/* 标题和操作栏 */}
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Typography variant="h5" component="h1" sx={{ fontWeight: 600 }}>
-          任务管理
-          {workflowId && (
-            <Chip
-              label={selectedWorkflow?.name || '工作流任务'}
-              size="small"
-              sx={{ ml: 2 }}
-            />
-          )}
-        </Typography>
-
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Tooltip title="刷新">
-            <IconButton onClick={handleRefresh} disabled={taskLoading}>
-              <RefreshIcon />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="清除筛选">
-            <IconButton onClick={clearFilters} disabled={!statusFilter && !executionStatusFilter}>
-              <ClearAllIcon />
-            </IconButton>
-          </Tooltip>
-        </Box>
-      </Box>
-
       {/* 筛选栏 */}
       <Card sx={{ mb: 3 }}>
         <CardContent sx={{ py: 2 }}>
@@ -335,6 +308,19 @@ const TaskManagementPanel: React.FC<TaskManagementPanelProps> = ({
               名称 {sortBy === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
             </Button>
           </Box>
+
+          <Box sx={{ display: 'flex', gap: 1 }}>
+          <Tooltip title="刷新">
+            <IconButton onClick={handleRefresh} disabled={taskLoading}>
+              <RefreshIcon />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="清除筛选">
+            <IconButton onClick={clearFilters} disabled={!statusFilter && !executionStatusFilter}>
+              <ClearAllIcon />
+            </IconButton>
+          </Tooltip>
+        </Box>
         </CardContent>
       </Card>
 
