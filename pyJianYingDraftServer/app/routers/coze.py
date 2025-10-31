@@ -249,22 +249,19 @@ async def get_workflow_history(
     page_index: int = Query(default=1, ge=1, description="页码")
 ):
     """
-    获取工作流执行历史列表
+    获取工作流执行历史列表（从本地存储读取）
 
     - **workflow_id**: 工作流ID
-    - **account_id**: 账号ID
+    - **account_id**: 账号ID（保留参数以兼容，但不再使用）
     - **page_size**: 每页数量（1-100）
     - **page_index**: 页码（从1开始）
     """
     try:
-        client = get_coze_client(account_id)
-        if not client:
-            raise HTTPException(
-                status_code=400,
-                detail=f"无法获取 Coze 客户端（账号: {account_id}），请检查配置"
-            )
+        from app.services.execution_history_service import get_execution_history_service
 
-        history = await client.get_execution_history(
+        history_service = get_execution_history_service()
+
+        history = await history_service.get_execution_history(
             workflow_id=workflow_id,
             page_size=page_size,
             page_index=page_index
@@ -291,26 +288,29 @@ async def get_execution_detail(
     account_id: str = Query(default="default", description="账号ID")
 ):
     """
-    获取单个执行记录的详细信息
+    获取单个执行记录的详细信息（从本地存储读取）
 
     - **workflow_id**: 工作流ID
     - **execute_id**: 执行ID
-    - **account_id**: 账号ID
+    - **account_id**: 账号ID（保留参数以兼容，但不再使用）
 
     返回包含输入输出数据、调试URL等详细信息
     """
     try:
-        client = get_coze_client(account_id)
-        if not client:
-            raise HTTPException(
-                status_code=400,
-                detail=f"无法获取 Coze 客户端（账号: {account_id}），请检查配置"
-            )
+        from app.services.execution_history_service import get_execution_history_service
 
-        detail = await client.get_execution_detail(
+        history_service = get_execution_history_service()
+
+        detail = await history_service.get_execution_detail(
             workflow_id=workflow_id,
             execute_id=execute_id
         )
+
+        if not detail:
+            raise HTTPException(
+                status_code=404,
+                detail=f"执行记录不存在: {execute_id}"
+            )
 
         return {
             "success": True,
@@ -588,13 +588,32 @@ async def stream_run_workflow(
 
         async def generate_events():
             """生成流式事件"""
+            from app.services.execution_history_service import get_execution_history_service
+
+            history_service = get_execution_history_service()
+            execution_id = None
+            execute_status = "success"
+            output_data = {}
+            error_message = None
+            error_code = None
+
             try:
+                # 1. 创建执行记录（工作流开始）
+                execution_record = await history_service.create_execution_record(
+                    workflow_id=workflow_id,
+                    parameters=parameters,
+                    bot_id=bot_id,
+                    conversation_id=conversation_id
+                )
+                execution_id = execution_record["execute_id"]
+
                 # 发送工作流开始事件
                 start_event = {
                     "event": "workflow_started",
                     "data": {
                         "workflow_id": workflow_id,
-                        "parameters": parameters
+                        "parameters": parameters,
+                        "execution_id": execution_id
                     },
                     "timestamp": asyncio.get_event_loop().time()
                 }
@@ -622,6 +641,40 @@ async def stream_run_workflow(
                             },
                             "timestamp": asyncio.get_event_loop().time()
                         }
+
+                        # 收集输出和错误信息
+                        if hasattr(event, "message") and event.message:
+                            # 安全地序列化消息对象
+                            try:
+                                if hasattr(event.message, '__dict__'):
+                                    # 如果是对象，提取可序列化的属性
+                                    message_data = {}
+                                    for attr in ['content', 'role', 'type']:
+                                        if hasattr(event.message, attr):
+                                            message_data[attr] = getattr(event.message, attr)
+                                    output_data["message"] = message_data
+                                else:
+                                    # 如果是基础类型，直接使用
+                                    output_data["message"] = event.message
+                            except Exception as msg_error:
+                                # 序列化失败时使用字符串形式
+                                output_data["message"] = str(event.message)
+                                print(f"⚠️ 消息序列化失败，使用字符串形式: {msg_error}")
+
+                        if hasattr(event, "error") and event.error:
+                            execute_status = "failed"
+                            error_message = str(event.error)
+                            error_code = getattr(event, "error_code", None)
+
+                        # 记录 Coze API 返回的执行 ID
+                        if hasattr(event, "execute_id") and event.execute_id:
+                            if event.execute_id != execution_id:
+                                await history_service.update_execution_record(
+                                    workflow_id=workflow_id,
+                                    execute_id=execution_id,
+                                    metadata={"coze_execute_id": event.execute_id}
+                                )
+
                     except Exception as serialize_error:
                         # 序列化失败时，发送错误事件但继续执行
                         event_data = {
@@ -641,6 +694,10 @@ async def stream_run_workflow(
                     yield f"data: {json.dumps(event_data)}\n\n"
 
             except Exception as e:
+                # 标记为失败
+                execute_status = "failed"
+                error_message = str(e)
+
                 # 发送错误事件
                 error_event = {
                     "event": "error",
@@ -652,7 +709,18 @@ async def stream_run_workflow(
                 }
                 yield f"data: {json.dumps(error_event)}\n\n"
             finally:
-                # 结���流
+                # 2. 更新执行记录（工作流完成）
+                if execution_id:
+                    await history_service.update_execution_record(
+                        workflow_id=workflow_id,
+                        execute_id=execution_id,
+                        execute_status=execute_status,
+                        output=output_data if output_data else None,
+                        error_code=error_code,
+                        error_message=error_message
+                    )
+
+                # 结束流
                 yield "data: [DONE]\n\n"
 
         return StreamingResponse(
