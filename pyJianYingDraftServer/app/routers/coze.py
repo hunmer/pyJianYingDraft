@@ -241,7 +241,7 @@ async def get_workflow(
         )
 
 
-@router.get("/workflows/{workflow_id}/history", summary="获取工作流执行历史")
+@router.get("/workflows/{workflow_id}/history", summary="获取工作流执行历史列表")
 async def get_workflow_history(
     workflow_id: str,
     account_id: str = Query(default="default", description="账号ID"),
@@ -249,7 +249,7 @@ async def get_workflow_history(
     page_index: int = Query(default=1, ge=1, description="页码")
 ):
     """
-    获取工作流执行历史
+    获取工作流执行历史列表
 
     - **workflow_id**: 工作流ID
     - **account_id**: 账号ID
@@ -280,7 +280,49 @@ async def get_workflow_history(
     except Exception as e:
         raise HTTPException(
             status_code=500,
-            detail=f"获取执行历史失败: {str(e)}"
+            detail=f"获取执行历史列表失败: {str(e)}"
+        )
+
+
+@router.get("/workflows/{workflow_id}/history/{execute_id}", summary="获取单个执行记录详情")
+async def get_execution_detail(
+    workflow_id: str,
+    execute_id: str,
+    account_id: str = Query(default="default", description="账号ID")
+):
+    """
+    获取单个执行记录的详细信息
+
+    - **workflow_id**: 工作流ID
+    - **execute_id**: 执行ID
+    - **account_id**: 账号ID
+
+    返回包含输入输出数据、调试URL等详细信息
+    """
+    try:
+        client = get_coze_client(account_id)
+        if not client:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无法获取 Coze 客户端（账号: {account_id}），请检查配置"
+            )
+
+        detail = await client.get_execution_detail(
+            workflow_id=workflow_id,
+            execute_id=execute_id
+        )
+
+        return {
+            "success": True,
+            "execution": detail
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取执行记录详情失败: {str(e)}"
         )
 
 
@@ -597,17 +639,6 @@ async def stream_run_workflow(
                         event_data["conversation_id"] = conversation_id
 
                     yield f"data: {json.dumps(event_data)}\n\n"
-
-                # 发送完成事件
-                finish_event = {
-                    "event": "workflow_finished",
-                    "data": {
-                        "workflow_id": workflow_id,
-                        "status": "completed"
-                    },
-                    "timestamp": asyncio.get_event_loop().time()
-                }
-                yield f"data: {json.dumps(finish_event)}\n\n"
 
             except Exception as e:
                 # 发送错误事件
