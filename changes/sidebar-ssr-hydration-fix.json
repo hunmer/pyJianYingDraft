@@ -1,0 +1,21 @@
+{
+  "task": "修复Sidebar的SSR hydration不匹配错误",
+  "changes": [
+    {
+      "file": "pyjianyingdraft-web/src/components/SideBar.tsx",
+      "type": "修改",
+      "lines": "54-77",
+      "description": "添加mounted状态，确保服务端和客户端初始渲染时transform值一致",
+      "details": {
+        "added": [
+          "mounted状态变量",
+          "useEffect设置mounted为true",
+          "条件渲染：mounted时才应用transform和transition"
+        ],
+        "logic": "SSR时mounted=false，transform为translateX(0)；客户端挂载后mounted=true，根据open状态应用transform"
+      }
+    }
+  ],
+  "technical_approach": "使用mounted状态延迟动画效果，避免服务端渲染与客户端水合不一致",
+  "rollback": "移除mounted状态和相关条件判断"
+}

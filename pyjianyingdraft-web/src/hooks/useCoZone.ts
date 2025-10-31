@@ -541,34 +541,37 @@ export const useCoZone = (initialAccountId?: string): UseCoZoneResult => {
   }, []);
 
   // ==================== 事件日志管理 ====================
+  // 注意：事件日志现在由后端管理，不再使用前端状态
 
   const addEventLog = useCallback((event: WorkflowEventLog) => {
-    eventLogsRef.current = [...eventLogsRef.current, event];
-
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-    }
-
-    updateTimeoutRef.current = setTimeout(() => {
-      setState(prev => ({
-        ...prev,
-        eventLogs: [...eventLogsRef.current],
-      }));
-      updateTimeoutRef.current = null;
-    }, 100);
+    // 不再在前端存储，由后端在执行过程中记录
+    console.warn('事件日志现在由后端管理，请使用 getEventLogs 从后端获取');
   }, []);
 
-  const getEventLogs = useCallback(() => {
-    return state.eventLogs.length > 0 ? state.eventLogs : eventLogsRef.current;
-  }, [state.eventLogs]);
-
-  const clearEventLogs = useCallback(() => {
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-      updateTimeoutRef.current = null;
+  const getEventLogs = useCallback(async (options?: {
+    limit?: number;
+    offset?: number;
+    workflowId?: string;
+    level?: string;
+  }) => {
+    try {
+      const result = await api.coze.getEventLogs(options);
+      return result.logs;
+    } catch (error) {
+      console.error('获取事件日志失败:', error);
+      return [];
     }
-    setState(prev => ({ ...prev, eventLogs: [] }));
-    eventLogsRef.current = [];
+  }, []);
+
+  const clearEventLogs = useCallback(async () => {
+    try {
+      await api.coze.clearEventLogs();
+      // 清除本地状态缓存
+      setState(prev => ({ ...prev, eventLogs: [] }));
+    } catch (error) {
+      console.error('清空事件日志失败:', error);
+      throw error;
+    }
   }, []);
 
   // 清理定时器

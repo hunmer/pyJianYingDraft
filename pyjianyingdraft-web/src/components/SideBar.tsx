@@ -52,6 +52,11 @@ export const SideBar: React.FC<SideBarProps> = ({
   fileVersionListRef,
 }) => {
   const [leftTabValue, setLeftTabValue] = React.useState<number>(0);
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   return (
     <Drawer
@@ -60,6 +65,7 @@ export const SideBar: React.FC<SideBarProps> = ({
       sx={{
         width: open ? DRAWER_WIDTH : 0,
         flexShrink: 0,
+        transition: mounted ? 'width 0.2s' : 'none',
         '& .MuiDrawer-paper': {
           width: DRAWER_WIDTH,
           boxSizing: 'border-box',
@@ -67,6 +73,8 @@ export const SideBar: React.FC<SideBarProps> = ({
           borderColor: 'divider',
           display: 'flex',
           flexDirection: 'column',
+          transition: mounted ? 'transform 0.2s' : 'none',
+          transform: mounted && !open ? `translateX(-${DRAWER_WIDTH}px)` : 'translateX(0)',
         },
       }}
     >

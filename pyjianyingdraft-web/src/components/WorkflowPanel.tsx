@@ -148,8 +148,8 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
     return executions.filter(e => e.status === WorkflowExecutionStatus.RUNNING).length;
   };
 
-  // 缓存 eventLogs 的长度，避免不必要的重新渲染
-  const eventLogsCount = useMemo(() => eventLogs.length, [eventLogs.length]);
+  // 事件日志计数现在由后端管理，不再展示在badge上
+  // const eventLogsCount = useMemo(() => eventLogs.length, [eventLogs.length]);
 
   // 缓存运行中的执行计数
   const runningExecutionsCount = useMemo(() => {
@@ -175,22 +175,18 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
           </Badge>
 
           {/* 事件日志按钮 */}
-          <Badge badgeContent={eventLogsCount} color="info">
-            <Tooltip title="事件日志">
-              <IconButton size="small" onClick={handleEventLogsClick}>
-                <EventLogIcon />
-              </IconButton>
-            </Tooltip>
-          </Badge>
+          <Tooltip title="事件日志">
+            <IconButton size="small" onClick={handleEventLogsClick}>
+              <EventLogIcon />
+            </IconButton>
+          </Tooltip>
 
           {/* 清除事件日志按钮 */}
-          {eventLogsCount > 0 && (
-            <Tooltip title="清除事件日志">
-              <IconButton size="small" onClick={handleClearEventLogs}>
-                <ClearIcon />
-              </IconButton>
-            </Tooltip>
-          )}
+          <Tooltip title="清除事件日志">
+            <IconButton size="small" onClick={handleClearEventLogs}>
+              <ClearIcon />
+            </IconButton>
+          </Tooltip>
 
           {/* 历史记录按钮 */}
           <Tooltip title="执行历史">
@@ -379,7 +375,6 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
       <WorkflowEventLogsDialog
         open={eventLogsDialogOpen}
         onClose={handleEventLogsDialogClose}
-        eventLogs={eventLogs}
       />
     </Box>
   );

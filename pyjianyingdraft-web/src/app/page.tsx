@@ -17,6 +17,7 @@ import {
   SmartToy as CozeIcon,
 } from '@mui/icons-material';
 import { draftApi } from '@/lib/api';
+import { getSidebarState, setSidebarState } from '@/lib/storage';
 import type { RuleGroup, TestData, RuleGroupTestRequest } from '@/types/rule';
 import { useTabs } from '@/hooks/useTabs';
 import { useDraftData } from '@/hooks/useDraftData';
@@ -35,7 +36,11 @@ import CozeZone from '@/components/CozeZone';
  */
 export default function Home() {
   // 状态管理
-  const [drawerOpen, setDrawerOpen] = useState<boolean>(true);
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(() => {
+    // 从本地存储加载侧边栏状态
+    const sidebarState = getSidebarState();
+    return sidebarState.isOpen;
+  });
   const fileVersionListRef = useRef<FileVersionListHandle>(null);
 
   // 下载管理器 Dialog 状态
@@ -351,7 +356,11 @@ export default function Home() {
         >
           <IconButton
             edge="start"
-            onClick={() => setDrawerOpen(!drawerOpen)}
+            onClick={() => {
+              const newOpenState = !drawerOpen;
+              setDrawerOpen(newOpenState);
+              setSidebarState(newOpenState); // 保存到本地存储
+            }}
             sx={{ mr: 2 }}
           >
             <MenuIcon />

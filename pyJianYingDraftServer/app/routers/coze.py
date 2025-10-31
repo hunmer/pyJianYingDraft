@@ -22,6 +22,7 @@ from app.models.coze_models import (
 from app.services.coze_service import get_coze_service
 from app.services.coze_workflow_service import get_workflow_service
 from app.services.coze_client import get_coze_client
+from app.services.event_log_service import get_event_log_service
 
 router = APIRouter()
 
@@ -788,4 +789,86 @@ async def cancel_workflow_run(
         raise HTTPException(
             status_code=500,
             detail=f"取消工作流执行时发生错误: {str(e)}"
+        )
+
+
+# ==================== 事件日志管理 ====================
+
+@router.get("/event-logs", summary="获取事件日志列表")
+async def get_event_logs(
+    limit: int = Query(default=200, ge=1, le=1000, description="返回数量限制"),
+    offset: int = Query(default=0, ge=0, description="偏移量"),
+    workflow_id: Optional[str] = Query(default=None, description="按工作流ID筛选"),
+    level: Optional[str] = Query(default=None, description="按日志级别筛选")
+):
+    """
+    获取事件日志列表（分页）
+    
+    - **limit**: 返回数量限制（1-1000）
+    - **offset**: 偏移量
+    - **workflow_id**: 按工作流ID筛选
+    - **level**: 按日志级别筛选（info/warning/error/success）
+    
+    **注意**: 事件日志仅在内存中保存最近1000条，不持久化
+    """
+    try:
+        event_log_service = get_event_log_service()
+        result = event_log_service.get_logs(
+            limit=limit,
+            offset=offset,
+            workflow_id=workflow_id,
+            level=level
+        )
+        
+        return {
+            "success": True,
+            **result
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取事件日志失败: {str(e)}"
+        )
+
+
+@router.delete("/event-logs", summary="清空事件日志")
+async def clear_event_logs():
+    """
+    清空所有事件日志
+    """
+    try:
+        event_log_service = get_event_log_service()
+        event_log_service.clear_logs()
+        
+        return {
+            "success": True,
+            "message": "事件日志已清空"
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"清空事件日志失败: {str(e)}"
+        )
+
+
+@router.get("/event-logs/count", summary="获取事件日志总数")
+async def get_event_logs_count():
+    """
+    获取事件日志总数
+    """
+    try:
+        event_log_service = get_event_log_service()
+        count = event_log_service.get_log_count()
+        
+        return {
+            "success": True,
+            "count": count
+        }
+    
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取事件日志总数失败: {str(e)}"
         )

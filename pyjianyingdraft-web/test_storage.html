@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>localStorage 测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-group {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+        .success {
+            color: #28a745;
+        }
+        .error {
+            color: #dc3545;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>localStorage 功能测试</h1>
+        <p>这个页面测试新创建的 storage.ts 工具的 localStorage 功能。</p>
+
+        <div class="test-group">
+            <h3>测试侧边栏状态管理</h3>
+            <button onclick="testSidebar()">测试侧边栏状态</button>
+            <div id="sidebar-result" class="result"></div>
+        </div>
+
+        <div class="test-group">
+            <h3>测试完整存储管理</h3>
+            <button onclick="testFullStorage()">测试完整存储</button>
+            <button onclick="testClearStorage()">清除存储</button>
+            <div id="storage-result" class="result"></div>
+        </div>
+
+        <div class="test-group">
+            <h3>手动测试</h3>
+            <label>侧边栏状态:</label>
+            <input type="checkbox" id="sidebar-toggle" onchange="manualToggleSidebar()">
+            <button onclick="showCurrentStorage()">显示当前存储</button>
+            <div id="manual-result" class="result"></div>
+        </div>
+    </div>
+
+    <script>
+        // 加载 storage.ts 工具（简化版本）
+        const STORAGE_KEY = 'pyjianyingdraft-storage';
+        const DEFAULT_STORAGE = {
+            sidebar: { isOpen: true },
+            tabs: { activeTabId: null },
+            editor: { theme: 'light', fontSize: 14 }
+        };
+
+        function getStorage() {
+            if (typeof window === 'undefined') {
+                return DEFAULT_STORAGE;
+            }
+
+            try {
+                const stored = localStorage.getItem(STORAGE_KEY);
+                if (!stored) {
+                    return DEFAULT_STORAGE;
+                }
+                const parsed = JSON.parse(stored);
+                return {
+                    ...DEFAULT_STORAGE,
+                    ...parsed,
+                    sidebar: {
+                        ...DEFAULT_STORAGE.sidebar,
+                        ...parsed.sidebar
+                    },
+                    tabs: {
+                        ...DEFAULT_STORAGE.tabs,
+                        ...parsed.tabs
+                    },
+                    editor: {
+                        ...DEFAULT_STORAGE.editor,
+                        ...parsed.editor
+                    }
+                };
+            } catch (error) {
+                console.error('读取存储失败:', error);
+                return DEFAULT_STORAGE;
+            }
+        }
+
+        function setStorage(storage) {
+            if (typeof window === 'undefined') {
+                return;
+            }
+
+            try {
+                const current = getStorage();
+                const updated = {
+                    ...current,
+                    ...storage,
+                    sidebar: {
+                        ...current.sidebar,
+                        ...storage.sidebar
+                    },
+                    tabs: {
+                        ...current.tabs,
+                        ...storage.tabs
+                    },
+                    editor: {
+                        ...current.editor,
+                        ...storage.editor
+                    }
+                };
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+            } catch (error) {
+                console.error('写入存储失败:', error);
+            }
+        }
+
+        function testSidebar() {
+            try {
+                // 测试获取侧边栏状态
+                const sidebarState = getStorage().sidebar;
+                console.log('当前侧边栏状态:', sidebarState);
+
+                // 测试设置侧边栏状态
+                const newState = { isOpen: !sidebarState.isOpen };
+                setStorage({ sidebar: newState });
+
+                // 验证设置是否成功
+                const updatedState = getStorage().sidebar;
+                console.log('更新后侧边栏状态:', updatedState);
+
+                const resultDiv = document.getElementById('sidebar-result');
+                resultDiv.innerHTML = `
+                    <div class="success">✅ 测试成功</div>
+                    <div>原始状态: ${sidebarState.isOpen}</div>
+                    <div>设置状态: ${newState.isOpen}</div>
+                    <div>最终状态: ${updatedState.isOpen}</div>
+                `;
+            } catch (error) {
+                const resultDiv = document.getElementById('sidebar-result');
+                resultDiv.innerHTML = `<div class="error">❌ 测试失败: ${error.message}</div>`;
+            }
+        }
+
+        function testFullStorage() {
+            try {
+                // 测试完整存储管理
+                const testStorage = {
+                    sidebar: { isOpen: false },
+                    tabs: { activeTabId: 'test-tab-123' },
+                    editor: { theme: 'dark', fontSize: 16 }
+                };
+
+                setStorage(testStorage);
+
+                const retrieved = getStorage();
+                console.log('设置的存储:', testStorage);
+                console.log('检索的存储:', retrieved);
+
+                const resultDiv = document.getElementById('storage-result');
+                resultDiv.innerHTML = `
+                    <div class="success">✅ 完整存储测试成功</div>
+                    <div>设置的侧边栏: ${testStorage.sidebar.isOpen}</div>
+                    <div>检索的侧边栏: ${retrieved.sidebar.isOpen}</div>
+                    <div>设置的标签页: ${testStorage.tabs.activeTabId}</div>
+                    <div>检索的标签页: ${retrieved.tabs.activeTabId}</div>
+                    <div>设置的编辑器: ${testStorage.editor.theme}, ${testStorage.editor.fontSize}</div>
+                    <div>检索的编辑器: ${retrieved.editor.theme}, ${retrieved.editor.fontSize}</div>
+                `;
+            } catch (error) {
+                const resultDiv = document.getElementById('storage-result');
+                resultDiv.innerHTML = `<div class="error">❌ 测试失败: ${error.message}</div>`;
+            }
+        }
+
+        function testClearStorage() {
+            try {
+                localStorage.removeItem(STORAGE_KEY);
+                const cleared = getStorage();
+                console.log('清除后的存储:', cleared);
+
+                const resultDiv = document.getElementById('storage-result');
+                resultDiv.innerHTML = `
+                    <div class="success">✅ 存储已清除</div>
+                    <div>恢复到默认值: ${JSON.stringify(cleared, null, 2)}</div>
+                `;
+            } catch (error) {
+                const resultDiv = document.getElementById('storage-result');
+                resultDiv.innerHTML = `<div class="error">❌ 清除失败: ${error.message}</div>`;
+            }
+        }
+
+        function manualToggleSidebar() {
+            const isOpen = document.getElementById('sidebar-toggle').checked;
+            setStorage({ sidebar: { isOpen } });
+            updateManualResult();
+        }
+
+        function showCurrentStorage() {
+            const current = getStorage();
+            updateManualResult();
+        }
+
+        function updateManualResult() {
+            const current = getStorage();
+            const resultDiv = document.getElementById('manual-result');
+            resultDiv.innerHTML = `
+                <div class="success">📊 当前存储状态</div>
+                <div>侧边栏打开: ${current.sidebar.isOpen}</div>
+                <div>活动标签页: ${current.tabs.activeTabId}</div>
+                <div>编辑器主题: ${current.editor.theme}</div>
+                <div>编辑器字体大小: ${current.editor.fontSize}</div>
+                <div>完整存储数据: <pre>${JSON.stringify(current, null, 2)}</pre></div>
+            `;
+
+            // 更新复选框状态
+            document.getElementById('sidebar-toggle').checked = current.sidebar.isOpen;
+        }
+
+        // 页面加载时显示当前状态
+        window.onload = function() {
+            updateManualResult();
+        };
+    </script>
+</body>
+</html>
