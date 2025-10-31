@@ -38,18 +38,16 @@ import WorkflowQuickCreateTaskPanel from './WorkflowQuickCreateTaskPanel';
 import { json } from '@codemirror/lang-json';
 import CodeMirror from '@uiw/react-codemirror';
 import { vscodeDark } from '@uiw/codemirror-theme-vscode';
+import api from '@/lib/api';
 
 interface WorkflowExecutionDialogProps {
   open: boolean;
   workflow: CozeWorkflow | null;
   onClose: () => void;
-  onExecute: (workflowId: string, parameters: Record<string, any>) => Promise<any>;
+  onExecute: (workflowId: string, parameters: Record<string, any>, onStreamEvent?: (event: WorkflowStreamEvent) => void) => Promise<any>;
   onCancel: () => void;
   workspaceId?: string;
-  apiConfig?: {
-    apiBase: string;
-    apiKey: string;
-  };
+  accountId?: string; // 账号ID，用于后端API调用
   eventLogs: WorkflowEventLog[];
   onCreateTask?: (taskData: CreateTaskRequest) => Promise<any>;
   onCreateAndExecuteTask?: (taskData: CreateTaskRequest) => Promise<any>;
@@ -91,7 +89,7 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   onExecute,
   onCancel,
   workspaceId,
-  apiConfig,
+  accountId = 'default',
   eventLogs,
   onCreateTask,
   onCreateAndExecuteTask,
@@ -133,129 +131,40 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
   const initializedRef = useRef<boolean>(false);
 
 
-  // 获取工作流详细信息 - 使用 ref 来稳定函数引用
+  // 获取工作流详细信息 - 使用后端 API
   const fetchWorkflowDetails = useCallback(async (workflowId: string, fallbackWorkflow?: CozeWorkflow) => {
     setLoadingWorkflowInfo(true);
     setWorkflowInfoError(null);
 
     try {
-      const currentApiConfig = apiConfig;
-      if (!currentApiConfig) {
-        throw new Error('缺少 API 配置信息，请确保已正确配置 Coze 账号');
+      // 调用后端 API 获取工作流详情（包含 input_schema 和 output_schema）
+      const response = await api.coze.getWorkflow(workflowId, accountId);
+
+      if (!response.success) {
+        throw new Error('获取工作流详细信息失败');
       }
 
-      // 参考 coze-js-client.ts:66~98 的实现方式，使用 REST API 获取工作流详细信息
-      // 接口：GET /v1/workflows/:workflow_id
-      const { COZE_CN_BASE_URL } = await import('@coze/api');
-      const baseUrl = currentApiConfig.apiBase || COZE_CN_BASE_URL;
-      const token = currentApiConfig.apiKey;
-
-      const url = new URL(`${baseUrl}/v1/workflows/${workflowId}`);
-      url.searchParams.append('include_input_output', 'true');
-
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-
-      // 根据文档，成功时 code 为 0
-      if (result.code !== 0) {
-        throw new Error(result.msg || '获取工作流详细信息失败');
-      }
-
-      // 解析返回的详细信息
-      const { workflow_detail, input, output } = result.data;
-
-      // 将Coze API的参数格式转换为JSON Schema格式
-      const convertToSchema = (cozeInput?: any) => {
-        if (!cozeInput?.parameters) return undefined;
-
-        const schema: any = {
-          type: 'object',
-          properties: {},
-          required: [],
-        };
-
-        for (const [key, param] of Object.entries(cozeInput.parameters)) {
-          const paramInfo = param as any;
-
-          // 转换 Coze API 的类型到标准 JSON Schema 类型
-          let type = paramInfo.type;
-          if (type === 'txt') {
-            type = 'string'; // 将 txt 转换为 string
-          }
-
-          const prop: any = {
-            type: type,
-            title: key,
-            description: paramInfo.description,
-          };
-
-          if (paramInfo.default_value !== undefined) {
-            prop.default = paramInfo.default_value;
-          }
-
-          if (type === 'array' && paramInfo.items) {
-            prop.items = paramInfo.items;
-          }
-
-          if (type === 'object' && paramInfo.properties) {
-            prop.properties = paramInfo.properties;
-          }
-
-          schema.properties[key] = prop;
-
-          if (paramInfo.required) {
-            schema.required.push(key);
-          }
-        }
-
-        return schema;
-      };
-
-      const convertOutputToSchema = (cozeOutput?: any) => {
-        if (!cozeOutput?.parameters) return undefined;
-
-        const schema: any = {
-          type: 'object',
-          properties: {},
-        };
-
-        for (const [key, param] of Object.entries(cozeOutput.parameters)) {
-          const paramInfo = param as any;
-          schema.properties[key] = {
-            type: paramInfo.type,
-            title: key,
-          };
-        }
-
-        return schema;
-      };
+      const workflowData = response.workflow;
 
       // 构建详细的工作流对象
       const detailedWorkflow: CozeWorkflow = {
-        id: workflow_detail.workflow_id,
-        name: workflow_detail.workflow_name,
-        description: workflow_detail.description,
-        created_time: new Date(workflow_detail.created_at * 1000).toISOString(),
-        updated_time: new Date(workflow_detail.updated_at * 1000).toISOString(),
+        id: workflowData.id,
+        name: workflowData.name,
+        description: workflowData.description || '',
+        created_time: workflowData.created_at ? new Date(workflowData.created_at * 1000).toISOString() :
+                      workflowData.created_time ? new Date(workflowData.created_time * 1000).toISOString() :
+                      new Date().toISOString(),
+        updated_time: workflowData.updated_at ? new Date(workflowData.updated_at * 1000).toISOString() :
+                      workflowData.updated_time ? new Date(workflowData.updated_time * 1000).toISOString() :
+                      new Date().toISOString(),
         version: fallbackWorkflow?.version || 1,
-        input_schema: convertToSchema(input),
-        output_schema: convertOutputToSchema(output),
+        input_schema: workflowData.input_schema,
+        output_schema: workflowData.output_schema,
         status: 'active', // API不返回状态信息，使用默认值
-        icon_url: workflow_detail.icon_url,
-        app_id: workflow_detail.app_id,
-        creator_id: workflow_detail.creator.id,
-        creator_name: workflow_detail.creator.name,
+        icon_url: workflowData.icon_url || '',
+        app_id: workflowData.app_id || '',
+        creator_id: workflowData.creator?.user_id || '',
+        creator_name: workflowData.creator?.user_name || '',
       };
 
       setDetailedWorkflow(detailedWorkflow);
@@ -265,11 +174,11 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
         error instanceof Error ? error.message : '获取工作流详细信息失败'
       );
       // 即使获取失败，也使用基本信息
-      setDetailedWorkflow(fallbackWorkflow);
+      setDetailedWorkflow(fallbackWorkflow || null);
     } finally {
       setLoadingWorkflowInfo(false);
     }
-  }, []); // 移除 apiConfig 依赖，在函数内部获取
+  }, [accountId]); // 依赖 accountId
   
   useEffect(() => {
     if (open) {
@@ -290,8 +199,8 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
         initializedRef.current = true;
       }
 
-      // 当对话框打开且有工作流ID和API配置时，获取详细信息
-      if (workflow?.id && apiConfig && workflow.id !== fetchedWorkflowIdRef.current) {
+      // 当对话框打开且有工作流ID时，获取详细信息
+      if (workflow?.id && workflow.id !== fetchedWorkflowIdRef.current) {
         fetchWorkflowDetails(workflow.id, workflow);
         fetchedWorkflowIdRef.current = workflow.id;
       }
@@ -300,14 +209,11 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
       initializedRef.current = false;
       fetchedWorkflowIdRef.current = null;
     }
-  }, [open, workflow?.id]); // 移除 apiConfig 和 fetchWorkflowDetails 依赖，避免不必要的重新执行
+  }, [open, workflow?.id, fetchWorkflowDetails]); // 添加 fetchWorkflowDetails 依赖
 
-  const addStreamEvent = (event: WorkflowStreamEvent) => {
-    setStreamState(prev => ({
-      ...prev,
-      events: [...prev.events, event],
-      currentStep: event.node_id || prev.currentStep,
-    }));
+  const addStreamEvent = (event: WorkflowEventLog) => {
+    // addStreamEvent 现在只用于特殊事件的状态更新
+    // 事件添加已经在上层的 onStreamEvent 中处理
 
     // 处理特殊事件
     if (event.event === 'workflow_finished') {
@@ -342,15 +248,58 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
 
       abortControllerRef.current = new AbortController();
 
-      const result = await onExecute(workflowToExecute.id, parameters);
+      // 使用流式执行
+      const onStreamEvent = (event: WorkflowStreamEvent) => {
+        // 创建 WorkflowEventLog 格式的事件
+        const eventLog: WorkflowEventLog = {
+          id: `event_${Date.now()}_${Math.random()}`,
+          executeId: event.workflow_id,
+          workflowId: event.workflow_id || workflowToExecute.id,
+          workflowName: workflowToExecute.name,
+          event: event.event,
+          data: event.data,
+          timestamp: event.timestamp,
+          level: event.event === 'error' ? 'error' :
+                 event.event === 'workflow_finished' ? 'success' : 'info',
+          message: event.event === 'error' ?
+                   (event.data?.message || '执行出错') :
+                   event.event === 'workflow_finished' ?
+                   '工作流执行完成' :
+                   `工作流事件: ${event.event}`,
+          details: event.data
+        };
 
-      // 执行成功，更新状态为完成并设置输出数据
+        // 添加事件到流状态
+        setStreamState(prev => ({
+          ...prev,
+          events: [...prev.events, eventLog],
+          currentStep: event.node_id || undefined,
+          status: event.event === 'workflow_finished' ? 'completed' :
+                  event.event === 'error' ? 'failed' : 'running',
+          output: event.event === 'workflow_finished' ? event.data : prev.output,
+          error: event.event === 'error' ? event.data?.message : prev.error
+        }));
+
+        // 对于特殊事件，调用 addStreamEvent 处理状态更新
+        if (event.event === 'workflow_finished' || event.event === 'error') {
+          addStreamEvent(eventLog);
+        }
+
+        // 如果是完成事件，更新输出数据
+        if (event.event === 'workflow_finished' && event.data) {
+          setOutputData(event.data);
+        }
+      };
+
+      const result = await onExecute(workflowToExecute.id, parameters, onStreamEvent);
+
+      // 执行完成，更新最终状态
       setStreamState(prev => ({
         ...prev,
         status: 'completed',
         isStreaming: false,
         endTime: new Date().toISOString(),
-        output: result?.data?.output_data || {},
+        output: result?.data?.output_data || prev.output || {},
       }));
 
       // 设置输出数据到状态中
@@ -564,7 +513,7 @@ const WorkflowExecutionDialog: React.FC<WorkflowExecutionDialogProps> = ({
           {/* 右侧：事件日志 */}
           <Grid item xs={12} md={6}>
             <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <EventLogsProvider eventLogs={eventLogs}>
+              <EventLogsProvider eventLogs={streamState.events}>
                 <IsolatedEventLogPanel
                   workflowId={workflow?.id}
                   workflowName={workflow?.name}

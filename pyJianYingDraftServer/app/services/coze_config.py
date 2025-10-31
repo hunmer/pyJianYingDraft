@@ -120,6 +120,32 @@ class CozeConfigManager:
         """
         self._coze_configs[account_id] = config
 
+    def get_all_account_ids(self) -> list[str]:
+        """
+        获取所有配置的账号 ID 列表
+
+        Returns:
+            账号 ID 列表
+        """
+        account_ids = []
+
+        # 加载配置
+        config = self.load_config()
+        coze_section = config.get("COZE_API", {})
+
+        # 检查是否有默认账号配置
+        api_token = os.getenv("COZE_API_TOKEN") or coze_section.get("api_token")
+        if api_token:
+            account_ids.append("default")
+
+        # 检查多账号配置
+        accounts = coze_section.get("accounts", {})
+        for account_id in accounts.keys():
+            if account_id not in account_ids:
+                account_ids.append(account_id)
+
+        return account_ids
+
     def save_coze_config(self, account_id: str = "default"):
         """
         保存 Coze API 配置到文件

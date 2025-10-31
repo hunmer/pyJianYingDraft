@@ -788,6 +788,17 @@ export const generationRecordsApi = {
  * Coze API - 任务管理
  */
 export const cozeApi = {
+  // ==================== 账号管理 ====================
+
+  /**
+   * 获取账号列表
+   */
+  async getAccounts(): Promise<{ success: boolean; accounts: string[]; count: number }> {
+    const url = `${API_BASE_URL}/api/coze/accounts`;
+    const response = await fetch(url);
+    return handleResponse<{ success: boolean; accounts: string[]; count: number }>(response);
+  },
+
   // ==================== 工作空间管理 ====================
 
   /**
@@ -800,6 +811,28 @@ export const cozeApi = {
   },
 
   // ==================== 工作流管理 ====================
+
+  /**
+   * 获取工作流列表
+   */
+  async getWorkflows(
+    workspaceId?: string,
+    accountId: string = 'default',
+    pageNum: number = 1,
+    pageSize: number = 30
+  ): Promise<any> {
+    const params: Record<string, string | number> = {
+      account_id: accountId,
+      page_num: pageNum,
+      page_size: pageSize,
+    };
+    if (workspaceId) {
+      params.workspace_id = workspaceId;
+    }
+    const url = buildUrl('/api/coze/workflows', params);
+    const response = await fetch(url);
+    return handleResponse<any>(response);
+  },
 
   /**
    * 获取工作流详情
@@ -923,27 +956,273 @@ export const cozeApi = {
   },
 
   /**
-   * 执行任务
+   * 执行任务（默认使用流式执行）
    */
   async executeTask(request: ExecuteTaskRequest): Promise<ExecuteTaskResponse> {
-    // 转换字段名：camelCase -> snake_case
-    const payload = {
-      task_id: request.taskId,
-      workflow_id: request.workflowId,
-      input_parameters: request.inputParameters,
-      save_as_task: request.saveAsTask,
-      task_name: request.taskName,
-      task_description: request.taskDescription,
-    };
+    // 默认使用流式执行，除非明确禁用
+    const useStream = request.useStream !== false; // 默认为 true
 
-    const response = await fetch(`${API_BASE_URL}/api/coze/tasks/execute`, {
+    if (useStream && (request.onEvent || request.signal)) {
+      // 流式执行模式
+      let finalResponse: ExecuteTaskResponse | null = null;
+      let lastEvent: WorkflowStreamEvent | null = null;
+
+      await this.executeWorkflowStream(
+        {
+          workflow_id: request.workflowId,
+          parameters: request.inputParameters,
+        },
+        (event) => {
+          lastEvent = event;
+
+          // 调用用户提供的回调
+          if (request.onEvent) {
+            request.onEvent(event);
+          }
+
+          // 检查是否为完成事件
+          if (event.event === 'workflow_finished') {
+            finalResponse = {
+              taskId: request.taskId,
+              executionId: event.data?.conversation_id || `stream_${Date.now()}`,
+              status: event.data?.status === 'completed' ? 'success' : 'failed',
+              message: event.data?.status === 'completed' ? '流式执行完成' : '流式执行失败',
+              data: {
+                output_data: event.data || {}
+              }
+            };
+          }
+        },
+        request.signal
+      );
+
+      // 如果没有收到完成事件，创建默认响应
+      if (!finalResponse) {
+        finalResponse = {
+          taskId: request.taskId,
+          executionId: lastEvent?.data?.conversation_id || `stream_${Date.now()}`,
+          status: 'success',
+          message: '流式执行完成',
+          data: {
+            output_data: lastEvent?.data || {}
+          }
+        };
+      }
+
+      return finalResponse;
+    } else {
+      // 传统同步执行模式（向后兼容）
+      const payload = {
+        task_id: request.taskId,
+        workflow_id: request.workflowId,
+        input_parameters: request.inputParameters,
+        save_as_task: request.saveAsTask,
+        task_name: request.taskName,
+        task_description: request.taskDescription,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/api/coze/tasks/execute`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+      return handleResponse<ExecuteTaskResponse>(response);
+    }
+  },
+
+  /**
+   * 流式执行工作流
+   */
+  async executeWorkflowStream(
+    request: {
+      workflow_id: string;
+      parameters?: Record<string, any>;
+      bot_id?: string;
+      conversation_id?: string;
+      user_id?: string;
+    },
+    onEvent?: (event: WorkflowStreamEvent) => void,
+    signal?: AbortSignal
+  ): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}/api/coze/workflows/stream_run`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+      },
+      body: JSON.stringify(request),
+      signal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) {
+      throw new Error('无法获取响应流');
+    }
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+
+        // 保留最后一行（可能不完整）
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (line.trim() === '') continue;
+
+          if (line.startsWith('data: ')) {
+            const data = line.slice(6);
+            if (data === '[DONE]') {
+              return;
+            }
+
+            try {
+              const eventData = JSON.parse(data);
+              const streamEvent = this.parseStreamEvent(eventData);
+              if (streamEvent) {
+                onEvent?.(streamEvent);
+              }
+            } catch (error) {
+              console.warn('解析事件数据失败:', error, 'Raw data:', data);
+            }
+          }
+        }
+      }
+    } finally {
+      reader.releaseLock();
+    }
+  },
+
+  /**
+   * 解析流式事件
+   */
+  private parseStreamEvent(eventData: any): WorkflowStreamEvent | null {
+    const timestamp = new Date().toISOString();
+
+    if (eventData.event === 'workflow_started') {
+      return {
+        event: 'workflow_started',
+        data: eventData.data || {},
+        workflow_id: eventData.data?.workflow_id,
+        timestamp,
+      };
+    }
+
+    if (eventData.event === 'workflow_finished') {
+      return {
+        event: 'workflow_finished',
+        data: eventData.data || {},
+        workflow_id: eventData.data?.workflow_id,
+        timestamp,
+      };
+    }
+
+    if (eventData.event === 'node_started') {
+      return {
+        event: 'node_started',
+        data: eventData.data || {},
+        node_id: eventData.data?.node_id,
+        workflow_id: eventData.data?.workflow_id,
+        timestamp,
+      };
+    }
+
+    if (eventData.event === 'node_finished') {
+      return {
+        event: 'node_finished',
+        data: eventData.data || {},
+        node_id: eventData.data?.node_id,
+        workflow_id: eventData.data?.workflow_id,
+        timestamp,
+      };
+    }
+
+    if (eventData.event === 'error') {
+      return {
+        event: 'error',
+        data: eventData.data || { message: '执行出错' },
+        timestamp,
+      };
+    }
+
+    // 处理消息类型事件
+    if (eventData.event === 'message' || eventData.event === 'data') {
+      const data = eventData.data || {};
+
+      // 检查是否为 End 节点的消息
+      if (data.type === 'Message' && data.message?.node_title === 'End') {
+        // 解析 End 节点的消息内容
+        let parsedOutput = {};
+        try {
+          if (data.message.content) {
+            const content = JSON.parse(data.message.content);
+            parsedOutput = content;
+          }
+        } catch (parseError) {
+          console.warn('解析 End 节点内容失败:', parseError);
+          parsedOutput = { raw_content: data.message.content };
+        }
+
+        // 创建工作流���成事件，包含解析后的输出
+        return {
+          event: 'workflow_finished',
+          data: {
+            ...parsedOutput,
+            workflow_id: eventData.data?.workflow_id,
+            status: 'completed',
+            node_title: data.message.node_title,
+            usage: data.message.usage
+          },
+          workflow_id: eventData.data?.workflow_id,
+          timestamp,
+        };
+      }
+
+      return {
+        event: eventData.event,
+        data: eventData.data || {},
+        timestamp,
+      };
+    }
+
+    // 未知事件类型，作为通用数据事件处理
+    return {
+      event: 'data',
+      data: eventData,
+      timestamp,
+    };
+  },
+
+  /**
+   * 取消工作流执行
+   */
+  async cancelWorkflowExecution(
+    conversationId: string,
+    accountId: string = "default"
+  ): Promise<{ success: boolean; message: string; conversationId: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/coze/workflows/cancel_run?account_id=${accountId}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({
+        conversation_id: conversationId,
+      }),
     });
-    return handleResponse<ExecuteTaskResponse>(response);
+    return handleResponse<{ success: boolean; message: string; conversationId: string }>(response);
   },
 
   /**

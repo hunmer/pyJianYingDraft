@@ -424,6 +424,9 @@ export interface ExecuteTaskRequest {
   saveAsTask?: boolean;                 // 是否保存为任务（默认true）
   taskName?: string;                    // 任务名称（保存为任务时使用）
   taskDescription?: string;             // 任务描述（保存为任务时使用）
+  useStream?: boolean;                  // 是否使用流式执行（默认true）
+  onEvent?: (event: WorkflowStreamEvent) => void; // 流式事件回调（仅流式执行时使用）
+  signal?: AbortSignal;                 // 取消信号（仅流式执行时使用）
 }
 
 // 执行任务响应

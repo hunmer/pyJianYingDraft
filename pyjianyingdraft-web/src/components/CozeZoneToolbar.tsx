@@ -27,22 +27,30 @@ import {
 import { CozeWorkspace } from '@/types/coze';
 
 interface CozeZoneToolbarProps {
+  accounts: string[];
+  currentAccount: string | null;
   workspaces: CozeWorkspace[];
   currentWorkspace: CozeWorkspace | null;
   refreshing: boolean;
+  onAccountSwitch: (accountId: string) => void;
   onWorkspaceSwitch: (workspaceId: string) => void;
   onRefresh: () => void;
-  accountId?: string; // 当前使用的账号ID（来自后端配置）
 }
 
 const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
+  accounts,
+  currentAccount,
   workspaces,
   currentWorkspace,
   refreshing,
+  onAccountSwitch,
   onWorkspaceSwitch,
   onRefresh,
-  accountId = 'default',
 }) => {
+  const handleAccountChange = (event: any) => {
+    onAccountSwitch(String(event.target.value));
+  };
+
   const handleWorkspaceChange = (event: any) => {
     onWorkspaceSwitch(String(event.target.value));
   };
@@ -59,16 +67,46 @@ const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
         backgroundColor: 'background.paper',
       }}
     >
-      {/* 账号信息提示 */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <Chip
-          icon={<InfoIcon />}
-          label={`账号: ${accountId}`}
-          size="small"
-          variant="outlined"
-          color="primary"
-        />
-      </Box>
+      {/* 账号选择 */}
+      <FormControl size="small" sx={{ minWidth: 150 }}>
+        <InputLabel
+          sx={{
+            backgroundColor: 'background.paper',
+            px: 1,
+          }}
+        >
+          账号
+        </InputLabel>
+        <Select
+          value={String(currentAccount ?? '')}
+          label="账号"
+          onChange={handleAccountChange}
+          displayEmpty
+          startAdornment={<InfoIcon sx={{ mr: 1, fontSize: 20 }} />}
+          sx={{
+            '& .MuiSelect-select': {
+              display: 'flex',
+              alignItems: 'center',
+            },
+          }}
+        >
+          {accounts.length === 0 ? (
+            <MenuItem value="" disabled>
+              <Typography variant="body2" color="text.secondary">
+                暂无账号
+              </Typography>
+            </MenuItem>
+          ) : (
+            accounts.map((accountId) => (
+              <MenuItem key={accountId} value={accountId}>
+                <Typography variant="body2">
+                  {accountId}
+                </Typography>
+              </MenuItem>
+            ))
+          )}
+        </Select>
+      </FormControl>
 
       {/* 工作空间选择 */}
       <FormControl size="small" sx={{ minWidth: 200 }}>

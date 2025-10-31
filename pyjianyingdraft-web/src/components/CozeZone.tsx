@@ -58,6 +58,10 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
   });
 
   const {
+    // 账号状态
+    accounts,
+    currentAccount,
+
     // 状态
     workspaces,
     currentWorkspace,
@@ -70,6 +74,9 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     refreshing,
     executing,
     selectedWorkflow,
+
+    // 账号管理
+    switchAccount,
 
     // 工作空间管理
     loadWorkspaces,
@@ -91,7 +98,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     // 工具方法
     clearError,
     resetState,
-  } = useCoZone('default'); // 使用默认账号（配置在后端）
+  } = useCoZone(); // 不传参数，从 localStorage 恢复或使用默认
 
   // 显示消息
   const showMessage = useCallback((message: string, severity: 'success' | 'error' | 'warning' | 'info' = 'success') => {
@@ -108,6 +115,11 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     setActiveSubTab(newValue);
   }, []);
 
+  // 处理账号切换
+  const handleAccountSwitch = useCallback((accountId: string) => {
+    switchAccount(accountId);
+    showMessage('账号切换成功', 'success');
+  }, [switchAccount, showMessage]);
 
   // 处理工作空间切换
   const handleWorkspaceSwitch = useCallback((workspaceId: string) => {
@@ -128,9 +140,13 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
   }, [refreshWorkflows, refreshWorkspaces, showMessage]);
 
   // 处理工作流执行
-  const handleWorkflowExecute = useCallback(async (workflowId: string, parameters?: Record<string, any>) => {
+  const handleWorkflowExecute = useCallback(async (
+    workflowId: string,
+    parameters?: Record<string, any>,
+    onStreamEvent?: (event: WorkflowStreamEvent) => void
+  ) => {
     try {
-      const response = await executeWorkflow(workflowId, parameters);
+      const response = await executeWorkflow(workflowId, parameters, onStreamEvent);
       showMessage('工作流执行已启动', 'success');
       return response;
     } catch (error) {
@@ -216,12 +232,14 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* 工具栏 */}
       <CozeZoneToolbar
+        accounts={accounts}
+        currentAccount={currentAccount}
         workspaces={workspaces}
         currentWorkspace={currentWorkspace}
         refreshing={refreshing}
+        onAccountSwitch={handleAccountSwitch}
         onWorkspaceSwitch={handleWorkspaceSwitch}
         onRefresh={handleRefresh}
-        accountId="default"
       />
 
       {/* 错误提示 */}
@@ -349,6 +367,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate }) => {
                 onCreateAndExecuteTask={handleCreateAndExecuteTask}
                 onExecutionHistoryLoad={loadExecutionHistory}
                 onEventLogsClear={clearEventLogs}
+                accountId={currentAccount}
                 workspaceId={currentWorkspace?.id}
               />
             </TabPanel>
