@@ -372,7 +372,10 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate, onCreateWorkflowE
                 onCreateTask={handleCreateTask}
                 onCreateAndExecuteTask={handleCreateAndExecuteTask}
                 onExecutionHistoryLoad={loadExecutionHistory}
-                onEventLogsClear={clearEventLogs}
+                onEventLogsClear={() => {
+                  clearEventLogs();
+                  showMessage('事件日志已清除', 'success');
+                }}
                 onOpenWorkflowInNewTab={onCreateWorkflowExecutionTab ? (workflow) => {
                   onCreateWorkflowExecutionTab(workflow, {
                     onExecute: handleWorkflowExecute,

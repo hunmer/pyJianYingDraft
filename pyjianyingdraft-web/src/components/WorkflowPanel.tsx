@@ -113,6 +113,9 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
   };
 
   const handleClearEventLogs = () => {
+    if (eventLogs.length === 0) {
+      return;
+    }
     onEventLogsClear();
   };
 
@@ -183,12 +186,14 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
             </IconButton>
           </Tooltip>
 
-          {/* 清除事件日志按钮 */}
-          <Tooltip title="清除事件日志">
-            <IconButton size="small" onClick={handleClearEventLogs}>
-              <ClearIcon />
-            </IconButton>
-          </Tooltip>
+          {/* 清除事件日志按钮 - 仅在有日志时显示 */}
+          {eventLogs.length > 0 && (
+            <Tooltip title="清除事件日志">
+              <IconButton size="small" onClick={handleClearEventLogs}>
+                <ClearIcon />
+              </IconButton>
+            </Tooltip>
+          )}
 
           {/* 历史记录按钮 */}
           <Tooltip title="执行历史">
