@@ -45,7 +45,7 @@ class CozeWorkflowClient:
             response = await self.client.workspaces.list()
 
             workspaces = []
-            for workspace in response.workspaces or []:
+            for workspace in response.items or []:
                 workspaces.append({
                     "id": str(workspace.id),
                     "name": workspace.name,
@@ -62,26 +62,168 @@ class CozeWorkflowClient:
             print(f"⚠️ 获取工作空间列表失败: {e}")
             raise
 
-    async def retrieve_workflow(self, workflow_id: str) -> Dict[str, Any]:
+    async def list_workflows(
+        self,
+        workspace_id: Optional[str] = None,
+        page_num: int = 1,
+        page_size: int = 30
+    ) -> Dict[str, Any]:
+        """
+        获取工作流列表
+
+        Args:
+            workspace_id: 工作空间 ID（可选）
+            page_num: 页码（从 1 开始）
+            page_size: 每页数量（1-30，Coze API 限制）
+
+        Returns:
+            工作流列表和分页信息
+        """
+        try:
+            response = await self.client.workflows.list(
+                workspace_id=workspace_id,
+                page_num=page_num,
+                page_size=page_size
+            )
+
+            workflows = []
+            for workflow in response.items or []:
+                workflows.append({
+                    "id": workflow.workflow_id,
+                    "name": workflow.workflow_name,
+                    "description": getattr(workflow, "description", ""),
+                    "icon_url": getattr(workflow, "icon_url", ""),
+                    "app_id": getattr(workflow, "app_id", ""),
+                    "created_at": getattr(workflow, "created_at", None),
+                    "updated_at": getattr(workflow, "updated_at", None),
+                    "creator": {
+                        "user_id": getattr(workflow.creator, "user_id", "") if hasattr(workflow, "creator") and workflow.creator else "",
+                        "user_name": getattr(workflow.creator, "user_name", "") if hasattr(workflow, "creator") and workflow.creator else "",
+                    } if hasattr(workflow, "creator") and workflow.creator else None,
+                })
+
+            return {
+                "workflows": workflows,
+                "has_more": getattr(response, "has_more", False),
+                "total": len(workflows),
+            }
+
+        except Exception as e:
+            print(f"⚠️ 获取工作流列表失败: {e}")
+            raise
+
+    async def retrieve_workflow(self, workflow_id: str, include_schema: bool = True) -> Dict[str, Any]:
         """
         获取工作流详情
 
         Args:
             workflow_id: 工作流 ID
+            include_schema: 是否包含输入输出schema（默认True）
 
         Returns:
-            工作流信息
+            工作流信息，包含 input_schema 和 output_schema（如果 include_schema=True）
         """
         try:
-            workflow = await self.client.workflows.retrieve(workflow_id=workflow_id)
+            import httpx
 
-            return {
-                "id": workflow.workflow_id,
-                "name": workflow.name,
-                "description": getattr(workflow, "description", ""),
-                "created_time": getattr(workflow, "create_time", None),
-                "updated_time": getattr(workflow, "update_time", None),
-            }
+            # 如果需要 schema，直接调用 REST API
+            if include_schema:
+                url = f"{self.config.base_url}/v1/workflows/{workflow_id}"
+                params = {"include_input_output": "true"}
+
+                async with httpx.AsyncClient() as client:
+                    response = await client.get(
+                        url,
+                        params=params,
+                        headers={
+                            "Authorization": f"Bearer {self.config.api_token}",
+                            "Content-Type": "application/json",
+                        },
+                    )
+
+                    if response.status_code != 200:
+                        raise Exception(f"HTTP {response.status_code}: {response.text}")
+
+                    result = response.json()
+
+                    if result.get("code") != 0:
+                        raise Exception(result.get("msg", "获取工作流详情失败"))
+
+                    data = result.get("data", {})
+                    workflow_detail = data.get("workflow_detail", {})
+                    input_info = data.get("input", {})
+                    output_info = data.get("output", {})
+
+                    # 转换输入schema
+                    input_schema = None
+                    if input_info.get("parameters"):
+                        input_schema = {
+                            "type": "object",
+                            "properties": {},
+                            "required": [],
+                        }
+                        for key, param in input_info["parameters"].items():
+                            param_type = param.get("type", "string")
+                            if param_type == "txt":
+                                param_type = "string"
+
+                            prop = {
+                                "type": param_type,
+                                "title": key,
+                                "description": param.get("description", ""),
+                            }
+
+                            if "default_value" in param:
+                                prop["default"] = param["default_value"]
+
+                            input_schema["properties"][key] = prop
+
+                            if param.get("required"):
+                                input_schema["required"].append(key)
+
+                    # 转换输出schema
+                    output_schema = None
+                    if output_info.get("parameters"):
+                        output_schema = {
+                            "type": "object",
+                            "properties": {},
+                        }
+                        for key, param in output_info["parameters"].items():
+                            output_schema["properties"][key] = {
+                                "type": param.get("type", "string"),
+                                "title": key,
+                            }
+
+                    return {
+                        "id": workflow_detail.get("workflow_id"),
+                        "name": workflow_detail.get("workflow_name"),
+                        "description": workflow_detail.get("description", ""),
+                        "icon_url": workflow_detail.get("icon_url", ""),
+                        "app_id": workflow_detail.get("app_id", ""),
+                        "created_at": workflow_detail.get("created_at"),
+                        "updated_at": workflow_detail.get("updated_at"),
+                        "creator": workflow_detail.get("creator"),
+                        "input_schema": input_schema,
+                        "output_schema": output_schema,
+                    }
+
+            # 否则使用 coze-py 的基本方法
+            else:
+                workflow = await self.client.workflows.retrieve(workflow_id=workflow_id)
+
+                # 访问 workflow_detail 中的字段
+                detail = workflow.workflow_detail
+
+                return {
+                    "id": detail.workflow_id,
+                    "name": detail.workflow_name,
+                    "description": getattr(detail, "description", ""),
+                    "created_time": getattr(detail, "created_at", None),
+                    "updated_time": getattr(detail, "updated_at", None),
+                    "icon_url": getattr(detail, "icon_url", ""),
+                    "app_id": getattr(detail, "app_id", ""),
+                    "creator": getattr(detail, "creator", None),
+                }
 
         except Exception as e:
             print(f"⚠️ 获取工作流详情失败: {e}")
@@ -238,6 +380,44 @@ class CozeWorkflowClient:
         except Exception as e:
             print(f"⚠️ 获取执行历史失败: {e}")
             raise
+
+    async def cancel_workflow_execution(
+        self,
+        conversation_id: str,
+    ) -> bool:
+        """
+        取消工作流执行
+
+        Args:
+            conversation_id: 会话 ID
+
+        Returns:
+            是否成功取消
+        """
+        try:
+            import httpx
+
+            url = f"{self.config.base_url}/v1/workflow/cancel_run"
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    url,
+                    json={"conversation_id": conversation_id},
+                    headers={
+                        "Authorization": f"Bearer {self.config.api_token}",
+                        "Content-Type": "application/json",
+                    },
+                )
+
+                if response.status_code != 200:
+                    raise Exception(f"HTTP {response.status_code}: {response.text}")
+
+                result = response.json()
+                return result.get("code") == 0
+
+        except Exception as e:
+            print(f"⚠️ 取消工作流执行失败: {e}")
+            return False
 
     async def close(self):
         """关闭客户端连接"""

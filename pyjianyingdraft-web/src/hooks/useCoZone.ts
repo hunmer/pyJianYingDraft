@@ -28,6 +28,10 @@ import type {
 } from '@/types/coze';
 
 interface UseCoZoneState {
+  // 账号数据
+  accounts: string[];
+  currentAccount: string | null;
+
   // 基础数据
   workspaces: CozeWorkspace[];
   currentWorkspace: CozeWorkspace | null;
@@ -50,12 +54,17 @@ interface UseCoZoneState {
   executing: boolean;
   taskLoading: boolean;
   taskExecuting: string | null;
+  initialized: boolean;
 
   // 选中的数据
   selectedWorkflow: CozeWorkflow | null;
 }
 
 interface UseCoZoneResult extends UseCoZoneState {
+  // 账号管理
+  loadAccounts: () => Promise<void>;
+  switchAccount: (accountId: string) => void;
+
   // 工作空间管理
   loadWorkspaces: (accountId?: string) => Promise<void>;
   switchWorkspace: (workspaceId: string) => void;
@@ -86,8 +95,16 @@ interface UseCoZoneResult extends UseCoZoneState {
   resetState: () => void;
 }
 
-export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
+// localStorage 键名
+const STORAGE_KEYS = {
+  ACCOUNT: 'coze_last_account',
+  WORKSPACE: 'coze_last_workspace',
+};
+
+export const useCoZone = (initialAccountId?: string): UseCoZoneResult => {
   const [state, setState] = useState<UseCoZoneState>({
+    accounts: [],
+    currentAccount: null,
     workspaces: [],
     currentWorkspace: null,
     workflows: [],
@@ -103,6 +120,7 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
     executing: false,
     taskLoading: false,
     taskExecuting: null,
+    initialized: false,
     selectedWorkflow: null,
   });
 
@@ -132,6 +150,8 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
   // 重置状态
   const resetState = useCallback(() => {
     setState({
+      accounts: [],
+      currentAccount: null,
       workspaces: [],
       currentWorkspace: null,
       workflows: [],
@@ -147,17 +167,65 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
       executing: false,
       taskLoading: false,
       taskExecuting: null,
+      initialized: false,
       selectedWorkflow: null,
+    });
+  }, []);
+
+  // ==================== 账号管理 ====================
+
+  const loadAccounts = useCallback(async () => {
+    try {
+      setState(prev => ({ ...prev, loading: true, error: null }));
+
+      const response = await api.coze.getAccounts();
+      const accounts = response.accounts || [];
+
+      setState(prev => ({
+        ...prev,
+        accounts,
+        loading: false,
+      }));
+    } catch (error) {
+      setState(prev => ({ ...prev, loading: false }));
+      handleError(error);
+    }
+  }, [handleError]);
+
+  const switchAccount = useCallback((accountId: string) => {
+    setState(prev => {
+      // 保存到 localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.setItem(STORAGE_KEYS.ACCOUNT, accountId);
+        // 清除工作空间缓存
+        localStorage.removeItem(STORAGE_KEYS.WORKSPACE);
+      }
+
+      return {
+        ...prev,
+        currentAccount: accountId,
+        workspaces: [],
+        currentWorkspace: null,
+        workflows: [],
+        executions: [],
+        executionHistory: [],
+        selectedWorkflow: null,
+      };
     });
   }, []);
 
   // ==================== 工作空间管理 ====================
 
-  const loadWorkspaces = useCallback(async (accId: string = accountId) => {
+  const loadWorkspaces = useCallback(async (accId?: string) => {
+    const accountId = accId || state.currentAccount;
+    if (!accountId) {
+      handleError('未选择账号');
+      return;
+    }
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
-      const response = await api.coze.getWorkspaces(accId);
+      const response = await api.coze.getWorkspaces(accountId);
       const workspaces = response.workspaces || [];
 
       setState(current => ({
@@ -172,12 +240,17 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
       setState(prev => ({ ...prev, loading: false }));
       handleError(error);
     }
-  }, [accountId, handleError]);
+  }, [state.currentAccount, handleError]);
 
   const switchWorkspace = useCallback((workspaceId: string) => {
     setState(prev => {
       const workspace = prev.workspaces.find(w => w.id === workspaceId);
       if (workspace) {
+        // 保存到 localStorage
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(STORAGE_KEYS.WORKSPACE, workspaceId);
+        }
+
         return {
           ...prev,
           currentWorkspace: workspace,
@@ -191,11 +264,11 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
     });
   }, []);
 
-  const refreshWorkspaces = useCallback(async (accId: string = accountId) => {
+  const refreshWorkspaces = useCallback(async (accId?: string) => {
     setState(prev => ({ ...prev, refreshing: true }));
     await loadWorkspaces(accId);
     setState(prev => ({ ...prev, refreshing: false }));
-  }, [accountId, loadWorkspaces]);
+  }, [loadWorkspaces]);
 
   // ==================== 工作流管理 ====================
 
@@ -203,15 +276,15 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
     try {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
-      // TODO: 实现后端 API 获取工作流列表
-      console.warn('loadWorkflows: 需要实现后端 API');
-      const workflows: CozeWorkflow[] = [];
+      // 调用后端 API 获取工作流列表
+      const response = await api.coze.getWorkflows(workspaceId, state.currentAccountId);
+      const workflows: CozeWorkflow[] = response.workflows || [];
 
       setState(prev => ({ ...prev, workflows, loading: false }));
     } catch (error) {
       handleError(error);
     }
-  }, [handleError]);
+  }, [handleError, state.currentAccountId]);
 
   const refreshWorkflows = useCallback(async () => {
     if (!state.currentWorkspace) return;
@@ -223,12 +296,19 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
 
   const loadExecutionHistory = useCallback(async (workflowId?: string) => {
     try {
-      if (!state.currentWorkspace) return;
+      if (!state.currentWorkspace || !state.currentAccount) return;
+
+      // workflow_id 是必需的路径参数，如果没有则不调用 API
+      if (!workflowId) {
+        console.warn('loadExecutionHistory: workflowId 为空，跳过加载');
+        setState(prev => ({ ...prev, executionHistory: [] }));
+        return;
+      }
 
       // 使用后端 API
       const response = await api.coze.getWorkflowHistory(
-        workflowId || '',
-        accountId,
+        workflowId,
+        state.currentAccount,
         50,
         1
       );
@@ -238,11 +318,12 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
     } catch (error) {
       console.error('加载执行历史失败:', error);
     }
-  }, [state.currentWorkspace, accountId]);
+  }, [state.currentWorkspace, state.currentAccount]);
 
   const executeWorkflow = useCallback(async (
     workflowId: string,
-    parameters?: Record<string, any>
+    parameters?: Record<string, any>,
+    onStreamEvent?: (event: WorkflowStreamEvent) => void
   ): Promise<ExecuteWorkflowResponse> => {
     try {
       if (!state.currentWorkspace) {
@@ -251,12 +332,14 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
 
       setState(prev => ({ ...prev, executing: true, error: null }));
 
-      // 使用后端 API 执行任务
+      // 使用后端 API 执行任务（默认使用流式执行）
       const response = await api.coze.executeTask({
         workflowId,
         inputParameters: parameters || {},
         saveAsTask: true,
         taskName: `工作流执行 - ${new Date().toLocaleString()}`,
+        useStream: true,
+        onEvent: onStreamEvent,
       });
 
       setState(prev => ({ ...prev, executing: false }));
@@ -470,16 +553,78 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
     };
   }, []);
 
+  // 初始化逻辑（仅执行一次）
+  useEffect(() => {
+    const initialize = async () => {
+      try {
+        // 1. 加载账号列表
+        await loadAccounts();
+
+        // 2. 恢复上次选择的账号（或使用初始账号）
+        let accountToUse = initialAccountId;
+        if (typeof window !== 'undefined') {
+          const lastAccount = localStorage.getItem(STORAGE_KEYS.ACCOUNT);
+          if (lastAccount) {
+            accountToUse = lastAccount;
+          }
+        }
+
+        // 3. 设置当前账号
+        if (accountToUse) {
+          setState(prev => ({ ...prev, currentAccount: accountToUse }));
+        }
+
+        setState(prev => ({ ...prev, initialized: true }));
+      } catch (error) {
+        console.error('初始化失败:', error);
+        setState(prev => ({ ...prev, initialized: true }));
+      }
+    };
+
+    initialize();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // 仅在挂载时执行一次
+
+  // 当前账号变化时，自动加载工作空间
+  useEffect(() => {
+    const loadData = async () => {
+      if (state.currentAccount && state.initialized) {
+        // 加载工作空间列表
+        await loadWorkspaces(state.currentAccount);
+
+        // 尝试恢复上次选择的工作空间
+        if (typeof window !== 'undefined') {
+          const lastWorkspaceId = localStorage.getItem(STORAGE_KEYS.WORKSPACE);
+          if (lastWorkspaceId) {
+            // 延迟一下，确保工作空间列表已加载
+            setTimeout(() => {
+              setState(prev => {
+                const workspace = prev.workspaces.find(w => w.id === lastWorkspaceId);
+                if (workspace) {
+                  return { ...prev, currentWorkspace: workspace };
+                }
+                return prev;
+              });
+            }, 100);
+          }
+        }
+      }
+    };
+
+    loadData();
+  }, [state.currentAccount, state.initialized]);
+
   // 当前工作空间变化时，加载对应数据
   useEffect(() => {
     if (state.currentWorkspace) {
       loadWorkflows(state.currentWorkspace.id);
-      loadExecutionHistory();
+      // 注意：不在这里加载执行历史，因为需要先选中工作流
+      // loadExecutionHistory() 会在选中工作流后调用
       refreshTasks();
     }
   }, [state.currentWorkspace]);
 
-  // 选中工作流变化时，更新任务列表和统计
+  // 当任务列表变化时，更新选中工作流的任务列表
   useEffect(() => {
     if (state.selectedWorkflow) {
       const workflowTasks = state.tasks.filter(task => task.workflow_id === state.selectedWorkflow?.id);
@@ -487,13 +632,24 @@ export const useCoZone = (accountId: string = 'default'): UseCoZoneResult => {
         ...prev,
         selectedWorkflowTasks: workflowTasks,
       }));
-
-      getTaskStatistics(state.selectedWorkflow.id);
     }
   }, [state.selectedWorkflow, state.tasks]);
 
+  // 选中工作流变化时，加载统计和执行历史
+  useEffect(() => {
+    if (state.selectedWorkflow) {
+      getTaskStatistics(state.selectedWorkflow.id);
+      loadExecutionHistory(state.selectedWorkflow.id);
+    } else {
+      // 清空执行历史
+      setState(prev => ({ ...prev, executionHistory: [], selectedWorkflowTasks: [] }));
+    }
+  }, [state.selectedWorkflow, getTaskStatistics, loadExecutionHistory]);
+
   return {
     ...state,
+    loadAccounts,
+    switchAccount,
     loadWorkspaces,
     switchWorkspace,
     refreshWorkspaces,

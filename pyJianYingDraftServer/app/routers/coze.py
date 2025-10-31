@@ -99,6 +99,34 @@ async def health_check():
         )
 
 
+# ==================== 账号管理 ====================
+
+@router.get("/accounts", summary="获取账号列表")
+async def get_accounts():
+    """
+    获取所有配置的账号 ID 列表
+
+    返回所有在 config.json 中配置的 Coze 账号
+    """
+    try:
+        from app.services.coze_config import get_config_manager
+
+        config_manager = get_config_manager()
+        account_ids = config_manager.get_all_account_ids()
+
+        return {
+            "success": True,
+            "accounts": account_ids,
+            "count": len(account_ids)
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取账号列表失败: {str(e)}"
+        )
+
+
 # ==================== 工作空间管理 ====================
 
 @router.get("/workspaces", summary="获取工作空间列表")
@@ -134,6 +162,49 @@ async def get_workspaces(account_id: str = Query(default="default", description=
 
 
 # ==================== 工作流管理 ====================
+
+@router.get("/workflows", summary="获取工作流列表")
+async def get_workflows(
+    workspace_id: Optional[str] = Query(default=None, description="工作空间ID"),
+    account_id: str = Query(default="default", description="账号ID"),
+    page_num: int = Query(default=1, ge=1, description="页码（从1开始）"),
+    page_size: int = Query(default=30, ge=1, le=30, description="每页数量（1-30）")
+):
+    """
+    获取工作流列表
+
+    - **workspace_id**: 工作空间ID（可选）
+    - **account_id**: 账号ID
+    - **page_num**: 页码（从1开始）
+    - **page_size**: 每页数量（1-30，Coze API 限制）
+    """
+    try:
+        client = get_coze_client(account_id)
+        if not client:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无法获取 Coze 客户端（账号: {account_id}），请检查配置"
+            )
+
+        result = await client.list_workflows(
+            workspace_id=workspace_id,
+            page_num=page_num,
+            page_size=page_size
+        )
+
+        return {
+            "success": True,
+            **result
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"获取工作流列表失败: {str(e)}"
+        )
+
 
 @router.get("/workflows/{workflow_id}", summary="获取工作流详情")
 async def get_workflow(
@@ -405,4 +476,217 @@ async def execute_task(
         raise HTTPException(
             status_code=500,
             detail=f"执行任务时发生错误: {str(e)}"
+        )
+
+
+@router.post("/workflows/stream_run", summary="流式执行工作流")
+async def stream_run_workflow(
+    request: dict,
+    account_id: str = Query(default="default", description="账号ID")
+):
+    """
+    流式执行工作流（Server-Sent Events）
+
+    请求体格式:
+    {
+        "workflow_id": "工作流ID",
+        "parameters": {"参数名": "参数值"},
+        "bot_id": "Bot ID（可选）",
+        "conversation_id": "会话ID（可选）",
+        "user_id": "用户ID（可选）"
+    }
+
+    **注意**: 此接口返回 Server-Sent Events 流，需要使用 EventSource 或 fetch 处理流式响应
+    """
+    from fastapi.responses import StreamingResponse
+    import asyncio
+    import json
+
+    def safe_serialize(obj):
+        """安全序列化对象，处理不可序列化的类型"""
+        if obj is None:
+            return None
+        elif isinstance(obj, (str, int, float, bool)):
+            return obj
+        elif isinstance(obj, (list, tuple)):
+            return [safe_serialize(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {key: safe_serialize(value) for key, value in obj.items()}
+        elif hasattr(obj, '__dict__'):
+            # 对于有 __dict__ 的对象，尝试序列化其属性
+            try:
+                return {key: safe_serialize(value) for key, value in obj.__dict__.items() if not key.startswith('_')}
+            except:
+                return str(obj)
+        else:
+            # 其他类型转换为字符串
+            return str(obj)
+
+    try:
+        # 获取 Coze 客户端
+        client = get_coze_client(account_id)
+        if not client:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无法获取 Coze 客户端（账号: {account_id}），请检查配置"
+            )
+
+        # 提取请求参数
+        workflow_id = request.get("workflow_id")
+        parameters = request.get("parameters", {})
+        bot_id = request.get("bot_id")
+        conversation_id = request.get("conversation_id")
+        user_id = request.get("user_id")
+
+        if not workflow_id:
+            raise HTTPException(
+                status_code=400,
+                detail="workflow_id 参数是必需的"
+            )
+
+        async def generate_events():
+            """生成流式事件"""
+            try:
+                # 发送工作流开始事件
+                start_event = {
+                    "event": "workflow_started",
+                    "data": {
+                        "workflow_id": workflow_id,
+                        "parameters": parameters
+                    },
+                    "timestamp": asyncio.get_event_loop().time()
+                }
+                yield f"data: {json.dumps(start_event)}\n\n"
+
+                # 执行工作流流式调用
+                async for event in client.execute_workflow_stream(
+                    workflow_id=workflow_id,
+                    parameters=parameters,
+                    bot_id=bot_id,
+                    conversation_id=conversation_id
+                ):
+                    # 安全地提取事件���据
+                    try:
+                        event_data = {
+                            "event": "data",
+                            "data": {
+                                "type": event.event.value if hasattr(event.event, 'value') else str(event.event),
+                                "execute_id": safe_serialize(getattr(event, 'execute_id', None)),
+                                "node_id": safe_serialize(getattr(event, 'node_id', None)),
+                                "status": safe_serialize(getattr(event, 'status', None)),
+                                "message": safe_serialize(getattr(event, 'message', None)),
+                                "error": safe_serialize(getattr(event, 'error', None)),
+                                "data": safe_serialize(getattr(event, 'data', None))
+                            },
+                            "timestamp": asyncio.get_event_loop().time()
+                        }
+                    except Exception as serialize_error:
+                        # 序列化失败时，发送错误事件但继续执行
+                        event_data = {
+                            "event": "error",
+                            "data": {
+                                "message": f"事件序列化失败: {str(serialize_error)}",
+                                "type": "serialization_error",
+                                "original_event_type": str(type(event).__name__)
+                            },
+                            "timestamp": asyncio.get_event_loop().time()
+                        }
+
+                    # 添加会话ID（如果有）
+                    if conversation_id:
+                        event_data["conversation_id"] = conversation_id
+
+                    yield f"data: {json.dumps(event_data)}\n\n"
+
+                # 发送完成事件
+                finish_event = {
+                    "event": "workflow_finished",
+                    "data": {
+                        "workflow_id": workflow_id,
+                        "status": "completed"
+                    },
+                    "timestamp": asyncio.get_event_loop().time()
+                }
+                yield f"data: {json.dumps(finish_event)}\n\n"
+
+            except Exception as e:
+                # 发送错误事件
+                error_event = {
+                    "event": "error",
+                    "data": {
+                        "message": str(e),
+                        "type": "execution_error"
+                    },
+                    "timestamp": asyncio.get_event_loop().time()
+                }
+                yield f"data: {json.dumps(error_event)}\n\n"
+            finally:
+                # 结���流
+                yield "data: [DONE]\n\n"
+
+        return StreamingResponse(
+            generate_events(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Headers": "Cache-Control",
+            }
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"流式执行工作流时发生错误: {str(e)}"
+        )
+
+
+@router.post("/workflows/cancel_run", summary="取消工作流执行")
+async def cancel_workflow_run(
+    request: dict,
+    account_id: str = Query(default="default", description="账号ID")
+):
+    """
+    取消工作流执行
+
+    请求体格式:
+    {
+        "conversation_id": "会话ID"
+    }
+    """
+    try:
+        # 获取 Coze 客户端
+        client = get_coze_client(account_id)
+        if not client:
+            raise HTTPException(
+                status_code=400,
+                detail=f"无法获取 Coze 客户端（账号: {account_id}），请检查配置"
+            )
+
+        # 提取请求参数
+        conversation_id = request.get("conversation_id")
+        if not conversation_id:
+            raise HTTPException(
+                status_code=400,
+                detail="conversation_id 参数是必需的"
+            )
+
+        # 取消执行
+        success = await client.cancel_workflow_execution(conversation_id)
+
+        return {
+            "success": success,
+            "message": "取消成功" if success else "取消失败",
+            "conversation_id": conversation_id
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"取消工作流执行时发生错误: {str(e)}"
         )

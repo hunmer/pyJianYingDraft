@@ -41,14 +41,11 @@ interface WorkflowPanelProps {
   eventLogs: WorkflowEventLog[];
   onWorkflowSelect: (workflow: CozeWorkflow | null) => void;
   onWorkflowExecute: (workflowId: string, parameters?: Record<string, any>, onEvent?: (event: any) => void) => Promise<any>;
-  onExecutionHistoryLoad: () => void;
+  onExecutionHistoryLoad: (workflowId: string) => void;
   onEventLogsClear: () => void;
   onCreateTask?: (taskData: CreateTaskRequest) => Promise<any>;
   onCreateAndExecuteTask?: (taskData: CreateTaskRequest) => Promise<any>;
-  apiConfig?: {
-    apiBase: string;
-    apiKey: string;
-  };
+  accountId?: string; // 账号ID，用于后端API调用
   workspaceId?: string;
 }
 
@@ -65,7 +62,7 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
   onEventLogsClear,
   onCreateTask,
   onCreateAndExecuteTask,
-  apiConfig,
+  accountId = 'default',
   workspaceId,
 }) => {
   const [executionDialogOpen, setExecutionDialogOpen] = useState(false);
@@ -96,7 +93,7 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
 
   const handleHistoryClick = (workflow: CozeWorkflow) => {
     setSelectedWorkflowForHistory(workflow);
-    onExecutionHistoryLoad();
+    onExecutionHistoryLoad(workflow.id);
     setHistoryDialogOpen(true);
   };
 
@@ -290,7 +287,7 @@ const WorkflowPanel: React.FC<WorkflowPanelProps> = ({
         onCancel={handleExecutionDialogClose}
         onCreateTask={onCreateTask}
         onCreateAndExecuteTask={onCreateAndExecuteTask}
-        apiConfig={apiConfig}
+        accountId={accountId}
         workspaceId={workspaceId}
         eventLogs={eventLogs}
       />
