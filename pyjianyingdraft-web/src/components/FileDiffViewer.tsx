@@ -21,7 +21,10 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { Diff, Hunk, parseDiff } from 'react-diff-view';
+import type { HunkData } from 'react-diff-view';
 import { diffLines } from 'diff';
 import 'react-diff-view/style/index.css';
 import {
@@ -48,6 +51,7 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fontSize, setFontSize] = useState<number>(13); // 字体大小状态
+  const [showOnlyChanges, setShowOnlyChanges] = useState<boolean>(false); // 仅展示变化代码
 
   /**
    * 加载版本列表 (使用WebSocket)
@@ -202,6 +206,20 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
   }, [content1, content2]);
 
   /**
+   * 过滤hunks,移除未改变的代码行(normal changes)
+   */
+  const filterHunks = (hunks: HunkData[]): HunkData[] => {
+    if (!showOnlyChanges) {
+      return hunks;
+    }
+
+    return hunks.map((hunk) => ({
+      ...hunk,
+      changes: hunk.changes.filter((change) => change.type !== 'normal'),
+    })).filter((hunk) => hunk.changes.length > 0); // 移除空的hunks
+  };
+
+  /**
    * 渲染tokens（可选的语法高亮）
    */
   const renderToken = (token: any, defaultRender: any, i: number) => {
@@ -266,33 +284,48 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
         </Alert>
       )}
 
-      {/* 字体大小控制 */}
-      <Box sx={{ display: 'flex', justifyContent: 'flex-end', p: 2, pb: 1 }}>
-        <Tooltip title="字体大小">
-          <ButtonGroup size="small" variant="outlined">
-            <Button
-              onClick={() => setFontSize(Math.max(8, fontSize - 1))}
-              disabled={fontSize <= 8}
-            >
-              <RemoveIcon fontSize="small" />
-            </Button>
-            <Button
-              onClick={() => setFontSize(13)}
-              disabled={fontSize === 13}
-            >
-              <RestartAltIcon fontSize="small" />
-            </Button>
-            <Button
-              onClick={() => setFontSize(Math.min(24, fontSize + 1))}
-              disabled={fontSize >= 24}
-            >
-              <AddIcon fontSize="small" />
-            </Button>
-          </ButtonGroup>
+      {/* 工具栏 */}
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', p: 2, pb: 1 }}>
+        {/* 仅展示变化代码开关 */}
+        <Tooltip title={showOnlyChanges ? "显示所有代码" : "仅显示变化代码"}>
+          <Button
+            size="small"
+            variant={showOnlyChanges ? "contained" : "outlined"}
+            onClick={() => setShowOnlyChanges(!showOnlyChanges)}
+            startIcon={showOnlyChanges ? <VisibilityOffIcon /> : <VisibilityIcon />}
+          >
+            {showOnlyChanges ? "仅变化" : "全部代码"}
+          </Button>
         </Tooltip>
-        <Typography variant="caption" sx={{ ml: 1, alignSelf: 'center', minWidth: '40px' }}>
-          {fontSize}px
-        </Typography>
+
+        {/* 字体大小控制 */}
+        <Box sx={{ display: 'flex', alignItems: 'center' }}>
+          <Tooltip title="字体大小">
+            <ButtonGroup size="small" variant="outlined">
+              <Button
+                onClick={() => setFontSize(Math.max(8, fontSize - 1))}
+                disabled={fontSize <= 8}
+              >
+                <RemoveIcon fontSize="small" />
+              </Button>
+              <Button
+                onClick={() => setFontSize(13)}
+                disabled={fontSize === 13}
+              >
+                <RestartAltIcon fontSize="small" />
+              </Button>
+              <Button
+                onClick={() => setFontSize(Math.min(24, fontSize + 1))}
+                disabled={fontSize >= 24}
+              >
+                <AddIcon fontSize="small" />
+              </Button>
+            </ButtonGroup>
+          </Tooltip>
+          <Typography variant="caption" sx={{ ml: 1, alignSelf: 'center', minWidth: '40px' }}>
+            {fontSize}px
+          </Typography>
+        </Box>
       </Box>
 
       {/* 版本选择器 */}
@@ -394,7 +427,7 @@ export default function FileDiffViewer({ filePath }: FileDiffViewerProps) {
                   renderToken={renderToken}
                 >
                   {(hunks) =>
-                    hunks.map((hunk) => (
+                    filterHunks(hunks).map((hunk) => (
                       <Hunk key={hunk.content} hunk={hunk} />
                     ))
                   }

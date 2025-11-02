@@ -43,5 +43,14 @@
     "total_versions": 9,
     "created_at": "2025-10-27T19:35:05.923704",
     "last_modified": "2025-10-27T19:35:46.326322"
+  },
+  "/Users/Zhuanz/Movies/JianyingPro/User Data/Projects/com.lveditor.draft/rule-test_20251102_210859/draft_info.json": {
+    "file_path": "/Users/Zhuanz/Movies/JianyingPro/User Data/Projects/com.lveditor.draft/rule-test_20251102_210859/draft_info.json",
+    "watch_name": "macos资源文件位置",
+    "is_watching": false,
+    "latest_version": 2,
+    "total_versions": 2,
+    "created_at": "2025-11-02T21:17:27.509488",
+    "last_modified": "2025-11-02T21:18:46.400598"
   }
 }

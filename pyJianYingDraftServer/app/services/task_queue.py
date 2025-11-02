@@ -409,7 +409,7 @@ class TaskQueue:
                 urls_with_paths.append((path, save_path))
                 url_to_local_path[path] = save_path  # 记录映射关系
 
-                self._log(f"从testData.items提取URL: {path[:60]}...")
+                self._log(f"从testData.items提取URL: {path}")
 
         # 保存映射关系到任务中，用于后续的_apply_downloaded_paths
         if not hasattr(task, '_url_to_local_path_map'):
@@ -448,7 +448,7 @@ class TaskQueue:
                     if path in url_to_local_map:
                         # 替换为本地路径
                         material["path"] = url_to_local_map[path]
-                        self._log(f"[materials] 路径已更新: {path[:50]}... -> {material['path']}")
+                        self._log(f"[materials] 路径已更新: {path} -> {material['path']}")
                         replaced_count += 1
         else:
             # 旧格式兼容
@@ -460,7 +460,7 @@ class TaskQueue:
                             path = material.get("path")
                             if path in url_to_local_map:
                                 material["path"] = url_to_local_map[path]
-                                self._log(f"[materials.{material_type}] 路径已更新: {path[:50]}... -> {material['path']}")
+                                self._log(f"[materials.{material_type}] 路径已更新: {path} -> {material['path']}")
                                 replaced_count += 1
 
         # 2. 处理 task.test_data.items[].data.path (testData中的路径)
@@ -479,7 +479,7 @@ class TaskQueue:
                 path = data.get("path")
                 if path in url_to_local_map:
                     data["path"] = url_to_local_map[path]
-                    self._log(f"[testData.items.data] 路径已更新: {path[:50]}... -> {data['path']}")
+                    self._log(f"[testData.items.data] 路径已更新: {path} -> {data['path']}")
                     replaced_count += 1
 
         # 3. 处理 task.raw_materials (raw模式)
@@ -494,7 +494,7 @@ class TaskQueue:
                 path = data.get('path')
                 if path in url_to_local_map:
                     data['path'] = url_to_local_map[path]
-                    self._log(f"[raw_materials] 路径已更新: {path[:50]}... -> {data['path']}")
+                    self._log(f"[raw_materials] 路径已更新: {path} -> {data['path']}")
                     replaced_count += 1
 
                 # 同时更新 media_path 和 material_url 字段(如果存在)
@@ -515,7 +515,7 @@ class TaskQueue:
                 path = material.get('path')
                 if path in url_to_local_map:
                     material['path'] = url_to_local_map[path]
-                    self._log(f"[raw_segments.material] 路径已更新: {path[:50]}... -> {material['path']}")
+                    self._log(f"[raw_segments.material] 路径已更新: {path} -> {material['path']}")
                     replaced_count += 1
 
                 # 同时更新其他路径字段
@@ -536,7 +536,7 @@ class TaskQueue:
                         path = item.get('path')
                         if path in url_to_local_map:
                             item['path'] = url_to_local_map[path]
-                            self._log(f"[raw_segments.extra_materials.{category}] 路径已更新: {path[:50]}... -> {item['path']}")
+                            self._log(f"[raw_segments.extra_materials.{category}] 路径已更新: {path} -> {item['path']}")
                             replaced_count += 1
 
                         # 同时更新其他路径字段
