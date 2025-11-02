@@ -3,12 +3,36 @@
 export interface CozeAccount {
   id: string;
   name: string;
-  apiKey: string;
-  baseUrl?: string;
-  isActive: boolean;
+  api_key: string;
+  base_url: string;
   description?: string;
-  createdAt: string;
-  updatedAt: string;
+  is_active: boolean;
+  timeout: number;
+  max_retries: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 创建账号请求
+export interface CreateAccountRequest {
+  name: string;
+  api_key: string;
+  base_url: string;
+  description?: string;
+  is_active: boolean;
+  timeout: number;
+  max_retries: number;
+}
+
+// 更新账号请求
+export interface UpdateAccountRequest {
+  name?: string;
+  api_key?: string;
+  base_url?: string;
+  description?: string;
+  is_active?: boolean;
+  timeout?: number;
+  max_retries?: number;
 }
 
 export interface CozeWorkspace {

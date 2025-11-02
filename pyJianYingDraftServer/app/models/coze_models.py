@@ -218,3 +218,61 @@ class TaskStatistics(BaseModel):
     by_execution_status: Dict[str, int] = Field(default_factory=dict, description="按执行状态统计")
     by_workflow: Dict[str, int] = Field(default_factory=dict, description="按工作流统计")
     recent_executions: List[Task] = Field(default_factory=list, description="最近执行的任务")
+
+
+# 账号管理相关模型
+
+class CozeAccount(BaseModel):
+    """Coze 账号模型"""
+    id: str = Field(description="账号唯一标识")
+    name: str = Field(description="账号名称")
+    api_key: str = Field(description="API 密钥")
+    base_url: str = Field(default="https://api.coze.cn", description="API 基础 URL")
+    description: Optional[str] = Field(default=None, description="账号描述")
+    is_active: bool = Field(default=True, description="是否启用")
+    timeout: int = Field(default=600, description="请求超时时间（秒）")
+    max_retries: int = Field(default=3, description="最大重试次数")
+    created_at: datetime = Field(default_factory=datetime.now, description="创建时间")
+    updated_at: datetime = Field(default_factory=datetime.now, description="更新时间")
+
+
+class CreateAccountRequest(BaseModel):
+    """创建账号请求模型"""
+    name: str = Field(description="账号名称")
+    api_key: str = Field(description="API 密钥")
+    base_url: str = Field(default="https://api.coze.cn", description="API 基础 URL")
+    description: Optional[str] = Field(default=None, description="账号描述")
+    is_active: bool = Field(default=True, description="是否启用")
+    timeout: int = Field(default=600, description="请求超时时间（秒）")
+    max_retries: int = Field(default=3, description="最大重试次数")
+
+
+class UpdateAccountRequest(BaseModel):
+    """更新账号请求模型"""
+    name: Optional[str] = Field(default=None, description="账号名称")
+    api_key: Optional[str] = Field(default=None, description="API 密钥")
+    base_url: Optional[str] = Field(default=None, description="API 基础 URL")
+    description: Optional[str] = Field(default=None, description="账号描述")
+    is_active: Optional[bool] = Field(default=None, description="是否启用")
+    timeout: Optional[int] = Field(default=None, description="请求超时时间（秒）")
+    max_retries: Optional[int] = Field(default=None, description="最大重试次数")
+
+
+class ValidateAccountRequest(BaseModel):
+    """验证账号请求模型"""
+    api_key: str = Field(description="API 密钥")
+    base_url: str = Field(default="https://api.coze.cn", description="API 基础 URL")
+
+
+class ValidateAccountResponse(BaseModel):
+    """验证账号响应模型"""
+    is_valid: bool = Field(description="是否有效")
+    message: str = Field(description="验证消息")
+    workspace_info: Optional[Dict[str, Any]] = Field(default=None, description="工作空间信息")
+    account_id: Optional[str] = Field(default=None, description="账号 ID")
+
+
+class AccountListResponse(BaseModel):
+    """账号列表响应模型"""
+    accounts: List[CozeAccount] = Field(description="账号列表")
+    count: int = Field(description="账号总数")

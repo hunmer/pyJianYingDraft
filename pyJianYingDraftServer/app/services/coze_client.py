@@ -570,20 +570,39 @@ def get_coze_client(account_id: str = "default") -> Optional[CozeWorkflowClient]
     if account_id in _coze_clients:
         return _coze_clients[account_id]
 
-    # 加载配置
-    from app.services.coze_config import get_config_manager
+    # 加载配置 - 优先使用新的账号管理系统
+    from app.services.coze_config import get_account_manager
 
-    config_manager = get_config_manager()
-    config = config_manager.get_coze_config(account_id)
+    account_manager = get_account_manager()
+    account_data = account_manager.get_account_by_id(account_id)
 
-    if not config:
-        print(f"⚠️ 无法为账号 {account_id} 创建 Coze 客户端：配置缺失")
+    if not account_data or not account_data.get("is_active", True):
+        print(f"⚠️ 无法为账号 {account_id} 创建 Coze 客户端：账号不存在或已禁用")
         return None
+
+    # 创建配置对象
+    api_token = account_data.get("api_key")
+    base_url = account_data.get("base_url", "https://api.coze.cn")
+    timeout = account_data.get("timeout", 600)
+    max_retries = account_data.get("max_retries", 3)
+
+    if not api_token:
+        print(f"⚠️ 账号 {account_id} 缺少 API Key")
+        return None
+
+    # 创建 CozeApiConfig 对象
+    config = CozeApiConfig(
+        api_token=api_token,
+        base_url=base_url,
+        timeout=timeout,
+        max_retries=max_retries
+    )
 
     # 创建客户端
     try:
         client = CozeWorkflowClient(config)
         _coze_clients[account_id] = client
+        print(f"✅ 成功创建 Coze 客户端（账号: {account_id}）")
         return client
     except Exception as e:
         print(f"⚠️ 创建 Coze 客户端失败: {e}")

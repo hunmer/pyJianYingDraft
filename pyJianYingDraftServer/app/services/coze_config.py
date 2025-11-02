@@ -5,8 +5,10 @@ Coze API 配置管理模块
 
 import os
 import json
-from typing import Optional, Dict, Any
+import uuid
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
+from datetime import datetime
 from cozepy import COZE_CN_BASE_URL, COZE_COM_BASE_URL
 
 
@@ -196,9 +198,186 @@ class CozeConfigManager:
 _config_manager: Optional[CozeConfigManager] = None
 
 
+class CozeAccountManager:
+    """Coze 账号管理器"""
+
+    def __init__(self, config_file: str = "config.json"):
+        """
+        初始化账号管理器
+
+        Args:
+            config_file: 配置文件路径
+        """
+        self.config_file = config_file
+        self._config: Optional[Dict[str, Any]] = None
+        self._accounts: Dict[str, Dict[str, Any]] = {}
+
+    def load_config(self) -> Dict[str, Any]:
+        """加载配置文件"""
+        if self._config is None:
+            try:
+                with open(self.config_file, 'r', encoding='utf-8') as f:
+                    self._config = json.load(f)
+            except FileNotFoundError:
+                print(f"⚠️ 配置文件 {self.config_file} 不存在，使用默认配置")
+                self._config = {}
+            except json.JSONDecodeError as e:
+                print(f"⚠️ 配置文件解析失败: {e}，使用默认配置")
+                self._config = {}
+
+            # 确保有 COZE_ACCOUNTS 段
+            if "COZE_ACCOUNTS" not in self._config:
+                self._config["COZE_ACCOUNTS"] = []
+
+        return self._config
+
+    def get_all_accounts(self) -> List[Dict[str, Any]]:
+        """
+        获取所有账号
+
+        Returns:
+            账号列表
+        """
+        config = self.load_config()
+        accounts = config.get("COZE_ACCOUNTS", [])
+        return accounts
+
+    def get_account_by_id(self, account_id: str) -> Optional[Dict[str, Any]]:
+        """
+        根据 ID 获取账号
+
+        Args:
+            account_id: 账号 ID
+
+        Returns:
+            账号信息或 None
+        """
+        accounts = self.get_all_accounts()
+        for account in accounts:
+            if account.get("id") == account_id:
+                return account
+        return None
+
+    def create_account(self, account_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        创建新账号
+
+        Args:
+            account_data: 账号数据
+
+        Returns:
+            创建的账号信息
+        """
+        config = self.load_config()
+
+        # 生成唯一 ID
+        account_id = str(uuid.uuid4())
+        now = datetime.now().isoformat()
+
+        # 创建账号对象
+        new_account = {
+            "id": account_id,
+            "name": account_data["name"],
+            "api_key": account_data["api_key"],
+            "base_url": account_data.get("base_url", "https://api.coze.cn"),
+            "description": account_data.get("description"),
+            "is_active": account_data.get("is_active", True),
+            "timeout": account_data.get("timeout", 600),
+            "max_retries": account_data.get("max_retries", 3),
+            "created_at": now,
+            "updated_at": now
+        }
+
+        # 添加到配置
+        config["COZE_ACCOUNTS"].append(new_account)
+
+        # 保存配置
+        self._save_config(config)
+
+        return new_account
+
+    def update_account(self, account_id: str, updates: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        更新账号
+
+        Args:
+            account_id: 账号 ID
+            updates: 更新数据
+
+        Returns:
+            更新后的账号信息或 None
+        """
+        config = self.load_config()
+        accounts = config.get("COZE_ACCOUNTS", [])
+
+        for i, account in enumerate(accounts):
+            if account.get("id") == account_id:
+                # 更新字段
+                for key, value in updates.items():
+                    if key in account and value is not None:
+                        account[key] = value
+
+                # 更新时间
+                account["updated_at"] = datetime.now().isoformat()
+
+                # 保存配置
+                self._save_config(config)
+
+                return account
+
+        return None
+
+    def delete_account(self, account_id: str) -> bool:
+        """
+        删除账号
+
+        Args:
+            account_id: 账号 ID
+
+        Returns:
+            是否删除成功
+        """
+        config = self.load_config()
+        accounts = config.get("COZE_ACCOUNTS", [])
+
+        for i, account in enumerate(accounts):
+            if account.get("id") == account_id:
+                # 删除账号
+                accounts.pop(i)
+
+                # 保存配置
+                self._save_config(config)
+
+                return True
+
+        return False
+
+    def _save_config(self, config: Dict[str, Any]) -> None:
+        """保存配置到文件"""
+        try:
+            with open(self.config_file, 'w', encoding='utf-8') as f:
+                json.dump(config, f, indent=2, ensure_ascii=False)
+            print(f"✅ 账号配置已保存到 {self.config_file}")
+        except Exception as e:
+            print(f"⚠️ 保存配置文件失败: {e}")
+
+
+# 全局管理器实例
+_config_manager: Optional[CozeConfigManager] = None
+_account_manager: Optional[CozeAccountManager] = None
+
+
 def get_config_manager() -> CozeConfigManager:
     """获取全局配置管理器实例"""
     global _config_manager
     if _config_manager is None:
         _config_manager = CozeConfigManager()
     return _config_manager
+
+
+def get_account_manager() -> CozeAccountManager:
+    """获取全局账号管理器实例"""
+    global _account_manager
+    if _account_manager is None:
+        _account_manager = CozeAccountManager()
+    return _account_manager

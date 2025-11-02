@@ -802,10 +802,65 @@ export const cozeApi = {
   /**
    * 获取账号列表
    */
-  async getAccounts(): Promise<{ success: boolean; accounts: string[]; count: number }> {
+  async getAccounts(): Promise<{ accounts: CozeAccount[]; count: number }> {
     const url = `${API_BASE_URL}/api/coze/accounts`;
     const response = await fetch(url);
-    return handleResponse<{ success: boolean; accounts: string[]; count: number }>(response);
+    return handleResponse<{ accounts: CozeAccount[]; count: number }>(response);
+  },
+
+  /**
+   * 创建账号
+   */
+  async createAccount(account: CreateAccountRequest): Promise<CozeAccount> {
+    const response = await fetch(`${API_BASE_URL}/api/coze/accounts`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(account),
+    });
+    return handleResponse<CozeAccount>(response);
+  },
+
+  /**
+   * 更新账号
+   */
+  async updateAccount(accountId: string, updates: UpdateAccountRequest): Promise<CozeAccount> {
+    const response = await fetch(`${API_BASE_URL}/api/coze/accounts/${accountId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(updates),
+    });
+    return handleResponse<CozeAccount>(response);
+  },
+
+  /**
+   * 删除账号
+   */
+  async deleteAccount(accountId: string): Promise<{ success: boolean; message: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/coze/accounts/${accountId}`, {
+      method: 'DELETE',
+    });
+    return handleResponse<{ success: boolean; message: string }>(response);
+  },
+
+  /**
+   * 验证账号
+   */
+  async validateAccount(apiKey: string, baseUrl?: string): Promise<{ is_valid: boolean; message: string; workspace_info?: any; account_id?: string }> {
+    const response = await fetch(`${API_BASE_URL}/api/coze/accounts/validate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        api_key: apiKey,
+        base_url: baseUrl || 'https://api.coze.cn',
+      }),
+    });
+    return handleResponse<{ is_valid: boolean; message: string; workspace_info?: any; account_id?: string }>(response);
   },
 
   // ==================== 工作空间管理 ====================

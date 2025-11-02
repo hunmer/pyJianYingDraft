@@ -23,6 +23,7 @@ import {
   Refresh as RefreshIcon,
   CloudQueue as WorkspaceIcon,
   Info as InfoIcon,
+  ManageAccounts as ManageAccountsIcon,
 } from '@mui/icons-material';
 import { CozeWorkspace } from '@/types/coze';
 
@@ -35,6 +36,7 @@ interface CozeZoneToolbarProps {
   onAccountSwitch: (accountId: string) => void;
   onWorkspaceSwitch: (workspaceId: string) => void;
   onRefresh: () => void;
+  onManageAccounts?: () => void;
 }
 
 const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
@@ -46,6 +48,7 @@ const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
   onAccountSwitch,
   onWorkspaceSwitch,
   onRefresh,
+  onManageAccounts,
 }) => {
   const handleAccountChange = (event: any) => {
     onAccountSwitch(String(event.target.value));
@@ -100,7 +103,7 @@ const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
             accounts.map((accountId) => (
               <MenuItem key={accountId} value={accountId}>
                 <Typography variant="body2">
-                  {accountId}
+                  账号 {accountId.slice(-8)} {/* 显示账号ID的后8位 */}
                 </Typography>
               </MenuItem>
             ))
@@ -151,6 +154,20 @@ const CozeZoneToolbar: React.FC<CozeZoneToolbarProps> = ({
 
       {/* 操作按钮 */}
       <Box sx={{ ml: 'auto', display: 'flex', gap: 1 }}>
+        {/* 账号管理按钮 */}
+        {onManageAccounts && (
+          <Tooltip title="管理账号">
+            <Button
+              variant="outlined"
+              size="small"
+              startIcon={<ManageAccountsIcon />}
+              onClick={onManageAccounts}
+            >
+              管理账号
+            </Button>
+          </Tooltip>
+        )}
+
         {/* 刷新按钮 */}
         <Tooltip title={refreshing ? "刷新中..." : "刷新工作空间"}>
           <span>

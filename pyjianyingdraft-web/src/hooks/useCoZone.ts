@@ -179,7 +179,7 @@ export const useCoZone = (initialAccountId?: string): UseCoZoneResult => {
       setState(prev => ({ ...prev, loading: true, error: null }));
 
       const response = await api.coze.getAccounts();
-      const accounts = response.accounts || [];
+      const accounts = response.accounts?.map(account => account.id) || [];
 
       setState(prev => ({
         ...prev,

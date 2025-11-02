@@ -362,6 +362,9 @@ async def import_zip(payload: ImportZipRequest):
                 if 'draft_content.json' in files:
                     draft_content_path = os.path.join(root, 'draft_content.json')
                     break
+                if 'draft_info.json' in files:
+                    draft_content_path = os.path.join(root, 'draft_info.json')
+                    break
 
             if not draft_content_path:
                 raise HTTPException(status_code=400, detail="压缩包中未找到 draft_content.json 文件")

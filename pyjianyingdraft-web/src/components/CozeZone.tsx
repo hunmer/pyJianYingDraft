@@ -23,6 +23,7 @@ import CozeZoneToolbar from './CozeZoneToolbar';
 import WorkflowPanel from './WorkflowPanel';
 import WorkflowMonitor from './WorkflowMonitor';
 import TaskManagementPanel from './TaskManagementPanel';
+import AccountManager from './AccountManager';
 
 interface CozeZoneProps {
   tab: CozeZoneTabData;
@@ -62,6 +63,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate, onCreateWorkflowE
     message: '',
     severity: 'success' as 'success' | 'error' | 'warning' | 'info',
   });
+  const [accountManagerOpen, setAccountManagerOpen] = useState(false);
 
   const {
     // 账号状态
@@ -246,6 +248,7 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate, onCreateWorkflowE
         onAccountSwitch={handleAccountSwitch}
         onWorkspaceSwitch={handleWorkspaceSwitch}
         onRefresh={handleRefresh}
+        onManageAccounts={() => setAccountManagerOpen(true)}
       />
 
       {/* 错误提示 */}
@@ -425,6 +428,12 @@ const CozeZone: React.FC<CozeZoneProps> = ({ tab, onTabUpdate, onCreateWorkflowE
           {snackbar.message}
         </Alert>
       </Snackbar>
+
+      {/* 账号管理对话框 */}
+      <AccountManager
+        open={accountManagerOpen}
+        onClose={() => setAccountManagerOpen(false)}
+      />
     </Box>
   );
 };

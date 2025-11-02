@@ -1,12 +1,19 @@
 """草稿文件夹管理器"""
 
 import os
+import platform
 import shutil
 
 from typing import List
 
 from . import assets
 from .script_file import ScriptFile
+
+
+def _get_draft_filename() -> str:
+    """根据操作系统返回正确的草稿文件名"""
+    return "draft_info.json" if platform.system() == "Darwin" else "draft_content.json"
+
 
 class DraftFolder:
     """管理一个文件夹及其内的一系列草稿"""
@@ -86,7 +93,7 @@ class DraftFolder:
 
         # 创建草稿文件
         script_file = ScriptFile(width, height, fps)
-        script_file.save_path = os.path.join(draft_path, "draft_content.json")
+        script_file.save_path = os.path.join(draft_path, _get_draft_filename())
 
         return script_file
 
@@ -122,7 +129,7 @@ class DraftFolder:
         if not os.path.exists(draft_path):
             raise FileNotFoundError(f"草稿文件夹 {draft_name} 不存在")
 
-        return ScriptFile.load_template(os.path.join(draft_path, "draft_content.json"))
+        return ScriptFile.load_template(os.path.join(draft_path, _get_draft_filename()))
 
     def duplicate_as_template(self, template_name: str, new_draft_name: str, allow_replace: bool = False) -> ScriptFile:
         """复制一份给定的草稿, 并在复制出的新草稿上进行编辑

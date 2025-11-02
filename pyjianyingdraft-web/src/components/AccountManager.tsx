@@ -14,7 +14,6 @@ import {
   ListItem,
   ListItemIcon,
   ListItemText,
-  ListItemSecondaryAction,
   IconButton,
   Chip,
   Alert,
@@ -37,46 +36,48 @@ import {
   CloudQueue as CloudIcon,
   Science as TestIcon,
 } from '@mui/icons-material';
-import { CozeAccount } from '@/types/coze';
+import { CozeAccount, CreateAccountRequest, UpdateAccountRequest } from '@/types/coze';
+import api from '@/lib/api';
 
 interface AccountManagerProps {
   open: boolean;
-  accounts: CozeAccount[];
   onClose: () => void;
-  onAccountAdd: (account: Omit<CozeAccount, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  onAccountDelete: (accountId: string) => void;
-  onAccountUpdate: (accountId: string, updates: Partial<CozeAccount>) => void;
-  onAccountValidate: (apiKey: string, baseUrl?: string) => Promise<boolean>;
 }
 
 const AccountManager: React.FC<AccountManagerProps> = ({
   open,
-  accounts,
   onClose,
-  onAccountAdd,
-  onAccountDelete,
-  onAccountUpdate,
-  onAccountValidate,
 }) => {
+  const [accounts, setAccounts] = useState<CozeAccount[]>([]);
+  const [loading, setLoading] = useState(false);
   const [newAccount, setNewAccount] = useState({
     name: '',
-    apiKey: '',
-    baseUrl: 'https://api.coze.cn',
-    description: '',
-    isActive: true,
+    api_key: '',
+    base_url: 'https://api.coze.cn',
   });
   const [editingAccount, setEditingAccount] = useState<CozeAccount | null>(null);
   const [testResults, setTestResults] = useState<{ [key: string]: boolean }>({});
   const [testing, setTesting] = useState<{ [key: string]: boolean }>({});
 
+  // 加载账号列表
+  const loadAccounts = async () => {
+    try {
+      setLoading(true);
+      const response = await api.coze.getAccounts();
+      setAccounts(response.accounts);
+    } catch (error) {
+      console.error('加载账号列表失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // 重置表单
   const resetForm = () => {
     setNewAccount({
       name: '',
-      apiKey: '',
-      baseUrl: 'https://api.coze.cn',
-      description: '',
-      isActive: true,
+      api_key: '',
+      base_url: 'https://api.coze.cn',
     });
     setEditingAccount(null);
     setTestResults({});
@@ -91,12 +92,22 @@ const AccountManager: React.FC<AccountManagerProps> = ({
 
   // 添加账号
   const handleAddAccount = async () => {
-    if (!newAccount.name.trim() || !newAccount.apiKey.trim()) {
+    if (!newAccount.name.trim() || !newAccount.api_key.trim()) {
       return;
     }
 
     try {
-      await onAccountAdd(newAccount);
+      const accountData = {
+        name: newAccount.name,
+        api_key: newAccount.api_key,
+        base_url: newAccount.base_url,
+        description: '',
+        is_active: true,
+        timeout: 600,
+        max_retries: 3,
+      };
+      await api.coze.createAccount(accountData);
+      await loadAccounts(); // 重新加载账号列表
       resetForm();
     } catch (error) {
       console.error('添加账号失败:', error);
@@ -104,9 +115,14 @@ const AccountManager: React.FC<AccountManagerProps> = ({
   };
 
   // 删除账号
-  const handleDeleteAccount = (accountId: string) => {
+  const handleDeleteAccount = async (accountId: string) => {
     if (window.confirm('确定要删除这个账号吗？此操作不可撤销。')) {
-      onAccountDelete(accountId);
+      try {
+        await api.coze.deleteAccount(accountId);
+        await loadAccounts(); // 重新加载账号列表
+      } catch (error) {
+        console.error('删除账号失败:', error);
+      }
     }
   };
 
@@ -127,15 +143,14 @@ const AccountManager: React.FC<AccountManagerProps> = ({
     if (!editingAccount) return;
 
     try {
-      const updates = {
+      const updates: UpdateAccountRequest = {
         name: editingAccount.name,
-        apiKey: editingAccount.apiKey,
-        baseUrl: editingAccount.baseUrl,
-        description: editingAccount.description,
-        isActive: editingAccount.isActive,
+        api_key: editingAccount.api_key,
+        base_url: editingAccount.base_url,
       };
 
-      await onAccountUpdate(editingAccount.id, updates);
+      await api.coze.updateAccount(editingAccount.id, updates);
+      await loadAccounts(); // 重新加载账号列表
       setEditingAccount(null);
       setTestResults({});
     } catch (error) {
@@ -151,14 +166,21 @@ const AccountManager: React.FC<AccountManagerProps> = ({
     setTestResults(prev => ({ ...prev, [testKey]: false }));
 
     try {
-      const isValid = await onAccountValidate(apiKey, baseUrl);
-      setTestResults(prev => ({ ...prev, [testKey]: isValid }));
+      const response = await api.coze.validateAccount(apiKey, baseUrl);
+      setTestResults(prev => ({ ...prev, [testKey]: response.is_valid }));
     } catch (error) {
       setTestResults(prev => ({ ...prev, [testKey]: false }));
     } finally {
       setTesting(prev => ({ ...prev, [testKey]: false }));
     }
   };
+
+  // 对话框打开时加载账号列表
+  React.useEffect(() => {
+    if (open) {
+      loadAccounts();
+    }
+  }, [open]);
 
   // 获取测试结果显示
   const getTestResultDisplay = (accountId?: string) => {
@@ -223,70 +245,66 @@ const AccountManager: React.FC<AccountManagerProps> = ({
                 <Box key={account.id}>
                   <ListItem>
                     <ListItemIcon>
-                      <AccountIcon color={account.isActive ? 'primary' : 'disabled'} />
+                      <AccountIcon color={account.is_active ? 'primary' : 'disabled'} />
                     </ListItemIcon>
 
                     <ListItemText
                       primary={
-                        <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
-                          {account.name}
-                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          <Typography variant="subtitle1" sx={{ fontWeight: 'medium' }}>
+                            {account.name}
+                          </Typography>
+                          <Box sx={{ display: 'flex', gap: 0.5 }}>
+                            {/* 测试按钮 */}
+                            <Tooltip title="测试连接">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleTestAccount(account.api_key, account.base_url, account.id)}
+                                disabled={testing[account.id]}
+                              >
+                                <TestIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            {/* 编辑按钮 */}
+                            <Tooltip title="编辑">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleEditAccount(account)}
+                              >
+                                <EditIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+
+                            {/* 删除按钮 */}
+                            <Tooltip title="删除">
+                              <IconButton
+                                size="small"
+                                onClick={() => handleDeleteAccount(account.id)}
+                                color="error"
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </Box>
+                        </Box>
                       }
                       secondary={
-                        <Box sx={{ mt: 0.5 }}>
+                        <Box component="span" sx={{ display: 'block', mt: 0.5 }}>
                           <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }} component="span">
-                            {account.description || '暂无描述'}
+                            API URL: {account.base_url}
                           </Typography>
-                          <Typography variant="caption" color="text.secondary">
-                            基础URL: {account.baseUrl}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                            创建时间: {new Date(account.createdAt).toLocaleString()}
+                          <Typography variant="caption" color="text.secondary" component="span">
+                            API 密钥: {account.api_key.substring(0, 8)}...{account.api_key.substring(account.api_key.length - 4)}
                           </Typography>
 
                           {/* 测试结果显示 */}
-                          <Box sx={{ mt: 1 }}>
+                          <Box component="span" sx={{ display: 'block', mt: 1 }}>
                             {getTestResultDisplay(account.id)}
                           </Box>
                         </Box>
                       }
                     />
-
-                    <ListItemSecondaryAction>
-                      <Box sx={{ display: 'flex', gap: 0.5 }}>
-                        {/* 测试按钮 */}
-                        <Tooltip title="测试连接">
-                          <IconButton
-                            edge="end"
-                            onClick={() => handleTestAccount(account.apiKey, account.baseUrl, account.id)}
-                            disabled={testing[account.id]}
-                          >
-                            <TestIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-
-                        {/* 编辑按钮 */}
-                        <Tooltip title="编辑">
-                          <IconButton
-                            edge="end"
-                            onClick={() => handleEditAccount(account)}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-
-                        {/* 删除按钮 */}
-                        <Tooltip title="删除">
-                          <IconButton
-                            edge="end"
-                            onClick={() => handleDeleteAccount(account.id)}
-                            color="error"
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </Box>
-                    </ListItemSecondaryAction>
                   </ListItem>
                   <Divider variant="inset" component="li" />
                 </Box>
@@ -326,12 +344,12 @@ const AccountManager: React.FC<AccountManagerProps> = ({
               <TextField
                 label="API 密钥"
                 type="password"
-                value={editingAccount ? editingAccount.apiKey : newAccount.apiKey}
+                value={editingAccount ? editingAccount.api_key : newAccount.api_key}
                 onChange={(e) => {
                   if (editingAccount) {
-                    setEditingAccount({ ...editingAccount, apiKey: e.target.value });
+                    setEditingAccount({ ...editingAccount, api_key: e.target.value });
                   } else {
-                    setNewAccount({ ...newAccount, apiKey: e.target.value });
+                    setNewAccount({ ...newAccount, api_key: e.target.value });
                   }
                 }}
                 placeholder="输入 Coze API 密钥"
@@ -343,53 +361,18 @@ const AccountManager: React.FC<AccountManagerProps> = ({
               {/* 基础URL */}
               <TextField
                 label="基础 URL"
-                value={editingAccount ? editingAccount.baseUrl : newAccount.baseUrl}
+                value={editingAccount ? editingAccount.base_url : newAccount.base_url}
                 onChange={(e) => {
                   if (editingAccount) {
-                    setEditingAccount({ ...editingAccount, baseUrl: e.target.value });
+                    setEditingAccount({ ...editingAccount, base_url: e.target.value });
                   } else {
-                    setNewAccount({ ...newAccount, baseUrl: e.target.value });
+                    setNewAccount({ ...newAccount, base_url: e.target.value });
                   }
                 }}
                 placeholder="https://api.coze.cn"
                 fullWidth
                 size="small"
                 helperText="API 服务器地址，国内用户通常使用默认值"
-              />
-
-              {/* 描述 */}
-              <TextField
-                label="描述（可选）"
-                value={editingAccount ? editingAccount.description : newAccount.description}
-                onChange={(e) => {
-                  if (editingAccount) {
-                    setEditingAccount({ ...editingAccount, description: e.target.value });
-                  } else {
-                    setNewAccount({ ...newAccount, description: e.target.value });
-                  }
-                }}
-                placeholder="账号描述信息"
-                fullWidth
-                size="small"
-                multiline
-                rows={2}
-              />
-
-              {/* 激活状态 */}
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={editingAccount ? editingAccount.isActive : newAccount.isActive}
-                    onChange={(e) => {
-                      if (editingAccount) {
-                        setEditingAccount({ ...editingAccount, isActive: e.target.checked });
-                      } else {
-                        setNewAccount({ ...newAccount, isActive: e.target.checked });
-                      }
-                    }}
-                  />
-                }
-                label="启用账号"
               />
 
               {/* 操作按钮 */}
@@ -417,14 +400,14 @@ const AccountManager: React.FC<AccountManagerProps> = ({
                       variant="contained"
                       onClick={handleAddAccount}
                       startIcon={<AccountIcon />}
-                      disabled={!newAccount.name.trim() || !newAccount.apiKey.trim()}
+                      disabled={!newAccount.name.trim() || !newAccount.api_key.trim()}
                     >
                       添加账号
                     </Button>
                     <Button
                       variant="outlined"
-                      onClick={() => handleTestAccount(newAccount.apiKey, newAccount.baseUrl)}
-                      disabled={!newAccount.apiKey.trim() || testing['new']}
+                      onClick={() => handleTestAccount(newAccount.api_key, newAccount.base_url)}
+                      disabled={!newAccount.api_key.trim() || testing['new']}
                       startIcon={<TestIcon />}
                     >
                       测试连接
@@ -438,7 +421,7 @@ const AccountManager: React.FC<AccountManagerProps> = ({
 
               {/* 帮助信息 */}
               <Alert severity="info">
-                <Typography variant="body2" paragraph>
+                <Typography variant="body2" sx={{ mb: 1 }}>
                   如何获取 API 密钥：
                 </Typography>
                 <Box component="ol" sx={{ pl: 2, mt: 0, mb: 0 }}>

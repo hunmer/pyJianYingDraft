@@ -18,6 +18,12 @@ from app.models.coze_models import (
     TaskStatistics,
     TaskStatus,
     ExecutionStatus,
+    CozeAccount,
+    CreateAccountRequest,
+    UpdateAccountRequest,
+    ValidateAccountRequest,
+    ValidateAccountResponse,
+    AccountListResponse,
 )
 from app.services.coze_service import get_coze_service
 from app.services.coze_workflow_service import get_workflow_service
@@ -102,29 +108,202 @@ async def health_check():
 
 # ==================== 账号管理 ====================
 
-@router.get("/accounts", summary="获取账号列表")
+@router.get("/accounts", response_model=AccountListResponse, summary="获取账号列表")
 async def get_accounts():
     """
-    获取所有配置的账号 ID 列表
+    获取所有配置的账号列表
 
     返回所有在 config.json 中配置的 Coze 账号
     """
     try:
-        from app.services.coze_config import get_config_manager
+        from app.services.coze_config import get_account_manager
+        from datetime import datetime
 
-        config_manager = get_config_manager()
-        account_ids = config_manager.get_all_account_ids()
+        account_manager = get_account_manager()
+        accounts_data = account_manager.get_all_accounts()
 
-        return {
-            "success": True,
-            "accounts": account_ids,
-            "count": len(account_ids)
-        }
+        # 转换为 CozeAccount 模型
+        accounts = []
+        for account_data in accounts_data:
+            accounts.append(CozeAccount(
+                id=account_data["id"],
+                name=account_data["name"],
+                api_key=account_data["api_key"],
+                base_url=account_data["base_url"],
+                description=account_data.get("description"),
+                is_active=account_data["is_active"],
+                timeout=account_data["timeout"],
+                max_retries=account_data["max_retries"],
+                created_at=datetime.fromisoformat(account_data["created_at"]),
+                updated_at=datetime.fromisoformat(account_data["updated_at"])
+            ))
+
+        return AccountListResponse(accounts=accounts, count=len(accounts))
 
     except Exception as e:
         raise HTTPException(
             status_code=500,
             detail=f"获取账号列表失败: {str(e)}"
+        )
+
+
+@router.post("/accounts", response_model=CozeAccount, summary="创建账号")
+async def create_account(request: CreateAccountRequest):
+    """
+    创建新的 Coze 账号配置
+
+    - **name**: 账号名称
+    - **api_key**: API 密钥
+    - **base_url**: API 基础 URL（可选，默认 https://api.coze.cn）
+    - **description**: 账号描述（可选）
+    - **is_active**: 是否启用（可选，默认 true）
+    - **timeout**: 请求超时时间（可选，默认 600 秒）
+    - **max_retries**: 最大重试次数（可选，默认 3 次）
+    """
+    try:
+        from app.services.coze_config import get_account_manager
+
+        account_manager = get_account_manager()
+
+        # 转换为字典
+        account_data = {
+            "name": request.name,
+            "api_key": request.api_key,
+            "base_url": request.base_url,
+            "description": request.description,
+            "is_active": request.is_active,
+            "timeout": request.timeout,
+            "max_retries": request.max_retries
+        }
+
+        # 创建账号
+        new_account_data = account_manager.create_account(account_data)
+
+        return CozeAccount(**new_account_data)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"创建账号失败: {str(e)}"
+        )
+
+
+@router.put("/accounts/{account_id}", response_model=CozeAccount, summary="更新账号")
+async def update_account(account_id: str, request: UpdateAccountRequest):
+    """
+    更新指定的 Coze 账号配置
+
+    支持部分更新，只更新提供的字段
+    """
+    try:
+        from app.services.coze_config import get_account_manager
+
+        account_manager = get_account_manager()
+
+        # 转换为字典，过滤 None 值
+        updates = {}
+        if request.name is not None:
+            updates["name"] = request.name
+        if request.api_key is not None:
+            updates["api_key"] = request.api_key
+        if request.base_url is not None:
+            updates["base_url"] = request.base_url
+        if request.description is not None:
+            updates["description"] = request.description
+        if request.is_active is not None:
+            updates["is_active"] = request.is_active
+        if request.timeout is not None:
+            updates["timeout"] = request.timeout
+        if request.max_retries is not None:
+            updates["max_retries"] = request.max_retries
+
+        # 更新账号
+        updated_account_data = account_manager.update_account(account_id, updates)
+
+        if not updated_account_data:
+            raise HTTPException(
+                status_code=404,
+                detail=f"账号 {account_id} 不存在"
+            )
+
+        return CozeAccount(**updated_account_data)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"更新账号失败: {str(e)}"
+        )
+
+
+@router.delete("/accounts/{account_id}", summary="删除账号")
+async def delete_account(account_id: str):
+    """
+    删除指定的 Coze 账号配置
+    """
+    try:
+        from app.services.coze_config import get_account_manager
+
+        account_manager = get_account_manager()
+        success = account_manager.delete_account(account_id)
+
+        if not success:
+            raise HTTPException(
+                status_code=404,
+                detail=f"账号 {account_id} 不存在"
+            )
+
+        return {
+            "success": True,
+            "message": f"账号 {account_id} 已删除"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"删除账号失败: {str(e)}"
+        )
+
+
+@router.post("/accounts/validate", response_model=ValidateAccountResponse, summary="验证账号")
+async def validate_account(request: ValidateAccountRequest):
+    """
+    验证 Coze 账号配置是否有效
+
+    - **api_key**: API 密钥
+    - **base_url**: API 基础 URL（可选，默认 https://api.coze.cn）
+    """
+    try:
+        from app.services.coze_client import CozeWorkflowClient
+        from datetime import datetime
+
+        # 创建临时客户端
+        client = CozeWorkflowClient(
+            api_token=request.api_key,
+            base_url=request.base_url
+        )
+
+        # 尝试获取工作空间列表来验证配置
+        workspaces = await client.list_workspaces()
+
+        return ValidateAccountResponse(
+            is_valid=True,
+            message="账号配置有效",
+            workspace_info={
+                "workspaces_count": len(workspaces),
+                "first_workspace": workspaces[0] if workspaces else None
+            },
+            account_id="validated"
+        )
+
+    except Exception as e:
+        return ValidateAccountResponse(
+            is_valid=False,
+            message=f"账号配置无效: {str(e)}",
+            account_id=None
         )
 
 
