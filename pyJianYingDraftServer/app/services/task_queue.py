@@ -447,8 +447,11 @@ class TaskQueue:
                     path = material.get("path")
                     if path in url_to_local_map:
                         # 替换为本地路径
-                        material["path"] = url_to_local_map[path]
-                        self._log(f"[materials] 路径已更新: {path} -> {material['path']}")
+                        local_path = url_to_local_map[path]
+                        material["path"] = local_path
+                        # 同时更新 name 为文件名（包括后缀）
+                        material["name"] = Path(local_path).name
+                        self._log(f"[materials] 路径已更新: {path} -> {material['path']}, name -> {material['name']}")
                         replaced_count += 1
         else:
             # 旧格式兼容
@@ -459,8 +462,11 @@ class TaskQueue:
                         if isinstance(material, dict):
                             path = material.get("path")
                             if path in url_to_local_map:
-                                material["path"] = url_to_local_map[path]
-                                self._log(f"[materials.{material_type}] 路径已更新: {path} -> {material['path']}")
+                                local_path = url_to_local_map[path]
+                                material["path"] = local_path
+                                # 同时更新 name 为文件名（包括后缀）
+                                material["name"] = Path(local_path).name
+                                self._log(f"[materials.{material_type}] 路径已更新: {path} -> {material['path']}, name -> {material['name']}")
                                 replaced_count += 1
 
         # 2. 处理 task.test_data.items[].data.path (testData中的路径)
@@ -478,8 +484,11 @@ class TaskQueue:
 
                 path = data.get("path")
                 if path in url_to_local_map:
-                    data["path"] = url_to_local_map[path]
-                    self._log(f"[testData.items.data] 路径已更新: {path} -> {data['path']}")
+                    local_path = url_to_local_map[path]
+                    data["path"] = local_path
+                    # 同时更新 name 为文件名（包括后缀）
+                    data["name"] = Path(local_path).name
+                    self._log(f"[testData.items.data] 路径已更新: {path} -> {data['path']}, name -> {data['name']}")
                     replaced_count += 1
 
         # 3. 处理 task.raw_materials (raw模式)
@@ -493,8 +502,11 @@ class TaskQueue:
             if isinstance(data, dict):
                 path = data.get('path')
                 if path in url_to_local_map:
-                    data['path'] = url_to_local_map[path]
-                    self._log(f"[raw_materials] 路径已更新: {path} -> {data['path']}")
+                    local_path = url_to_local_map[path]
+                    data['path'] = local_path
+                    # 同时更新 name 为文件名（包括后缀）
+                    data['name'] = Path(local_path).name
+                    self._log(f"[raw_materials] 路径已更新: {path} -> {data['path']}, name -> {data['name']}")
                     replaced_count += 1
 
                 # 同时更新 media_path 和 material_url 字段(如果存在)
@@ -514,8 +526,11 @@ class TaskQueue:
             if isinstance(material, dict):
                 path = material.get('path')
                 if path in url_to_local_map:
-                    material['path'] = url_to_local_map[path]
-                    self._log(f"[raw_segments.material] 路径已更新: {path} -> {material['path']}")
+                    local_path = url_to_local_map[path]
+                    material['path'] = local_path
+                    # 同时更新 name 为文件名（包括后缀）
+                    material['name'] = Path(local_path).name
+                    self._log(f"[raw_segments.material] 路径已更新: {path} -> {material['path']}, name -> {material['name']}")
                     replaced_count += 1
 
                 # 同时更新其他路径字段
@@ -535,8 +550,11 @@ class TaskQueue:
                             continue
                         path = item.get('path')
                         if path in url_to_local_map:
-                            item['path'] = url_to_local_map[path]
-                            self._log(f"[raw_segments.extra_materials.{category}] 路径已更新: {path} -> {item['path']}")
+                            local_path = url_to_local_map[path]
+                            item['path'] = local_path
+                            # 同时更新 name 为文件名（包括后缀）
+                            item['name'] = Path(local_path).name
+                            self._log(f"[raw_segments.extra_materials.{category}] 路径已更新: {path} -> {item['path']}, name -> {item['name']}")
                             replaced_count += 1
 
                         # 同时更新其他路径字段
