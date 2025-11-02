@@ -3,6 +3,7 @@
 """
 
 import sys
+import uvicorn
 from pathlib import Path
 
 # 将父目录添加到 Python 路径,以便导入 pyJianYingDraft 模块
@@ -16,7 +17,6 @@ else:
 if str(parent_dir) not in sys.path:
     sys.path.insert(0, str(parent_dir))
 
-import uvicorn
 
 if __name__ == "__main__":
     # 检测是否为 PyInstaller 打包环境

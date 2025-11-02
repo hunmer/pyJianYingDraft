@@ -153,7 +153,6 @@ export interface RuleGroupTestRequest {
   materials: MaterialInfo[];
   testData: TestData;
   segment_styles?: SegmentStylesPayload;
-  use_raw_segments?: boolean;
   raw_segments?: RawSegmentPayload[];
   raw_materials?: RawMaterialPayload[];
   /** 草稿配置(会覆盖草稿JSON的对应字段) */

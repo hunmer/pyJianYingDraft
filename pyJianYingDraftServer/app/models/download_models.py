@@ -95,7 +95,6 @@ class DownloadTask(BaseModel):
     materials: Optional[List[Dict[str, Any]]] = Field(default=None, description="素材数据（MaterialInfo数组）")
     test_data: Optional[Dict[str, Any]] = Field(default=None, description="测试数据")
     segment_styles: Optional[Dict[str, Any]] = Field(default=None, description="片段样式")
-    use_raw_segments: bool = Field(default=False, description="是否使用原始片段")
     raw_segments: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始片段数据")
     raw_materials: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始素材数据")
 
@@ -143,7 +142,6 @@ class TaskSubmitRequest(BaseModel):
     materials: List[Dict[str, Any]] = Field(description="素材数据（MaterialInfo数组）")
     testData: Optional[Dict[str, Any]] = Field(default=None, description="测试数据")
     segment_styles: Optional[Dict[str, Any]] = Field(default=None, description="片段样式")
-    use_raw_segments: bool = Field(default=False, description="是否使用原始片段")
     raw_segments: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始片段数据")
     raw_materials: Optional[List[Dict[str, Any]]] = Field(default=None, description="原始素材数据")
     draft_config: Dict[str, Any] = Field(description="草稿配置")

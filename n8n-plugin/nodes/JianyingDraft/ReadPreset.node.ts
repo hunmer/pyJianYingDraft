@@ -121,14 +121,6 @@ export class ReadPreset implements INodeType {
 					});
 				}
 
-				if (
-					parsedPresetData.use_raw_segments !== undefined &&
-					typeof parsedPresetData.use_raw_segments !== 'boolean'
-				) {
-					throw new NodeOperationError(this.getNode(), 'use_raw_segments 必须是布尔值', {
-						itemIndex: i,
-					});
-				}
 
 				if (
 					parsedPresetData.canvas_width !== undefined &&
@@ -179,15 +171,14 @@ export class ReadPreset implements INodeType {
 					);
 				}
 
-				// 7. 校验 use_raw_segments 模式
-				if (parsedPresetData.use_raw_segments === true) {
+				// 7. 校验 raw_segments 数组
 					if (
 						!Array.isArray(parsedPresetData.raw_segments) ||
 						parsedPresetData.raw_segments.length === 0
 					) {
 						throw new NodeOperationError(
 							this.getNode(),
-							'use_raw_segments 为 true 时,必须提供非空的 raw_segments 数组',
+							'必须提供非空的 raw_segments 数组',
 							{ itemIndex: i },
 						);
 					}
@@ -232,7 +223,6 @@ export class ReadPreset implements INodeType {
 							}
 						}
 					}
-				}
 
 				// 8. 校验画布配置(如果提供)
 				if (parsedPresetData.draft_config) {
@@ -264,7 +254,6 @@ export class ReadPreset implements INodeType {
 					material_count: parsedPresetData.materials.length,
 					track_count: testData.tracks.length,
 					item_count: testData.items.length,
-					mode: parsedPresetData.use_raw_segments ? 'raw_segments' : 'normal',
 					has_canvas_config:
 						!!parsedPresetData.canvas_width || !!parsedPresetData.draft_config?.canvas_config,
 					canvas_size:

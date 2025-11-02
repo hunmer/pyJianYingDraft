@@ -63,7 +63,6 @@ class GenerationRecordService:
             materials=request.materials,
             test_data=request.test_data,
             segment_styles=request.segment_styles,
-            use_raw_segments=request.use_raw_segments,
             raw_segments=request.raw_segments,
             raw_materials=request.raw_materials,
             status=TaskStatus.PENDING,

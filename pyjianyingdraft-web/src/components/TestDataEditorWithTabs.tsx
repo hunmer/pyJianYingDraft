@@ -27,8 +27,6 @@ interface TestDataEditorWithTabsProps {
   rawSegments?: RawSegmentPayload[] | undefined;
   /** 可用的原始素材载荷(用于调试展示) */
   rawMaterials?: RawMaterialPayload[] | undefined;
-  /** 当前是否会在测试时启用原始片段模式 */
-  useRawSegmentsHint?: boolean;
   /** 预设测试数据 */
   initialTestData?: TestData | null;
 }
@@ -51,7 +49,6 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
   materials = [],
   rawSegments,
   rawMaterials,
-  useRawSegmentsHint,
   initialTestData = null,
 }, ref) => {
   const [currentTab, setCurrentTab] = useState(0);
@@ -134,7 +131,6 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
             materials={materials}
             rawSegments={rawSegments}
             rawMaterials={rawMaterials}
-            useRawSegmentsHint={useRawSegmentsHint}
             initialTestData={initialTestData}
             onDataChange={handleTestDataChange}
           />

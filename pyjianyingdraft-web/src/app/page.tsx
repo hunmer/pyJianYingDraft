@@ -234,7 +234,6 @@ export default function Home() {
         materials: record.materials || [],
         testData,
         segment_styles: record.segment_styles,
-        use_raw_segments: record.use_raw_segments || false,
         raw_segments: record.raw_segments,
         raw_materials: record.raw_materials,
         draft_config: record.draft_config || {
@@ -286,7 +285,6 @@ export default function Home() {
         materials: record.materials,
         rawSegments: record.raw_segments,
         rawMaterials: record.raw_materials,
-        useRawSegmentsHint: record.use_raw_segments,
         initialTestData: record.test_data,
       }
     );
@@ -424,7 +422,6 @@ export default function Home() {
               materials={activeTab.testDataContext?.materials}
               rawSegments={activeTab.testDataContext?.rawSegments}
               rawMaterials={activeTab.testDataContext?.rawMaterials}
-              useRawSegmentsHint={activeTab.testDataContext?.useRawSegmentsHint}
               initialTestData={activeTab.testDataContext?.initialTestData}
             />
           )}

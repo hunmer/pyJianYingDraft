@@ -162,7 +162,6 @@ async def submit_task_with_url(url: str = Query(..., description="远程 JSON �
             materials=json_data['materials'],
             testData=json_data['testData'],
             segment_styles=json_data.get('segment_styles'),
-            use_raw_segments=json_data.get('use_raw_segments', False),
             raw_segments=json_data.get('raw_segments'),
             raw_materials=json_data.get('raw_materials'),
             draft_config=json_data.get('draft_config', {})
@@ -208,7 +207,6 @@ async def submit_task_with_url(url: str = Query(..., description="远程 JSON �
                     materials=json_data.get('materials', []),
                     test_data=json_data.get('testData'),
                     segment_styles=json_data.get('segment_styles'),
-                    use_raw_segments=json_data.get('use_raw_segments', False),
                     raw_segments=json_data.get('raw_segments'),
                     raw_materials=json_data.get('raw_materials'),
                 )

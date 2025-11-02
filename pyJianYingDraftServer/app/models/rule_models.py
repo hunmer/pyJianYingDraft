@@ -110,7 +110,6 @@ class RuleGroupTestRequest(BaseModel):
     materials: List[MaterialPayload] = Field(default_factory=list, description="素材信息列表")
     testData: TestDataModel = Field(..., description="测试数据")
     segment_styles: Optional[SegmentStylesPayload] = Field(default=None, description="素材样式映射")
-    use_raw_segments: bool = Field(default=False, description="是否直接写入原始片段")
     raw_segments: Optional[List[RawSegmentPayload]] = Field(default=None, description="原始片段列表")
     raw_materials: Optional[List[RawMaterialPayload]] = Field(default=None, description="原始素材列表")
     draft_config: Optional[DraftConfigModel] = Field(default=None, description="草稿配置(会覆盖草稿JSON的对应字段)")

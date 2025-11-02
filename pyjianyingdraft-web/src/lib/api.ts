@@ -688,7 +688,6 @@ export interface GenerationRecord {
   materials?: any[];
   test_data?: any;
   segment_styles?: any;
-  use_raw_segments?: boolean;
   raw_segments?: any[];
   raw_materials?: any[];
   status: 'pending' | 'downloading' | 'processing' | 'completed' | 'failed' | 'cancelled';
@@ -711,7 +710,6 @@ export interface GenerationRecordCreateRequest {
   materials?: any[];
   test_data?: any;
   segment_styles?: any;
-  use_raw_segments?: boolean;
   raw_segments?: any[];
   raw_materials?: any[];
 }

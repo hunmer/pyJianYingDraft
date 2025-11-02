@@ -61,8 +61,6 @@ interface TestDataEditorProps {
   rawSegments?: RawSegmentPayload[] | undefined;
   /** 可用的原始素材载荷(用于调试展示) */
   rawMaterials?: RawMaterialPayload[] | undefined;
-  /** 当前是否会在测试时启用原始片段模式 */
-  useRawSegmentsHint?: boolean;
   /** 预设测试数据 */
   initialTestData?: TestData | null;
   /** 数据变化回调 */
@@ -89,7 +87,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
   materials = [],
   rawSegments: _rawSegments,
   rawMaterials: _rawMaterials,
-  useRawSegmentsHint,
   initialTestData = null,
   onDataChange,
 }, ref) => {
@@ -614,9 +611,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     // 添加可选字段(如果存在)
     if (fullRequestPayload.segment_styles) {
       payload.segment_styles = fullRequestPayload.segment_styles;
-    }
-    if (fullRequestPayload.use_raw_segments !== undefined) {
-      payload.use_raw_segments = fullRequestPayload.use_raw_segments;
     }
     if (fullRequestPayload.raw_segments) {
       payload.raw_segments = fullRequestPayload.raw_segments;

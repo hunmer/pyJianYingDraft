@@ -39,7 +39,6 @@ class TaskModel(Base):
     materials = Column(Text, nullable=True)  # JSON
     test_data = Column(Text, nullable=True)  # JSON
     segment_styles = Column(Text, nullable=True)  # JSON: 片段样式
-    use_raw_segments = Column(Integer, default=0)  # 是否使用原始片段（0=False, 1=True）
     raw_segments = Column(Text, nullable=True)  # JSON: 原始片段数据
     raw_materials = Column(Text, nullable=True)  # JSON: 原始素材数据
 
@@ -91,7 +90,6 @@ class TaskModel(Base):
             materials=materials,
             test_data=test_data,
             segment_styles=segment_styles,
-            use_raw_segments=bool(self.use_raw_segments),
             raw_segments=raw_segments,
             raw_materials=raw_materials,
             download_files=download_files,
@@ -138,7 +136,6 @@ class TaskModel(Base):
             materials=materials_json,
             test_data=test_data_json,
             segment_styles=segment_styles_json,
-            use_raw_segments=1 if task.use_raw_segments else 0,
             raw_segments=raw_segments_json,
             raw_materials=raw_materials_json,
             download_files_json=download_files_json,

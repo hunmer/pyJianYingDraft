@@ -9,6 +9,7 @@ import uuid
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Set
 
 import pyJianYingDraft as draft
@@ -81,32 +82,12 @@ class RuleTestService:
         material_lookup = {material.id: material for material in materials}
         plans = RuleTestService._build_segment_plans(test_data, rule_lookup, material_lookup)
 
-        if payload.use_raw_segments:
-            RuleTestService._build_raw_draft(script, payload)
-            if plans:
-                # 将raw_segments的默认时间信息注入到plans中(作为未指定值的后备)
-                RuleTestService._inject_raw_segment_defaults(plans, payload.raw_segments or [])
-                RuleTestService._merge_raw_segments_with_test_data(script, plans)
-        else:
-            track_configs = RuleTestService._prepare_tracks(test_data, rule_lookup, material_lookup)
-            track_order = RuleTestService._resolve_track_order(test_data, track_configs)
-
-            track_name_map: Dict[str, str] = {}
-            used_names: Set[str] = set()
-            for track_id in track_order:
-                track_info = track_configs[track_id]
-                track_name = RuleTestService._ensure_unique_name(track_info["name"], used_names)
-                track_type = RuleTestService._resolve_track_type(track_info["type"])
-
-                script.add_track(track_type, track_name=track_name)
-                track_name_map[track_id] = track_name
-                used_names.add(track_name)
-
-            for plan in plans:
-                track_name = track_name_map[plan["track_id"]]
-                segment = RuleTestService._build_segment(plan["material"], plan["item"])
-                script.add_segment(segment, track_name=track_name)
-
+        RuleTestService._build_raw_draft(script, payload)
+        if plans:
+            # 将raw_segments的默认时间信息注入到plans中(作为未指定值的后备)
+            RuleTestService._inject_raw_segment_defaults(plans, payload.raw_segments or [])
+            RuleTestService._merge_raw_segments_with_test_data(script, plans)
+     
         script.save()
 
         draft_path = os.path.abspath(os.path.join(draft_root, draft_name))
@@ -255,11 +236,20 @@ class RuleTestService:
         duration_value = RuleTestService._resolve_duration_seconds(material, item_data, material_type, path)
         timerange = draft.trange(f"{start}s", f"{duration_value}s")
 
+        # 获取 material_name（优先使用 material_name，然后是 name，最后使用文件名）
+        material_name = (
+            (getattr(material, "model_extra", None) or {}).get("material_name")
+            or material.name
+            or (Path(path).name if path else None)
+        )
+
         if material_type in RuleTestService.AUDIO_TYPES:
             if not path:
                 raise ValueError(f"audio material {material.id} missing file path")
             volume = RuleTestService._resolve_volume(item_data, style_hint)
-            return draft.AudioSegment(path, timerange, volume=volume)
+            # 创建 AudioMaterial 对象并传递 material_name
+            audio_mat = draft.AudioMaterial(path, material_name=material_name)
+            return draft.AudioSegment(audio_mat, timerange, volume=volume)
 
         if material_type in RuleTestService.TEXT_TYPES:
             text_content = item_data.get("text")
@@ -272,7 +262,9 @@ class RuleTestService:
             raise ValueError(f"video material {material.id} missing file path")
         clip = RuleTestService._build_clip_settings(item_data, style_hint)
         volume = RuleTestService._resolve_volume(item_data, style_hint)
-        return draft.VideoSegment(path, timerange, volume=volume, clip_settings=clip)
+        # 创建 VideoMaterial 对象并传递 material_name
+        video_mat = draft.VideoMaterial(path, material_name=material_name)
+        return draft.VideoSegment(video_mat, timerange, volume=volume, clip_settings=clip)
 
     @staticmethod
     def _extract_style_for_track(material: MaterialPayload, track_id: str) -> Optional[Dict[str, Any]]:
@@ -443,7 +435,7 @@ class RuleTestService:
     def _build_raw_draft(script: draft.ScriptFile, payload: RuleGroupTestRequest) -> None:
         raw_segments = payload.raw_segments or []
         if not raw_segments:
-            raise ValueError("use_raw_segments 为 True 时必须提供 raw_segments")
+            raise ValueError("必须提供 raw_segments")
 
         materials = RuleTestService._prepare_raw_materials(payload.raw_materials or [], raw_segments)
 
@@ -680,6 +672,7 @@ class RuleTestService:
 
         # 处理 path: 优先级为 item_data > segment_styles > material原值(来自raw_segments模板)
         path_value = item_data.get("path")
+        updated_path = None
         if path_value:
             # item_data 明确指定了 path,使用它(最高优先级)
             material_entry["path"] = path_value
@@ -687,6 +680,7 @@ class RuleTestService:
                 material_entry["media_path"] = path_value
             if "material_url" in material_entry:
                 material_entry["material_url"] = path_value
+            updated_path = path_value
         elif style_hint and "path" in style_hint:
             # segment_styles 中有 path 预设,使用它(中等优先级)
             style_path = style_hint["path"]
@@ -695,7 +689,12 @@ class RuleTestService:
                 material_entry["media_path"] = style_path
             if "material_url" in material_entry:
                 material_entry["material_url"] = style_path
+            updated_path = style_path
         # 否则保持 material_entry 中的原值(来自 raw_segments 模板,最低优先级)
+
+        # 当 path 被更新时，同步更新 material_name 为新文件名
+        if updated_path:
+            material_entry["material_name"] = Path(updated_path).name
 
         duration_us = RuleTestService._seconds_to_microseconds(item_data.get("duration"))
         if duration_us is not None:
@@ -705,6 +704,11 @@ class RuleTestService:
 
         if "name" in item_data and item_data["name"]:
             material_entry["name"] = item_data["name"]
+
+        # 处理 material_name（如果 item_data 或 style_hint 中有明确指定）
+        material_name_value = item_data.get("material_name") or (style_hint.get("material_name") if style_hint else None)
+        if material_name_value:
+            material_entry["material_name"] = material_name_value
 
         if "text" in item_data and item_data["text"] is not None:
             RuleTestService._update_text_material(material_entry, str(item_data["text"]))

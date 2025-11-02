@@ -10,7 +10,6 @@ import { Input, Output } from "@/typings/importDraft/importDraft";
  *   - materials (必需): 素材列表
  *   - testData (必需): 测试数据(包含 tracks 和 items)
  *   - segment_styles (可选): 片段样式映射
- *   - use_raw_segments (可选): 是否使用原始片段模式
  *   - raw_segments (可选): 原始片段数组
  *   - raw_materials (可选): 原始素材数组
  *   - canvas_width (可选): 画布宽度
@@ -81,7 +80,6 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
       } : parsedPresetData.ruleGroup,
       materials: parsedPresetData.materials,
       testData: parsedPresetData.testData,
-      use_raw_segments: true,
       segment_styles: parsedPresetData.segment_styles || {},
       raw_segments: parsedPresetData.raw_segments || [],
       raw_materials: parsedPresetData.raw_materials || [],

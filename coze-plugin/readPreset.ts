@@ -65,14 +65,6 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
       };
     }
 
-    if (parsedPresetData.use_raw_segments !== undefined &&
-        typeof parsedPresetData.use_raw_segments !== 'boolean') {
-      return {
-        valid: false,
-        error: "use_raw_segments 必须是布尔值"
-      };
-    }
-
     if (parsedPresetData.canvas_width !== undefined &&
         typeof parsedPresetData.canvas_width !== 'number') {
       return {
@@ -123,12 +115,11 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
       };
     }
 
-    // 7. 校验 use_raw_segments 模式
-    if (parsedPresetData.use_raw_segments === true) {
+    // 7. 校验 raw_segments 数组
       if (!Array.isArray(parsedPresetData.raw_segments) || parsedPresetData.raw_segments.length === 0) {
         return {
           valid: false,
-          error: "use_raw_segments 为 true 时,必须提供非空的 raw_segments 数组"
+          error: "时,必须提供非空的 raw_segments 数组"
         };
       }
 
@@ -164,7 +155,6 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
           }
         }
       }
-    }
 
     // 8. 校验画布配置(如果提供)
     if (parsedPresetData.draft_config) {
@@ -194,7 +184,6 @@ export async function handler({ input, logger }: Args<Input>): Promise<Output> {
       material_count: parsedPresetData.materials.length,
       track_count: testData.tracks.length,
       item_count: testData.items.length,
-      mode: parsedPresetData.use_raw_segments ? 'raw_segments' : 'normal',
       has_canvas_config: !!parsedPresetData.canvas_width || !!parsedPresetData.draft_config?.canvas_config,
       canvas_size: parsedPresetData.canvas_width && parsedPresetData.canvas_height
         ? `${parsedPresetData.canvas_width}x${parsedPresetData.canvas_height}`

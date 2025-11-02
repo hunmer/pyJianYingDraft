@@ -124,7 +124,6 @@ export class ImportDraft implements INodeType {
 						: parsedPresetData.ruleGroup,
 					materials: parsedPresetData.materials,
 					testData: parsedPresetData.testData,
-					use_raw_segments: true,
 					segment_styles: parsedPresetData.segment_styles || {},
 					raw_segments: parsedPresetData.raw_segments || [],
 					raw_materials: parsedPresetData.raw_materials || [],

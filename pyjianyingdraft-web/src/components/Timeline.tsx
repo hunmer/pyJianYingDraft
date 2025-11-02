@@ -107,7 +107,6 @@ interface TimelineEditorProps {
       materials?: MaterialInfo[];
       rawSegments?: any[];
       rawMaterials?: any[];
-      useRawSegmentsHint?: boolean;
       initialTestData?: TestData;
     }
   ) => void;
@@ -1005,7 +1004,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         materials: resolvedMaterials,
         testData,
         segment_styles: Object.keys(segmentStylesPayload).length > 0 ? segmentStylesPayload : undefined,
-        use_raw_segments: shouldUseRawSegments,
         raw_segments: shouldUseRawSegments ? relevantRawSegments : undefined,
         raw_materials:
           shouldUseRawSegments && relevantRawMaterials && relevantRawMaterials.length > 0
@@ -1045,7 +1043,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           materials: materials || [],
           test_data: testData,
           segment_styles: requestPayload.segment_styles,
-          use_raw_segments: requestPayload.use_raw_segments,
           raw_segments: requestPayload.raw_segments,
           raw_materials: requestPayload.raw_materials,
         });
@@ -1187,7 +1184,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         materials: resolvedMaterials,
         testData,
         segment_styles: Object.keys(segmentStylesPayload).length > 0 ? segmentStylesPayload : undefined,
-        use_raw_segments: shouldUseRawSegments,
         raw_segments: shouldUseRawSegments ? relevantRawSegments : undefined,
         raw_materials:
           shouldUseRawSegments && relevantRawMaterials && relevantRawMaterials.length > 0
@@ -1725,7 +1721,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                       materials: materials,
                       rawSegments: rawSegmentPayloads,
                       rawMaterials: rawMaterialPayloads,
-                      useRawSegmentsHint: Boolean(rawSegmentPayloads && rawSegmentPayloads.length > 0),
                     }
                   );
                 }}

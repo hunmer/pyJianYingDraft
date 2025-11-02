@@ -1060,6 +1060,197 @@ class ScriptFile:
         with open(file_path, "w", encoding="utf-8") as f:
             f.write(self.dumps())
 
+    def _generate_draft_materials(self) -> List[Dict[str, Any]]:
+        """生成 draft_meta_info.json 中的 draft_materials 数组
+
+        Returns:
+            List[Dict[str, Any]]: draft_materials 数组
+        """
+        import time
+
+        materials_list = []
+        current_time_sec = int(time.time())
+        current_time_ms = int(time.time() * 1000000)
+
+        # 处理新添加的视频素材（包括图片）
+        for video_material in self.materials.videos:
+            # 获取文件创建时间
+            try:
+                file_stat = os.stat(video_material.path)
+                create_time = int(file_stat.st_ctime)
+            except:
+                create_time = current_time_sec
+
+            # 确定 metetype
+            if video_material.material_type == "photo":
+                metetype = "photo"
+            else:
+                metetype = "video"
+
+            material_item = {
+                "create_time": create_time,
+                "duration": video_material.duration,
+                "extra_info": os.path.basename(video_material.path),  # 完整文件名（包含扩展名）
+                "file_Path": video_material.path,
+                "height": video_material.height,
+                "id": str(uuid.uuid4()),  # 生成新的 UUID
+                "import_time": current_time_sec,
+                "import_time_ms": current_time_ms,
+                "item_source": 1,
+                "md5": "",
+                "metetype": metetype,
+                "roughcut_time_range": {"duration": -1, "start": -1},
+                "sub_time_range": {"duration": -1, "start": -1},
+                "type": 0,
+                "width": video_material.width
+            }
+            materials_list.append(material_item)
+
+        # 处理新添加的音频素材
+        for audio_material in self.materials.audios:
+            # 获取文件创建时间
+            try:
+                file_stat = os.stat(audio_material.path)
+                create_time = int(file_stat.st_ctime)
+            except:
+                create_time = current_time_sec
+
+            material_item = {
+                "create_time": create_time,
+                "duration": audio_material.duration,
+                "extra_info": os.path.basename(audio_material.path),  # 完整文件名（包含扩展名）
+                "file_Path": audio_material.path,
+                "height": 0,
+                "id": str(uuid.uuid4()),  # 生成新的 UUID
+                "import_time": current_time_sec,
+                "import_time_ms": current_time_ms,
+                "item_source": 1,
+                "md5": "",
+                "metetype": "music",
+                "roughcut_time_range": {"duration": -1, "start": -1},
+                "sub_time_range": {"duration": -1, "start": -1},
+                "type": 0,
+                "width": 0
+            }
+            materials_list.append(material_item)
+
+        # 处理导入的视频素材（从模板中加载的）
+        if "videos" in self.imported_materials:
+            for video_data in self.imported_materials["videos"]:
+                path = video_data.get("path", "")
+                if not path:
+                    continue
+
+                # 获取文件创建时间
+                try:
+                    file_stat = os.stat(path)
+                    create_time = int(file_stat.st_ctime)
+                except:
+                    create_time = current_time_sec
+
+                # 确定 metetype
+                material_type = video_data.get("type", "video")
+                if material_type == "photo":
+                    metetype = "photo"
+                else:
+                    metetype = "video"
+
+                material_item = {
+                    "create_time": create_time,
+                    "duration": video_data.get("duration", 0),
+                    "extra_info": os.path.basename(path),  # 完整文件名（包含扩展名）
+                    "file_Path": path,
+                    "height": video_data.get("height", 0),
+                    "id": str(uuid.uuid4()),  # 生成新的 UUID
+                    "import_time": current_time_sec,
+                    "import_time_ms": current_time_ms,
+                    "item_source": 1,
+                    "md5": "",
+                    "metetype": metetype,
+                    "roughcut_time_range": {"duration": -1, "start": -1},
+                    "sub_time_range": {"duration": -1, "start": -1},
+                    "type": 0,
+                    "width": video_data.get("width", 0)
+                }
+                materials_list.append(material_item)
+
+        # 处理导入的音频素材（从模板中加载的）
+        if "audios" in self.imported_materials:
+            for audio_data in self.imported_materials["audios"]:
+                path = audio_data.get("path", "")
+                if not path:
+                    continue
+
+                # 获取文件创建时间
+                try:
+                    file_stat = os.stat(path)
+                    create_time = int(file_stat.st_ctime)
+                except:
+                    create_time = current_time_sec
+
+                material_item = {
+                    "create_time": create_time,
+                    "duration": audio_data.get("duration", 0),
+                    "extra_info": os.path.basename(path),  # 完整文件名（包含扩展名）
+                    "file_Path": path,
+                    "height": 0,
+                    "id": str(uuid.uuid4()),  # 生成新的 UUID
+                    "import_time": current_time_sec,
+                    "import_time_ms": current_time_ms,
+                    "item_source": 1,
+                    "md5": "",
+                    "metetype": "music",
+                    "roughcut_time_range": {"duration": -1, "start": -1},
+                    "sub_time_range": {"duration": -1, "start": -1},
+                    "type": 0,
+                    "width": 0
+                }
+                materials_list.append(material_item)
+
+        return materials_list
+
+    def _update_draft_meta_info(self, draft_folder_path: str) -> None:
+        """更新 draft_meta_info.json 文件中的素材列表
+
+        Args:
+            draft_folder_path (str): 草稿文件夹路径
+        """
+        import time
+        import platform
+
+        meta_info_path = os.path.join(draft_folder_path, "draft_meta_info.json")
+
+        # 读取现有的 draft_meta_info.json
+        if not os.path.exists(meta_info_path):
+            # 如果不存在，复制模板
+            import shutil
+            shutil.copy(assets.get_asset_path("DRAFT_META_TEMPLATE"), meta_info_path)
+
+        with open(meta_info_path, "r", encoding="utf-8") as f:
+            meta_info = json.load(f)
+
+        # 更新 draft_materials[0].value（type=0 的素材列表）
+        materials_list = self._generate_draft_materials()
+
+        # 查找 type=0 的素材数组
+        for material_type in meta_info["draft_materials"]:
+            if material_type["type"] == 0:
+                material_type["value"] = materials_list
+                break
+
+        # 更新其他元数据
+        meta_info["tm_draft_modified"] = int(time.time() * 1000000)
+        meta_info["tm_duration"] = self.duration
+        meta_info["draft_fold_path"] = draft_folder_path
+
+        # 获取草稿名称（文件夹名称）
+        draft_name = os.path.basename(draft_folder_path)
+        meta_info["draft_name"] = draft_name
+
+        # 写回文件
+        with open(meta_info_path, "w", encoding="utf-8") as f:
+            json.dump(meta_info, f, ensure_ascii=False, indent=4)
+
     def save(
         self,
         download_remote: bool = None,
@@ -1080,6 +1271,8 @@ class ScriptFile:
         """
         if self.save_path is None:
             raise ValueError("没有设置保存路径, 可能不在模板模式下")
+
+        # 保存 draft_info.json / draft_content.json
         self.dump(
             self.save_path,
             download_remote=download_remote,
@@ -1087,3 +1280,7 @@ class ScriptFile:
             proxy=proxy,
             download_verbose=download_verbose
         )
+
+        # 更新 draft_meta_info.json
+        draft_folder_path = os.path.dirname(self.save_path)
+        self._update_draft_meta_info(draft_folder_path)

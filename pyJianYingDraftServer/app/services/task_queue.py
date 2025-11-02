@@ -220,7 +220,6 @@ class TaskQueue:
             materials=request.materials,
             test_data=request.testData,
             segment_styles=request.segment_styles,
-            use_raw_segments=request.use_raw_segments,
             raw_segments=request.raw_segments,
             raw_materials=request.raw_materials,
             created_at=datetime.now(),
@@ -451,6 +450,7 @@ class TaskQueue:
                         material["path"] = local_path
                         # 同时更新 name 为文件名（包括后缀）
                         material["name"] = Path(local_path).name
+                        material["material_name"] = Path(local_path).name
                         self._log(f"[materials] 路径已更新: {path} -> {material['path']}, name -> {material['name']}")
                         replaced_count += 1
         else:
@@ -466,6 +466,7 @@ class TaskQueue:
                                 material["path"] = local_path
                                 # 同时更新 name 为文件名（包括后缀）
                                 material["name"] = Path(local_path).name
+                                material["material_name"] = Path(local_path).name
                                 self._log(f"[materials.{material_type}] 路径已更新: {path} -> {material['path']}, name -> {material['name']}")
                                 replaced_count += 1
 
@@ -488,6 +489,7 @@ class TaskQueue:
                     data["path"] = local_path
                     # 同时更新 name 为文件名（包括后缀）
                     data["name"] = Path(local_path).name
+                    material["material_name"] = Path(local_path).name
                     self._log(f"[testData.items.data] 路径已更新: {path} -> {data['path']}, name -> {data['name']}")
                     replaced_count += 1
 
@@ -506,6 +508,7 @@ class TaskQueue:
                     data['path'] = local_path
                     # 同时更新 name 为文件名（包括后缀）
                     data['name'] = Path(local_path).name
+                    material["material_name"] = Path(local_path).name
                     self._log(f"[raw_materials] 路径已更新: {path} -> {data['path']}, name -> {data['name']}")
                     replaced_count += 1
 
@@ -530,6 +533,7 @@ class TaskQueue:
                     material['path'] = local_path
                     # 同时更新 name 为文件名（包括后缀）
                     material['name'] = Path(local_path).name
+                    material["material_name"] = Path(local_path).name
                     self._log(f"[raw_segments.material] 路径已更新: {path} -> {material['path']}, name -> {material['name']}")
                     replaced_count += 1
 
@@ -554,6 +558,7 @@ class TaskQueue:
                             item['path'] = local_path
                             # 同时更新 name 为文件名（包括后缀）
                             item['name'] = Path(local_path).name
+                            material["material_name"] = Path(local_path).name
                             self._log(f"[raw_segments.extra_materials.{category}] 路径已更新: {path} -> {item['path']}, name -> {item['name']}")
                             replaced_count += 1
 
@@ -717,7 +722,6 @@ class TaskQueue:
                 testData=task.test_data or {},
                 draft_config=task.draft_config or {},
                 segment_styles=task.segment_styles,
-                use_raw_segments=task.use_raw_segments,
                 raw_segments=cleaned_raw_segments,
                 raw_materials=task.raw_materials
             )

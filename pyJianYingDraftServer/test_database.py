@@ -52,7 +52,6 @@ async def test_database():
         ],
         test_data={"test_key": "test_value"},
         segment_styles={"style1": "value1"},
-        use_raw_segments=False,
         raw_segments=None,
         raw_materials=None,
         gid_to_path_map={"gid-1": "/path/to/file1.mp4"},
