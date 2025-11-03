@@ -454,120 +454,6 @@ export const tracksApi = {
 };
 
 /**
- * 文件监控相关类型
- */
-export interface WatchedFileInfo {
-  file_path: string;
-  watch_name: string;
-  is_watching: boolean;
-  latest_version: number;
-  total_versions: number;
-  created_at: string;
-  last_modified?: string;
-}
-
-export interface FileVersionInfo {
-  version: number;
-  timestamp: string;
-  file_size: number;
-  file_hash: string;
-}
-
-export interface FileVersionListResponse {
-  file_path: string;
-  versions: FileVersionInfo[];
-}
-
-export interface FileContentResponse {
-  file_path: string;
-  version: number;
-  content: string;
-  timestamp: string;
-  file_size: number;
-}
-
-/**
- * FileWatch API - 文件监控
- */
-export const fileWatchApi = {
-  /**
-   * 添加文件监控
-   * @param filePath - 文件路径
-   * @param watchName - 可选的监控名称
-   */
-  async addWatch(filePath: string, watchName?: string): Promise<WatchedFileInfo> {
-    const response = await fetch(`${API_BASE_URL}/api/file-watch/watch`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ file_path: filePath, watch_name: watchName }),
-    });
-    return handleResponse<WatchedFileInfo>(response);
-  },
-
-  /**
-   * 移除文件监控
-   * @param filePath - 文件路径
-   */
-  async removeWatch(filePath: string): Promise<{ message: string; file_path: string }> {
-    const url = buildUrl('/api/file-watch/watch', { file_path: filePath });
-    const response = await fetch(url, { method: 'DELETE' });
-    return handleResponse<{ message: string; file_path: string }>(response);
-  },
-
-  /**
-   * 获取所有监控文件列表
-   */
-  async getWatchedFiles(): Promise<WatchedFileInfo[]> {
-    const url = `${API_BASE_URL}/api/file-watch/watch/list`;
-    const response = await fetch(url);
-    return handleResponse<WatchedFileInfo[]>(response);
-  },
-
-  /**
-   * 开始监控文件
-   * @param filePath - 文件路径
-   */
-  async startWatch(filePath: string): Promise<{ message: string; file_path: string }> {
-    const url = buildUrl('/api/file-watch/watch/start', { file_path: filePath });
-    const response = await fetch(url, { method: 'POST' });
-    return handleResponse<{ message: string; file_path: string }>(response);
-  },
-
-  /**
-   * 停止监控文件
-   * @param filePath - 文件路径
-   */
-  async stopWatch(filePath: string): Promise<{ message: string; file_path: string }> {
-    const url = buildUrl('/api/file-watch/watch/stop', { file_path: filePath });
-    const response = await fetch(url, { method: 'POST' });
-    return handleResponse<{ message: string; file_path: string }>(response);
-  },
-
-  /**
-   * 获取文件版本列表
-   * @param filePath - 文件路径
-   */
-  async getVersions(filePath: string): Promise<FileVersionListResponse> {
-    const url = buildUrl('/api/file-watch/versions', { file_path: filePath });
-    const response = await fetch(url);
-    return handleResponse<FileVersionListResponse>(response);
-  },
-
-  /**
-   * 获取指定版本的文件内容
-   * @param filePath - 文件路径
-   * @param version - 版本号
-   */
-  async getVersionContent(filePath: string, version: number): Promise<FileContentResponse> {
-    const url = buildUrl('/api/file-watch/version/content', { file_path: filePath, version });
-    const response = await fetch(url);
-    return handleResponse<FileContentResponse>(response);
-  },
-};
-
-/**
  * 异步任务相关类型
  */
 export interface TaskSubmitResponse {
@@ -1380,7 +1266,6 @@ const api = {
   ruleTest: ruleTestApi,
   tasks: tasksApi,
   tracks: tracksApi,
-  fileWatch: fileWatchApi,
   generationRecords: generationRecordsApi,
   coze: cozeApi,
 };

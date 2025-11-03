@@ -134,37 +134,6 @@ export const useDraftData = () => {
   }, []);
 
   /**
-   * 处理文件差异视图选择
-   */
-  const handleFileDiffSelect = useCallback((
-    filePath: string,
-    createTab: (tab: any) => void,
-    findExistingTab: (type: any, identifier: string) => any,
-    setActiveTabId: (id: string) => void
-  ) => {
-    // 检查是否已经打开
-    const existingTab = findExistingTab('file_diff', filePath);
-    if (existingTab) {
-      setActiveTabId(existingTab.id);
-      return;
-    }
-
-    // 创建新tab
-    const newTabId = `diff-${Date.now()}`;
-    const newTab = {
-      id: newTabId,
-      label: `Diff: ${filePath.split('/').pop()}`,
-      type: 'file_diff' as const,
-      filePath,
-      loading: false,
-      error: null,
-    };
-
-    createTab(newTab);
-    setActiveTabId(newTabId);
-  }, []);
-
-  /**
    * 处理草稿选择
    */
   const handleDraftSelect = useCallback((
@@ -209,7 +178,6 @@ export const useDraftData = () => {
   return {
     loadDraftData,
     handleTestDataSelect,
-    handleFileDiffSelect,
     handleDraftSelect,
   };
 };

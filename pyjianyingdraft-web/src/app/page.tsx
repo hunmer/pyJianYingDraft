@@ -26,9 +26,7 @@ import { SideBar } from '@/components/SideBar';
 import { TabContextMenu } from '@/components/TabContextMenu';
 import { DialogManager } from '@/components/DialogManager';
 import { DraftEditor } from '@/components/DraftEditor';
-import FileDiffViewer from '@/components/FileDiffViewer';
 import TestDataEditorWithTabs from '@/components/TestDataEditorWithTabs';
-import FileVersionList, { type FileVersionListHandle } from '@/components/FileVersionList';
 import CozeZone from '@/components/CozeZone';
 import WorkflowExecutionPanel from '@/components/WorkflowExecutionPanel';
 
@@ -42,7 +40,6 @@ export default function Home() {
     const sidebarState = getSidebarState();
     return sidebarState.isOpen;
   });
-  const fileVersionListRef = useRef<FileVersionListHandle>(null);
 
   // 下载管理器 Dialog 状态
   const [downloadDialogOpen, setDownloadDialogOpen] = useState<boolean>(false);
@@ -116,14 +113,6 @@ export default function Home() {
     loadAllRuleGroups();
   }, []);
 
-  
-  // 处理设置文件版本检测
-  const handleSetFileVersionWatch = useCallback((draftPath: string) => {
-    // 打开添加对话框并预填充路径
-    setTimeout(() => {
-      fileVersionListRef.current?.openAddDialog(draftPath);
-    }, 100);
-  }, []);
 
   // 处理草稿选择
   const handleDraftSelectWrapper = useCallback((draftPath: string, draftName: string) => {
@@ -147,10 +136,6 @@ export default function Home() {
     handleTestDataSelect(testDataId, label, onTest, context, createTab, findExistingTab, setActiveTabId);
   }, [handleTestDataSelect, createTab, findExistingTab, setActiveTabId]);
 
-  // 处理文件差异视图选择
-  const handleFileDiffSelectWrapper = useCallback((filePath: string) => {
-    handleFileDiffSelect(filePath, createTab, findExistingTab, setActiveTabId);
-  }, [handleFileDiffSelect, createTab, findExistingTab, setActiveTabId]);
 
   // 处理右键菜单打开
   const handleTabContextMenu = useCallback((event: React.MouseEvent, tabId: string) => {
@@ -297,7 +282,6 @@ export default function Home() {
       <SideBar
         open={drawerOpen}
         selectedDraftPath={activeTab?.draftPath}
-        selectedFilePath={tabs.find(t => t.id === activeTabId && t.type === 'file_diff')?.filePath}
         ruleGroups={allRuleGroups}
         ruleGroupsLoading={loadingRuleGroups}
         ruleGroupsError={ruleGroupsError}
@@ -308,8 +292,6 @@ export default function Home() {
           }
         }}
         onDraftRootChanged={loadAllRuleGroups}
-        onSetFileVersionWatch={handleSetFileVersionWatch}
-        onFileSelect={handleFileDiffSelectWrapper}
         onRuleGroupsRefresh={loadAllRuleGroups}
         onRuleGroupSelect={(ruleGroupId, ruleGroup) => {
           // 创建使用 submit API 的测试函数
@@ -358,7 +340,6 @@ export default function Home() {
             }
           );
         }}
-        fileVersionListRef={fileVersionListRef}
       />
 
       {/* 主内容区 */}
@@ -439,11 +420,6 @@ export default function Home() {
 
         {/* 内容区域 */}
         <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
-          {/* 文件版本Diff视图 */}
-          {activeTab?.type === 'file_diff' && (
-            <FileDiffViewer filePath={activeTab.filePath!} />
-          )}
-
           {/* 测试数据视图 */}
           {activeTab?.type === 'test_data' && (
             <TestDataEditorWithTabs

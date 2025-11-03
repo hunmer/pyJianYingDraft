@@ -49,7 +49,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import socketio
 
-from app.routers import draft, subdrafts, materials, tracks, files, rules, file_watch, tasks, aria2, generation_records, coze
+from app.routers import draft, subdrafts, materials, tracks, files, rules, tasks, aria2, generation_records, coze
 
 # 创建Socket.IO服务器 - 简化日志配置
 sio = socketio.AsyncServer(
@@ -200,7 +200,6 @@ app.include_router(materials.router, prefix="/api/materials", tags=["素材管�
 app.include_router(tracks.router, prefix="/api/tracks", tags=["轨道管理"])
 app.include_router(files.router, prefix="/api/files", tags=["文件服务"])
 app.include_router(rules.router, prefix="/api/rules", tags=["规则测试"])
-app.include_router(file_watch.router, prefix="/api/file-watch", tags=["文件监控"])
 app.include_router(tasks.router, tags=["异步任务"])
 app.include_router(aria2.router, prefix="/api/aria2", tags=["Aria2下载管理"])
 app.include_router(generation_records.router, tags=["生成记录"])
@@ -211,11 +210,6 @@ static_dir = Path(__file__).parent / "static"
 if static_dir.exists():
     app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
     print(f"✓ 静态文件目录已挂载: {static_dir}")
-
-# 注入Socket.IO实例到文件版本管理器
-from app.services.file_watch_service import get_file_version_manager
-file_manager = get_file_version_manager()
-file_manager.sio = sio
 
 # WebSocket事件处理
 @sio.event
@@ -235,59 +229,6 @@ async def disconnect(sid):
         coze_service.remove_socket_subscriptions(sid)
     except Exception as e:
         print(f"清理Coze订阅失败: {e}")
-
-@sio.event
-async def get_file_versions(sid, data):
-    """获取文件版本列表"""
-    try:
-        file_path = data.get('file_path')
-        if not file_path:
-            await sio.emit('file_versions_error', {'error': '文件路径不能为空'}, room=sid)
-            return
-
-        from app.services.file_watch_service import get_file_version_manager
-        manager = get_file_version_manager()
-        result = manager.get_versions(file_path)
-
-        await sio.emit('file_versions', {
-            'file_path': result.file_path,
-            'versions': [
-                {
-                    'version': v.version,
-                    'timestamp': v.timestamp.isoformat() if hasattr(v.timestamp, 'isoformat') else str(v.timestamp),
-                    'file_size': v.file_size,
-                    'file_hash': v.file_hash
-                }
-                for v in result.versions
-            ]
-        }, room=sid)
-    except Exception as e:
-        await sio.emit('file_versions_error', {'error': str(e)}, room=sid)
-
-@sio.event
-async def get_version_content(sid, data):
-    """获取指定版本的文件内容"""
-    try:
-        file_path = data.get('file_path')
-        version = data.get('version')
-
-        if not file_path or version is None:
-            await sio.emit('version_content_error', {'error': '文件路径和版本号不能为空'}, room=sid)
-            return
-
-        from app.services.file_watch_service import get_file_version_manager
-        manager = get_file_version_manager()
-        result = manager.get_version_content(file_path, version)
-
-        await sio.emit('version_content', {
-            'file_path': result.file_path,
-            'version': result.version,
-            'content': result.content,
-            'timestamp': result.timestamp.isoformat() if hasattr(result.timestamp, 'isoformat') else str(result.timestamp),
-            'file_size': result.file_size
-        }, room=sid)
-    except Exception as e:
-        await sio.emit('version_content_error', {'error': str(e)}, room=sid)
 
 # ==================== 异步任务WebSocket事件 ====================
 
