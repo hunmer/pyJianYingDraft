@@ -37,68 +37,8 @@ export const DraftEditor: React.FC<DraftEditorProps> = ({
   }
 
   return (
-    <>
-      {/* 草稿信息卡片 */}
-      <Box sx={{ mb: 3 }}>
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <PlayArrow color="primary" />
-                  <Typography variant="h6">时长</Typography>
-                </Box>
-                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                  {tab.draftInfo.duration_seconds.toFixed(2)}s
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {(tab.draftInfo.duration / 1000000).toFixed(0)} 微秒
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <Videocam color="primary" />
-                  <Typography variant="h6">轨道</Typography>
-                </Box>
-                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                  {tab.draftInfo.track_count}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {(tab.tracks || []).filter(t => t.type === 'video').length} 视频 /{' '}
-                  {(tab.tracks || []).filter(t => t.type === 'audio').length} 音频 /{' '}
-                  {(tab.tracks || []).filter(t => t.type === 'text').length} 文本
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-
-          <Grid size={{ xs: 12, md: 4 }}>
-            <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <AudioFile color="primary" />
-                  <Typography variant="h6">素材</Typography>
-                </Box>
-                <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                  {(tab.materials || []).length}
-                </Typography>
-                <Typography variant="body2" color="text.secondary">
-                  {(tab.materials || []).filter(m => m.type === 'video').length} 视频 /{' '}
-                  {(tab.materials || []).filter(m => m.type === 'audio').length} 音频 /{' '}
-                  {(tab.materials || []).filter(m => m.type === 'text').length} 文本
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </Grid>
-      </Box>
-
-      {/* 时间轴编辑器 */}
+    <Box sx={{ width: '100%', height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
+      {/* 时间轴编辑器 - 占满页面 */}
       {(tab.tracks || []).length > 0 && (
         <TimelineEditor
           tracks={tab.tracks || []}
@@ -114,8 +54,9 @@ export const DraftEditor: React.FC<DraftEditorProps> = ({
           initialRuleGroups={tab.ruleGroups ?? undefined}
           onRuleGroupsChange={(groups) => onRuleGroupsUpdate(tab.id, groups)}
           handleTestDataSelect={onTestDataSelect}
+          draftInfo={tab.draftInfo}
         />
       )}
-    </>
+    </Box>
   );
 };

@@ -43,7 +43,8 @@ export const RuleGroupPanel: React.FC<RuleGroupPanelProps> = ({
     <Box sx={{
       display: 'flex',
       flexDirection: 'column',
-      height: '100%'
+      height: '100%',
+      width: '100%',
     }}>
       {/* 规则组标题和刷新按钮 */}
       <Box sx={{

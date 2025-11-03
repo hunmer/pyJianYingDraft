@@ -64,7 +64,7 @@ const cloneRuleGroups = (groups: RuleGroup[]): RuleGroup[] =>
     rules: Array.isArray(group.rules) ? group.rules.map(rule => ({ ...rule })) : [],
   }));
 
-/** 
+/**
  * Timeline组件的Props
  */
 interface TimelineEditorProps {
@@ -110,6 +110,15 @@ interface TimelineEditorProps {
       initialTestData?: TestData;
     }
   ) => void;
+  /** 草稿信息 */
+  draftInfo?: {
+    duration: number;
+    duration_seconds: number;
+    track_count: number;
+    width: number;
+    height: number;
+    fps: number;
+  };
 }
 const cloneDeep = <T,>(value: T): T =>
   value === undefined ? (value as T) : JSON.parse(JSON.stringify(value));
@@ -472,6 +481,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   onRuleGroupsChange,
   initialRuleGroups,
   handleTestDataSelect,
+  draftInfo,
 }) => {
   const [data, setData] = useState<TimelineRow[]>([]);
   const [scaleWidth, setScaleWidth] = useState(160); // 默认刻度宽度
@@ -1221,7 +1231,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   };
 
   return (
-    <Paper elevation={2} sx={{ width: '100%', overflow: 'hidden' }}>
+    <Paper elevation={2} sx={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       {/* 顶部按钮栏 */}
       <Box sx={{
         display: 'flex',
@@ -1298,8 +1308,9 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         className="timeline-editor-main-container"
         sx={{
           display: 'flex',
-          height: '500px',
+          flex: 1,
           position: 'relative', // 添加相对定位,使菜单相对于此容器定位
+          overflow: 'hidden',
         }}
       >
         {/* 左侧轨道列表 */}
@@ -1786,41 +1797,81 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         </Menu>
       </Box>
 
-      {/* 轨道类型切换按钮 */}
+      {/* 轨道类型切换按钮和草稿信息 */}
       <Box sx={{
         display: 'flex',
-        justifyContent: 'center',
-        gap: 1,
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        gap: 2,
         flexWrap: 'wrap',
         padding: '10px',
-        maxWidth: 'calc(100% - 16px)'
+        borderTop: 1,
+        borderColor: 'divider',
+        backgroundColor: 'grey.50'
       }}>
-        {Object.entries(TRACK_COLORS).map(([type, color]) => {
-          const isHidden = hiddenTrackTypes.includes(type);
-          return (
+        {/* 左侧：轨道类型切换按钮 */}
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {Object.entries(TRACK_COLORS).map(([type, color]) => {
+            const isHidden = hiddenTrackTypes.includes(type);
+            return (
+              <Chip
+                key={type}
+                label={type}
+                size="small"
+                onClick={() => {
+                  setHiddenTrackTypes(prev =>
+                    isHidden
+                      ? prev.filter(t => t !== type)
+                      : [...prev, type]
+                  );
+                }}
+                sx={{
+                  backgroundColor: isHidden ? '#999' : color,
+                  color: 'white',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  '&:hover': {
+                    opacity: 0.8
+                  }
+                }}
+              />
+            );
+          })}
+        </Box>
+
+        {/* 右侧：草稿信息 */}
+        {draftInfo && (
+          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
             <Chip
-              key={type}
-              label={type}
+              label={`时长: ${draftInfo.duration_seconds.toFixed(2)}s`}
               size="small"
-              onClick={() => {
-                setHiddenTrackTypes(prev =>
-                  isHidden
-                    ? prev.filter(t => t !== type)
-                    : [...prev, type]
-                );
-              }}
-              sx={{
-                backgroundColor: isHidden ? '#999' : color,
-                color: 'white',
-                fontSize: '11px',
-                cursor: 'pointer',
-                '&:hover': {
-                  opacity: 0.8
-                }
-              }}
+              color="primary"
+              variant="outlined"
+              sx={{ fontWeight: 500 }}
             />
-          );
-        })}
+            <Chip
+              label={`轨道: ${draftInfo.track_count}`}
+              size="small"
+              color="primary"
+              variant="outlined"
+              sx={{ fontWeight: 500 }}
+            />
+            <Chip
+              label={`分辨率: ${draftInfo.width}×${draftInfo.height}`}
+              size="small"
+              color="primary"
+              variant="outlined"
+              sx={{ fontWeight: 500 }}
+            />
+            <Chip
+              label={`FPS: ${draftInfo.fps}`}
+              size="small"
+              color="primary"
+              variant="outlined"
+              sx={{ fontWeight: 500 }}
+            />
+          </Box>
+        )}
       </Box>
 
       {/* 测试数据页面 */}
