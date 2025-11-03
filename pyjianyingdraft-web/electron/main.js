@@ -508,3 +508,84 @@ ipcMain.handle('fs:select-directory', async (event, options) => {
     throw error;
   }
 });
+
+/**
+ * 检查文件是否存在
+ */
+ipcMain.handle('fs:check-file-exists', async (event, filePath) => {
+  try {
+    console.log('[IPC] 检查文件是否存在:', filePath);
+    const exists = fs.existsSync(filePath);
+    console.log('[IPC] 文件存在:', exists);
+    return exists;
+  } catch (error) {
+    console.error('[IPC] 检查文件存在失败:', error);
+    return false;
+  }
+});
+
+/**
+ * 获取文件的绝对路径
+ */
+ipcMain.handle('fs:get-absolute-path', async (event, filePath) => {
+  try {
+    console.log('[IPC] 获取绝对路径:', filePath);
+    const absolutePath = path.resolve(filePath);
+    console.log('[IPC] 绝对路径:', absolutePath);
+    return absolutePath;
+  } catch (error) {
+    console.error('[IPC] 获取绝对路径失败:', error);
+    throw error;
+  }
+});
+
+/**
+ * 启动文件拖拽（用于拖出文件到外部应用）
+ */
+ipcMain.handle('fs:start-drag', async (event, filePath) => {
+  try {
+    console.log('[IPC] 启动文件拖拽:', filePath);
+
+    // 检查文件是否存在
+    if (!fs.existsSync(filePath)) {
+      throw new Error(`文件不存在: ${filePath}`);
+    }
+
+    // 获取拖拽图标路径
+    let iconPath;
+    if (isDev) {
+      // 开发环境：使用 public 目录
+      iconPath = path.join(__dirname, '../public/FILE.png');
+    } else {
+      // 生产环境：Next.js 构建后 public 文件会被复制到 out 目录
+      iconPath = path.join(__dirname, '../out/FILE.png');
+    }
+
+    // 检查图标文件是否存在，如果不存在则尝试其他路径
+    if (!fs.existsSync(iconPath)) {
+      console.warn('[IPC] 拖拽图标文件不存在:', iconPath);
+
+      // 尝试备用路径
+      const altPath = path.join(process.resourcesPath, 'app/out/FILE.png');
+      if (fs.existsSync(altPath)) {
+        iconPath = altPath;
+        console.log('[IPC] 使用备用图标路径:', iconPath);
+      } else {
+        iconPath = '';
+      }
+    }
+
+    // 使用 Electron 的 startDrag API 启动文件拖拽
+    // 这将允许文件被拖拽到外部应用（如浏览器上传框、云存储客户端等）
+    event.sender.startDrag({
+      file: filePath,
+      icon: iconPath, // 使用自定义图标
+    });
+
+    console.log('[IPC] 文件拖拽已启动, 图标:', iconPath);
+    return { success: true };
+  } catch (error) {
+    console.error('[IPC] 启动文件拖拽失败:', error);
+    throw error;
+  }
+});

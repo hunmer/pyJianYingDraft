@@ -28,6 +28,11 @@ export interface TabData {
     rawMaterials?: any[];
     useRawSegmentsHint?: boolean;
     initialTestData?: any;
+    draftConfig?: {
+      canvasWidth?: number;
+      canvasHeight?: number;
+      fps?: number;
+    };
   };
   // Coze Zone 相关字段
   accountId?: string;
@@ -217,10 +222,9 @@ export const useTabs = (): UseTabsResult => {
   // 保存tabs到localStorage
   useEffect(() => {
     if (tabs.length > 0) {
-      // 序列化tabs时，需要处理不可序列化的字段
+      // 序列化tabs时，移除所有函数字段（这些会在组件内部重新创建）
       const serializableTabs = tabs.map(tab => {
-        // 移除函数字段，保留其他可序列化的数据
-        const { onTestData, ...rest } = tab;
+        const { onTestData, onExecuteWorkflow, onCancelWorkflow, onCreateTask, onCreateAndExecuteTask, ...rest } = tab;
         return rest;
       });
       localStorage.setItem('editorTabs', JSON.stringify(serializableTabs));

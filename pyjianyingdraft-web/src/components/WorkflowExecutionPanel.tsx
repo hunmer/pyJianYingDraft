@@ -30,10 +30,10 @@ import api from '@/lib/api';
 
 interface WorkflowExecutionPanelProps {
   workflow: CozeWorkflow;
-  onExecute: (workflowId: string, parameters: Record<string, any>, onStreamEvent?: (event: WorkflowStreamEvent) => void) => Promise<any>;
-  onCancel: () => void;
+  onExecute?: (workflowId: string, parameters: Record<string, any>, onStreamEvent?: (event: WorkflowStreamEvent) => void) => Promise<any>;
+  onCancel?: () => void;
   accountId?: string;
-  eventLogs: WorkflowEventLog[];
+  eventLogs?: WorkflowEventLog[];
   onCreateTask?: (taskData: CreateTaskRequest) => Promise<any>;
   onCreateAndExecuteTask?: (taskData: CreateTaskRequest) => Promise<any>;
   showActions?: boolean;
@@ -71,12 +71,66 @@ const WorkflowExecutionPanel: React.FC<WorkflowExecutionPanelProps> = ({
   onExecute,
   onCancel,
   accountId = 'default',
-  eventLogs,
+  eventLogs = [],
   onCreateTask,
   onCreateAndExecuteTask,
   showActions = true,
 }) => {
   const [parameters, setParameters] = useState<Record<string, any>>({});
+  const [internalEventLogs, setInternalEventLogs] = useState<WorkflowEventLog[]>(eventLogs);
+
+  // 内部默认实现：执行工作流
+  const defaultExecuteHandler = useCallback(async (
+    workflowId: string,
+    params: Record<string, any>,
+    onStreamEvent?: (event: WorkflowStreamEvent) => void
+  ) => {
+    try {
+      // 调用 API 执行工作流
+      const response = await api.coze.executeWorkflow(accountId, workflowId, params);
+      console.log('[WorkflowExecutionPanel] 工作流执行已启动:', response);
+      return response;
+    } catch (error) {
+      console.error('[WorkflowExecutionPanel] 工作流执行失败:', error);
+      throw error;
+    }
+  }, [accountId]);
+
+  // 内部默认实现：创建任务
+  const defaultCreateTaskHandler = useCallback(async (taskData: CreateTaskRequest) => {
+    try {
+      const task = await api.coze.createTask(taskData);
+      console.log('[WorkflowExecutionPanel] 任务创建成功:', task);
+      return task;
+    } catch (error: any) {
+      console.error('[WorkflowExecutionPanel] 任务创建失败:', error);
+      throw error;
+    }
+  }, []);
+
+  // 内部默认实现：创建并执行任务
+  const defaultCreateAndExecuteTaskHandler = useCallback(async (taskData: CreateTaskRequest) => {
+    try {
+      const result = await api.coze.executeTask({
+        workflowId: taskData.workflowId,
+        inputParameters: taskData.inputParameters,
+        saveAsTask: true,
+        taskName: taskData.name,
+        taskDescription: taskData.description,
+      });
+      console.log('[WorkflowExecutionPanel] 任务创建并执行成功:', result);
+      return result;
+    } catch (error: any) {
+      console.error('[WorkflowExecutionPanel] 任务创建并执行失败:', error);
+      throw error;
+    }
+  }, []);
+
+  // 使用提供的回调或默认实现
+  const executeHandler = onExecute || defaultExecuteHandler;
+  const cancelHandler = onCancel || (() => console.log('[WorkflowExecutionPanel] 取消操作'));
+  const createTaskHandler = onCreateTask || defaultCreateTaskHandler;
+  const createAndExecuteTaskHandler = onCreateAndExecuteTask || defaultCreateAndExecuteTaskHandler;
   const lastParametersRef = useRef<Record<string, any>>({});
 
   const handleParametersChange = useCallback((newParameters: Record<string, any>) => {
@@ -215,7 +269,7 @@ const WorkflowExecutionPanel: React.FC<WorkflowExecutionPanelProps> = ({
         }
       };
 
-      const result = await onExecute(workflowToExecute.id, parameters, onStreamEvent);
+      const result = await executeHandler(workflowToExecute.id, parameters, onStreamEvent);
 
       setStreamState(prev => {
         const hasOutputFromStream = Object.keys(prev.output || {}).length > 0;
@@ -249,7 +303,7 @@ const WorkflowExecutionPanel: React.FC<WorkflowExecutionPanelProps> = ({
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
-    onCancel();
+    cancelHandler();
   };
 
   const currentWorkflow = useMemo(() => detailedWorkflow || workflow, [detailedWorkflow, workflow?.id]);
@@ -413,10 +467,10 @@ const WorkflowExecutionPanel: React.FC<WorkflowExecutionPanelProps> = ({
                       workflow={currentWorkflow}
                       parameters={parameters}
                       onSave={(taskData) => {
-                        onCreateTask?.(taskData);
+                        createTaskHandler(taskData);
                       }}
                       onSaveAndExecute={(taskData) => {
-                        onCreateAndExecuteTask?.(taskData);
+                        createAndExecuteTaskHandler(taskData);
                       }}
                       loading={streamState.isStreaming}
                     />

@@ -15,20 +15,26 @@ import type { RawSegmentPayload, RawMaterialPayload } from '@/types/rule';
 interface TestDataEditorWithTabsProps {
   /** 测试数据ID */
   testDataId: string;
-  /** 测试回调(必需) - 返回完整的请求载荷或包含task_id的响应 */
-  onTest: (testData: TestData) => Promise<any> | any;
+  /** 测试回调(可选) - 返回完整的请求载荷或包含task_id的响应。如果未提供，将使用内部默认实现 */
+  onTest?: (testData: TestData) => Promise<any> | any;
   /** 当前规则组ID(用于关联数据集) */
   ruleGroupId?: string;
-  /** 当前规则组(用于转换数据) */
+  /** 当前规则组(用于转换数据和内部测试) */
   ruleGroup?: RuleGroup | null;
-  /** 素材列表(用于提取素材属性) */
+  /** 素材列表(用于提取素材属性和内部测试) */
   materials?: MaterialInfo[];
-  /** 可用的原始片段载荷(用于调试展示) */
+  /** 可用的原始片段载荷(用于调试展示和内部测试) */
   rawSegments?: RawSegmentPayload[] | undefined;
-  /** 可用的原始素材载荷(用于调试展示) */
+  /** 可用的原始素材载荷(用于调试展示和内部测试) */
   rawMaterials?: RawMaterialPayload[] | undefined;
   /** 预设测试数据 */
   initialTestData?: TestData | null;
+  /** 草稿配置(用于内部测试，包含canvas尺寸和fps) */
+  draftConfig?: {
+    canvasWidth?: number;
+    canvasHeight?: number;
+    fps?: number;
+  };
 }
 
 /** 暴露给父组件的方法 */
@@ -50,6 +56,7 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
   rawSegments,
   rawMaterials,
   initialTestData = null,
+  draftConfig,
 }, ref) => {
   const [currentTab, setCurrentTab] = useState(0);
   const [currentTestData, setCurrentTestData] = useState<TestData | null>(initialTestData);
@@ -133,6 +140,7 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
             rawMaterials={rawMaterials}
             initialTestData={initialTestData}
             onDataChange={handleTestDataChange}
+            draftConfig={draftConfig}
           />
         </Box>
 

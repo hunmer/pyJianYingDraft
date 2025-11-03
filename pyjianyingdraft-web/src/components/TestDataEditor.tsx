@@ -35,13 +35,15 @@ import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
 import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
 import AddTrackIcon from '@mui/icons-material/AddRoad';
 import HighlightIcon from '@mui/icons-material/Highlight';
-import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
+import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest, SegmentStylesPayload } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
 import { RuleGroupList } from './RuleGroupList';
 import { DownloadProgressBar } from './DownloadProgressBar';
 import { useSnapshots } from '@/hooks/useSnapshots';
 import SnapshotManager from './SnapshotManager';
+import PathReplacementDialog from './PathReplacementDialog';
+import api from '@/lib/api';
 
 // 测试回调的返回类型：可以是请求载荷，也可以是包含task_id的响应
 type TestCallbackResult = RuleGroupTestRequest | { task_id: string; [key: string]: any } | void;
@@ -49,22 +51,28 @@ type TestCallbackResult = RuleGroupTestRequest | { task_id: string; [key: string
 interface TestDataEditorProps {
   /** 测试数据ID */
   testDataId: string;
-  /** 测试回调(必需) - 返回完整的请求载荷或包含task_id的响应 */
-  onTest: (testData: TestData) => Promise<TestCallbackResult> | TestCallbackResult;
+  /** 测试回调(可选) - 返回完整的请求载荷或包含task_id的响应。如果未提供，将使用内部默认实现 */
+  onTest?: (testData: TestData) => Promise<TestCallbackResult> | TestCallbackResult;
   /** 当前规则组ID(用于关联数据集) */
   ruleGroupId?: string;
-  /** 当前规则组(用于转换数据) */
+  /** 当前规则组(用于转换数据和内部测试) */
   ruleGroup?: RuleGroup | null;
-  /** 素材列表(用于提取素材属性) */
+  /** 素材列表(用于提取素材属性和内部测试) */
   materials?: MaterialInfo[];
-  /** 可用的原始片段载荷(用于调试展示) */
+  /** 可用的原始片段载荷(用于调试展示和内部测试) */
   rawSegments?: RawSegmentPayload[] | undefined;
-  /** 可用的原始素材载荷(用于调试展示) */
+  /** 可用的原始素材载荷(用于调试展示和内部测试) */
   rawMaterials?: RawMaterialPayload[] | undefined;
   /** 预设测试数据 */
   initialTestData?: TestData | null;
   /** 数据变化回调 */
   onDataChange?: (testData: TestData) => void;
+  /** 草稿配置(用于内部测试，包含canvas尺寸和fps) */
+  draftConfig?: {
+    canvasWidth?: number;
+    canvasHeight?: number;
+    fps?: number;
+  };
 }
 
 /** 暴露给父组件的方法 */
@@ -89,6 +97,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
   rawMaterials: _rawMaterials,
   initialTestData = null,
   onDataChange,
+  draftConfig,
 }, ref) => {
   const initialJson = useMemo(
     () => JSON.stringify(initialTestData ?? EXAMPLE_TEST_DATA, null, 2),
@@ -123,6 +132,9 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
 
   // 高亮显示的规则类型
   const [highlightedTypes, setHighlightedTypes] = useState<Set<string>>(new Set());
+
+  // 路径替换对话框状态
+  const [pathReplacementDialogOpen, setPathReplacementDialogOpen] = useState(false);
 
   // 快照管理
   const {
@@ -403,6 +415,113 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     }
   }), [testDataJson]);
 
+  // 内部默认测试实现（当未提供 onTest 回调时使用）
+  const defaultTestHandler = useCallback(async (testData: TestData) => {
+    if (!ruleGroup) {
+      throw new Error('未提供规则组信息，无法执行测试');
+    }
+
+    // 验证规则类型
+    const missingRules: string[] = [];
+    testData.items.forEach((item) => {
+      const ruleExists = ruleGroup.rules.some((rule) => rule.type === item.type);
+      if (!ruleExists && !missingRules.includes(item.type)) {
+        missingRules.push(item.type);
+      }
+    });
+
+    if (missingRules.length > 0) {
+      throw new Error(`以下规则类型在当前规则组中不存在: ${missingRules.join(', ')}`);
+    }
+
+    // 收集所需素材
+    const requiredMaterialIds = new Set<string>();
+    testData.items.forEach((item) => {
+      const rule = ruleGroup.rules.find((r) => r.type === item.type);
+      if (rule) {
+        rule.material_ids.forEach((id) => requiredMaterialIds.add(id));
+      }
+    });
+
+    const missingMaterials: string[] = [];
+    const resolvedMaterials = Array.from(requiredMaterialIds).reduce<MaterialInfo[]>((acc, id) => {
+      const material = materials?.find((m) => m.id === id);
+      if (material) {
+        acc.push(material);
+      } else {
+        missingMaterials.push(id);
+      }
+      return acc;
+    }, []);
+
+    if (missingMaterials.length > 0) {
+      throw new Error(`以下素材在当前草稿中未找到: ${missingMaterials.join(', ')}`);
+    }
+
+    // 过滤相关的原始片段和素材
+    const relevantRawSegments = (_rawSegments ?? []).filter((payload) => {
+      const segmentMaterialId = payload.material_id ? String(payload.material_id) : undefined;
+      return segmentMaterialId && requiredMaterialIds.has(segmentMaterialId);
+    });
+    const shouldUseRawSegments = relevantRawSegments.length > 0;
+    const relevantRawMaterials = _rawMaterials?.filter((material) =>
+      requiredMaterialIds.has(String(material.id)),
+    );
+
+    // 构建请求载荷
+    const requestPayload: RuleGroupTestRequest = {
+      ruleGroup: ruleGroup,
+      materials: resolvedMaterials,
+      testData,
+      raw_segments: shouldUseRawSegments ? relevantRawSegments : undefined,
+      raw_materials:
+        shouldUseRawSegments && relevantRawMaterials && relevantRawMaterials.length > 0
+          ? relevantRawMaterials
+          : undefined,
+      draft_config: {
+        canvas_config: {
+          canvas_width: draftConfig?.canvasWidth ?? 1920,
+          canvas_height: draftConfig?.canvasHeight ?? 1080,
+        },
+        config: {
+          maintrack_adsorb: false,
+        },
+        fps: draftConfig?.fps ?? 30,
+      },
+    };
+
+    // 提交异步任务
+    const response = await api.tasks.submit(requestPayload);
+    console.log('[TestDataEditor] 异步任务已提交, task_id:', response.task_id);
+
+    // 保存生成记录
+    try {
+      const recordId = `rec_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      await api.generationRecords.create({
+        record_id: recordId,
+        task_id: response.task_id,
+        rule_group_id: ruleGroup.id,
+        rule_group_title: ruleGroup.title,
+        rule_group: ruleGroup,
+        draft_config: requestPayload.draft_config,
+        materials: materials || [],
+        test_data: testData,
+        segment_styles: requestPayload.segment_styles,
+        raw_segments: requestPayload.raw_segments,
+        raw_materials: requestPayload.raw_materials,
+      });
+      console.log('[TestDataEditor] 生成记录已保存, record_id:', recordId);
+    } catch (error) {
+      console.error('[TestDataEditor] 保存生成记录失败:', error);
+    }
+
+    // 返回响应和请求载荷
+    return {
+      ...response,
+      ...requestPayload,
+    };
+  }, [ruleGroup, materials, _rawSegments, _rawMaterials, draftConfig]);
+
   // 处理测试
   const handleTest = async () => {
     setError('');
@@ -441,7 +560,10 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
       });
 
       setTesting(true);
-      const result = await onTest(testData);
+
+      // 使用提供的 onTest 回调或默认实现
+      const testHandler = onTest || defaultTestHandler;
+      const result = await testHandler(testData);
 
       // 检查返回结果类型
       if (result && typeof result === 'object') {
@@ -654,9 +776,63 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     setPendingDownloadData(null);
   };
 
-  // 下载基础请求数据(items为空)
+  // 下载基础请求数据(items为空) - 打开路径替换对话框
   const handleDownloadBaseRequestData = () => {
-    openDownloadDialog('base');
+    if (!fullRequestPayload) {
+      setError('没有可下载的请求数据');
+      return;
+    }
+    // 打开路径替换对话框
+    setPathReplacementDialogOpen(true);
+    setDownloadMenuAnchor(null);
+  };
+
+  // 处理路径替换确认
+  const handlePathReplacementConfirm = (replacements: Record<string, string>) => {
+    setPathReplacementDialogOpen(false);
+
+    if (!fullRequestPayload) {
+      setError('没有可下载的请求数据');
+      return;
+    }
+
+    // 构建基础请求数据
+    const data = buildRequestPayload(false); // items 为空
+
+    // 应用路径替换
+    if (data.materials && Array.isArray(data.materials)) {
+      data.materials = data.materials.map((material: any) => {
+        const materialCopy = { ...material };
+
+        // 替换 material.path
+        if (materialCopy.path && replacements[materialCopy.path]) {
+          const newPath = replacements[materialCopy.path].trim();
+          if (newPath) {
+            materialCopy.path = newPath;
+          }
+        }
+
+        // 替换 material.content.path
+        if (materialCopy.content?.path && replacements[materialCopy.content.path]) {
+          const newPath = replacements[materialCopy.content.path].trim();
+          if (newPath) {
+            materialCopy.content = {
+              ...materialCopy.content,
+              path: newPath,
+            };
+          }
+        }
+
+        return materialCopy;
+      });
+    }
+
+    // 打开下载确认对话框
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `base-request-${timestamp}.txt`;
+
+    setPendingDownloadData({ data, filename, type: 'base' });
+    setDownloadDialogOpen(true);
   };
 
   // 下载完整请求数据
@@ -1006,6 +1182,14 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* 路径替换对话框 */}
+      <PathReplacementDialog
+        open={pathReplacementDialogOpen}
+        onClose={() => setPathReplacementDialogOpen(false)}
+        materials={fullRequestPayload?.materials || []}
+        onConfirm={handlePathReplacementConfirm}
+      />
     </Box>
   );
 });

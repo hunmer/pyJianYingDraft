@@ -53,5 +53,26 @@ contextBridge.exposeInMainWorld('electron', {
      * @returns {Promise<Object>} - 包含 canceled 和 filePaths 的对象
      */
     selectDirectory: (options) => ipcRenderer.invoke('fs:select-directory', options),
+
+    /**
+     * 检查文件是否存在
+     * @param {string} filePath - 文件路径
+     * @returns {Promise<boolean>} - 文件是否存在
+     */
+    checkFileExists: (filePath) => ipcRenderer.invoke('fs:check-file-exists', filePath),
+
+    /**
+     * 获取文件的绝对路径（用于拖拽文件）
+     * @param {string} filePath - 文件路径
+     * @returns {Promise<string>} - 绝对路径
+     */
+    getAbsolutePath: (filePath) => ipcRenderer.invoke('fs:get-absolute-path', filePath),
+
+    /**
+     * 启动文件拖拽（用于拖出文件到外部应用）
+     * @param {string} filePath - 要拖拽的文件路径
+     * @returns {Promise<void>}
+     */
+    startDrag: (filePath) => ipcRenderer.invoke('fs:start-drag', filePath),
   }
 });

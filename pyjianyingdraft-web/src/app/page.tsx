@@ -413,7 +413,7 @@ export default function Home() {
           )}
 
           {/* 测试数据视图 */}
-          {activeTab?.type === 'test_data' && activeTab.onTestData && (
+          {activeTab?.type === 'test_data' && (
             <TestDataEditorWithTabs
               testDataId={activeTab.testDataId!}
               onTest={activeTab.onTestData}
@@ -423,6 +423,7 @@ export default function Home() {
               rawSegments={activeTab.testDataContext?.rawSegments}
               rawMaterials={activeTab.testDataContext?.rawMaterials}
               initialTestData={activeTab.testDataContext?.initialTestData}
+              draftConfig={activeTab.testDataContext?.draftConfig}
             />
           )}
 
@@ -500,10 +501,10 @@ export default function Home() {
           {activeTab?.type === 'workflow_execution' && activeTab.workflow && (
             <WorkflowExecutionPanel
               workflow={activeTab.workflow}
-              onExecute={activeTab.onExecuteWorkflow || (async () => {})}
-              onCancel={activeTab.onCancelWorkflow || (() => {})}
+              onExecute={activeTab.onExecuteWorkflow}
+              onCancel={activeTab.onCancelWorkflow}
               accountId={activeTab.accountId}
-              eventLogs={activeTab.workflowEventLogs || []}
+              eventLogs={activeTab.workflowEventLogs}
               onCreateTask={activeTab.onCreateTask}
               onCreateAndExecuteTask={activeTab.onCreateAndExecuteTask}
               showActions={true}
