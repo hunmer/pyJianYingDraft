@@ -195,18 +195,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
           tracksCount: initialTestData.tracks?.length || 0,
           itemsCount: initialTestData.items?.length || 0
         });
-
-        // 自动触发测试（延迟执行以确保数据已更新）
-        setTimeout(() => {
-          console.log('[TestDataEditor] 准备自动运行测试...');
-          const testButton = document.querySelector('[data-testid="test-run-button"]') as HTMLButtonElement;
-          if (testButton && !testButton.disabled) {
-            console.log('[TestDataEditor] 自动点击测试按钮');
-            testButton.click();
-          } else {
-            console.warn('[TestDataEditor] 测试按钮不可用或不存在', { testButton, disabled: testButton?.disabled });
-          }
-        }, 500);
       } else {
         console.log('[TestDataEditor] initialTestData 未变化，跳过更新');
       }

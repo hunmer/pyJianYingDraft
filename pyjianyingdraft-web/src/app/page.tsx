@@ -16,7 +16,7 @@ import {
   History as HistoryIcon,
   SmartToy as CozeIcon,
 } from '@mui/icons-material';
-import { draftApi } from '@/lib/api';
+import { draftApi, tasksApi } from '@/lib/api';
 import { getSidebarState, setSidebarState } from '@/lib/storage';
 import type { RuleGroup, TestData, RuleGroupTestRequest } from '@/types/rule';
 import { useTabs } from '@/hooks/useTabs';
@@ -311,11 +311,43 @@ export default function Home() {
         onSetFileVersionWatch={handleSetFileVersionWatch}
         onFileSelect={handleFileDiffSelectWrapper}
         onRuleGroupsRefresh={loadAllRuleGroups}
-        onRuleGroupSelect={(ruleGroupId, ruleGroup, onTest) => {
+        onRuleGroupSelect={(ruleGroupId, ruleGroup) => {
+          // 创建使用 submit API 的测试函数
+          const handleRuleGroupTest = async (testData: TestData) => {
+            console.log('规则组测试提交:', testData);
+
+            // 构建请求载荷
+            const requestPayload: RuleGroupTestRequest = {
+              ruleGroup: ruleGroup,
+              materials: [],
+              testData: testData,
+              draft_config: {
+                canvas_config: {
+                  canvas_width: 1920,
+                  canvas_height: 1080,
+                },
+                config: {
+                  maintrack_adsorb: false,
+                },
+                fps: 30,
+              },
+            };
+
+            // 提交异步任务
+            const response = await tasksApi.submit(requestPayload);
+            console.log('异步任务已提交, task_id:', response.task_id);
+
+            // 返回响应（包含 task_id）
+            return {
+              ...response,
+              ...requestPayload,
+            };
+          };
+
           handleTestDataSelectWrapper(
             ruleGroupId,
             `规则组: ${ruleGroup.title}`,
-            onTest,
+            handleRuleGroupTest,
             {
               ruleGroupId,
               ruleGroup,

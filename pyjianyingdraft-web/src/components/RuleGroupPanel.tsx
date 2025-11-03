@@ -24,8 +24,7 @@ interface RuleGroupPanelProps {
   onRefresh: () => void;
   onRuleGroupSelect: (
     ruleGroupId: string,
-    ruleGroup: RuleGroup,
-    onTest: (testData: any) => Promise<any>
+    ruleGroup: RuleGroup
   ) => void;
 }
 
@@ -37,32 +36,7 @@ export const RuleGroupPanel: React.FC<RuleGroupPanelProps> = ({
   onRuleGroupSelect,
 }) => {
   const handleRuleGroupClick = useCallback((group: RuleGroup) => {
-    // 创建一个实际可用的测试提交函数
-    const handleRuleGroupTest = async (testData: any) => {
-      console.log('规则组测试提交:', testData);
-
-      // 调用后端 API 进行测试
-      const response = await fetch('http://localhost:5000/api/test-rules', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          rule_group_id: group.id,
-          test_data: testData,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`测试失败: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      console.log('测试结果:', result);
-      return result;
-    };
-
-    onRuleGroupSelect(group.id, group, handleRuleGroupTest);
+    onRuleGroupSelect(group.id, group);
   }, [onRuleGroupSelect]);
 
   return (
