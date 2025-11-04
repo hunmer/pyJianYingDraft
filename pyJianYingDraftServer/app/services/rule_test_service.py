@@ -910,8 +910,13 @@ class RuleTestService:
             for prop in position_props:
                 kf_list = property_to_kf_list.get(prop)
                 if kf_list and prop not in configured_props:
-                    # 未配置但需要同步的属性
-                    RuleTestService._sync_keyframe_timepoints(kf_list, sorted(position_times))
+                    # 检查原始 keyframe_list 是否为空
+                    existing_kfs = kf_list.get("keyframe_list", [])
+                    if existing_kfs and len(existing_kfs) > 0:
+                        # 只有当原始有关键帧时，才进行同步
+                        RuleTestService._sync_keyframe_timepoints(kf_list, sorted(position_times))
+                    else:
+                        print(f"[INFO] {prop} 的原始 keyframe_list 为空，跳过同步")
 
         # 更新 segment 的 common_keyframes
         segment.raw_data["common_keyframes"] = common_keyframes
@@ -926,7 +931,9 @@ class RuleTestService:
             target_times: 目标时间点列表（微秒）
         """
         existing_keyframes = kf_list.get("keyframe_list", [])
-        if not existing_keyframes:
+        # 如果原始 keyframe_list 为空，保持为空，不生成任何关键帧
+        if not existing_keyframes or len(existing_keyframes) == 0:
+            print(f"[INFO] {kf_list.get('property_type')} 的 keyframe_list 为空，跳过同步")
             return
 
         # 创建时间点到值的映射
