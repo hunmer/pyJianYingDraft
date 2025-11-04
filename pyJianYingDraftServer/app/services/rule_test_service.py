@@ -15,8 +15,10 @@ from typing import Any, Callable, Dict, List, Optional, Set
 import pyJianYingDraft as draft
 from pyJianYingDraft.template_mode import ImportedSegment
 from pyJianYingDraft.metadata.video_group_animation import GroupAnimationType
+from pyJianYingDraft.metadata.transition_meta import TransitionType
 from pyJianYingDraft.animation import SegmentAnimations, VideoAnimation
 from pyJianYingDraft.keyframe import KeyframeProperty
+from pyJianYingDraft.video_segment import Transition
 
 from app.config import get_config
 from app.models.rule_models import (
@@ -1198,6 +1200,100 @@ class RuleTestService:
             traceback.print_exc()
 
     @staticmethod
+    def _apply_transitions_to_segment(segment: ImportedSegment, transitions: Dict[str, Any], script: draft.ScriptFile) -> None:
+        """
+        根据 transitions 配置为 segment 添加转场效果
+
+        转场应该添加在**前面的片段**上（即转场连接前后两个片段时，转场属于前一个片段）
+
+        transitions 格式:
+        - {"id": "7049979667406656014", "duration": 1.5}  # 通过 resource_id 指定
+        - {"name": "3D空间", "duration": 1.5}  # 通过中文名称指定
+        - {"name": "3D空间"}  # 使用转场类型的默认 duration
+
+        注意：duration 单位为秒，会自动转换为微秒
+        """
+        transition_name = transitions.get("name")
+        transition_id = transitions.get("id")
+        transition_duration = transitions.get("duration")
+
+        try:
+            # 1. 查找转场类型
+            transition_type = None
+
+            if transition_id:
+                # 通过 resource_id 查找
+                for transition in TransitionType:
+                    if transition.value.resource_id == str(transition_id):
+                        transition_type = transition
+                        print(f"[INFO] 通过ID找到转场: {transition.value.name} (resource_id={transition_id})")
+                        break
+
+            if not transition_type and transition_name:
+                # 通过名称查找（使用 from_name 方法，支持忽略大小写、空格、下划线）
+                try:
+                    transition_type = TransitionType.from_name(transition_name)
+                    print(f"[INFO] 通过名称找到转场: {transition_type.value.name}")
+                except ValueError:
+                    print(f"[ERROR] 未找到转场: name={transition_name}")
+                    return
+
+            if not transition_type:
+                print(f"[ERROR] 未能识别转场配置: {transitions}")
+                return
+
+            # 2. 确定转场持续时长
+            if transition_duration is not None:
+                # 用户指定了 duration（秒），转换为微秒
+                duration_us = RuleTestService._seconds_to_microseconds(transition_duration)
+                if duration_us is None or duration_us <= 0:
+                    print(f"[ERROR] 无效的转场时长: {transition_duration}")
+                    return
+            else:
+                # 使用转场类型的默认时长
+                duration_us = transition_type.value.default_duration
+
+            # 3. 创建 Transition 对象
+            transition_obj = Transition(transition_type, duration_us)
+
+            # 4. 将转场添加到草稿级别的 materials.transitions
+            transitions_list = script.imported_materials.setdefault("transitions", [])
+
+            # 导出转场 JSON
+            transition_json = transition_obj.export_json()
+            transitions_list.append(transition_json)
+
+            print(f"[INFO] 添加转场到 materials.transitions: {transition_obj.name}, duration={duration_us/1000000}s, id={transition_obj.global_id}")
+
+            # 5. 更新 segment 的 extra_material_refs，添加转场引用
+            extra_refs = segment.raw_data.get("extra_material_refs", [])
+            if not isinstance(extra_refs, list):
+                extra_refs = []
+
+            # 移除旧的转场引用（如果有）
+            old_transition_ids = set()
+            if "transitions" in script.imported_materials:
+                old_transition_ids = {t.get("id") for t in script.imported_materials["transitions"] if t.get("id")}
+
+            # 保留非转场的引用
+            new_refs = [ref for ref in extra_refs if ref not in old_transition_ids or ref == transition_obj.global_id]
+
+            # 添加新转场 ID（通常在 extra_material_refs 的第2个位置，索引1）
+            # extra_material_refs 顺序参考: [speed_id, transition_id, canvas_id, animation_id, sound_channel_id, vocal_separation_id]
+            if transition_obj.global_id not in new_refs:
+                # 在索引1位置插入（speed之后，其他之前）
+                insert_pos = 1 if len(new_refs) >= 1 else len(new_refs)
+                new_refs.insert(insert_pos, transition_obj.global_id)
+
+            segment.raw_data["extra_material_refs"] = new_refs
+            print(f"[INFO] 更新 segment.extra_material_refs: {new_refs}")
+
+        except Exception as e:
+            print(f"[ERROR] 处理 transitions 失败: {e}")
+            import traceback
+            traceback.print_exc()
+
+    @staticmethod
     def _inject_raw_segment_defaults(plans: List[Dict[str, Any]], raw_segments: List[RawSegmentPayload]) -> None:
         """
         将raw_segments中的默认时间信息注入到plans的item_data中
@@ -1449,6 +1545,11 @@ class RuleTestService:
             animations = item_data.get("animations")
             if animations and isinstance(animations, dict):
                 RuleTestService._apply_animations_to_segment(new_segment, animations, script)
+
+            # 步骤4: 处理transitions（转场）
+            transitions = item_data.get("transitions")
+            if transitions and isinstance(transitions, dict):
+                RuleTestService._apply_transitions_to_segment(new_segment, transitions, script)
 
             # 添加到轨道
             track.segments.append(new_segment)
