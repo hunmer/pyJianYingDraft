@@ -3,9 +3,9 @@
 import React, { useEffect, useRef } from 'react';
 import { EditorView, keymap, lineNumbers, highlightActiveLineGutter, highlightSpecialChars, drawSelection, dropCursor, rectangularSelection, crosshairCursor, highlightActiveLine } from '@codemirror/view';
 import { EditorState, Extension } from '@codemirror/state';
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands';
+import { defaultKeymap, history, historyKeymap, indentMore, indentLess } from '@codemirror/commands';
 import { searchKeymap, highlightSelectionMatches } from '@codemirror/search';
-import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap } from '@codemirror/autocomplete';
+import { autocompletion, completionKeymap, closeBrackets, closeBracketsKeymap, acceptCompletion } from '@codemirror/autocomplete';
 import { foldGutter, indentOnInput, syntaxHighlighting, defaultHighlightStyle, bracketMatching, foldKeymap } from '@codemirror/language';
 import { lintKeymap } from '@codemirror/lint';
 import { json } from '@codemirror/lang-json';
@@ -14,6 +14,30 @@ import { typescript } from '@codemirror/lang-typescript';
 import { python } from '@codemirror/lang-python';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { Box } from '@mui/material';
+
+/**
+ * 自定义 Tab 键绑定
+ * 确保 Tab 键只用于缩进，不会导致焦点切换
+ */
+const customTabKeymap = [
+  {
+    key: 'Tab',
+    run: (view: EditorView) => {
+      // 如果有自动补全菜单显示，则接受补全
+      if (acceptCompletion(view)) {
+        return true;
+      }
+      // 否则执行缩进
+      return indentMore(view);
+    },
+    preventDefault: true, // 阻止默认行为（焦点切换）
+  },
+  {
+    key: 'Shift-Tab',
+    run: indentLess,
+    preventDefault: true, // 阻止默认行为
+  },
+];
 
 /**
  * 基础设置扩展 (替代 basicSetup)
@@ -37,6 +61,7 @@ const basicSetup: Extension = [
   highlightActiveLine(),
   highlightSelectionMatches(),
   keymap.of([
+    ...customTabKeymap,      // Tab 键优先级最高，放在最前面
     ...closeBracketsKeymap,
     ...defaultKeymap,
     ...searchKeymap,

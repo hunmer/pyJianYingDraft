@@ -16,6 +16,7 @@ import pyJianYingDraft as draft
 from pyJianYingDraft.template_mode import ImportedSegment
 from pyJianYingDraft.metadata.video_group_animation import GroupAnimationType
 from pyJianYingDraft.animation import SegmentAnimations, VideoAnimation
+from pyJianYingDraft.keyframe import KeyframeProperty
 
 from app.config import get_config
 from app.models.rule_models import (
@@ -714,6 +715,269 @@ class RuleTestService:
             RuleTestService._update_text_material(material_entry, str(item_data["text"]))
 
     @staticmethod
+    def _map_keyframe_property_name(name: str) -> Optional[str]:
+        """
+        将用户友好的属性名映射到 KeyframeProperty 枚举值
+        例如: "PositionX" -> "KFTypePositionX", "ScaleX" -> "KFTypeScaleX"
+        """
+        # 属性名映射表（不区分大小写）
+        property_map = {
+            "positionx": KeyframeProperty.position_x,
+            "positiony": KeyframeProperty.position_y,
+            "rotation": KeyframeProperty.rotation,
+            "scalex": KeyframeProperty.scale_x,
+            "scaley": KeyframeProperty.scale_y,
+            "uniformscale": KeyframeProperty.uniform_scale,
+            "alpha": KeyframeProperty.alpha,
+            "saturation": KeyframeProperty.saturation,
+            "contrast": KeyframeProperty.contrast,
+            "brightness": KeyframeProperty.brightness,
+            "volume": KeyframeProperty.volume,
+        }
+
+        normalized_name = name.lower().replace("_", "").replace("-", "")
+        if normalized_name in property_map:
+            return property_map[normalized_name].value
+        return None
+
+    @staticmethod
+    def _process_keyframes(segment: ImportedSegment, keyframes_data: Dict[str, List[Dict[str, Any]]]) -> None:
+        """
+        处理 item_data 中的 keyframes 配置，按索引替换 common_keyframes 中的关键帧
+
+        keyframes_data 格式:
+        {
+            "PositionX": [
+                {"time": 0, "value": 0},      // 替换对应类型的第1个关键帧
+                {"time": 3, "value": 100},    // 替换对应类型的第2个关键帧
+                {"time": 4, "value": 125}     // 如果不存在则新增
+            ],
+            "ScaleX": [
+                {"time": 0},  // 不填 value 表示只修改 time，保持原值
+                {"time": 3}
+            ]
+        }
+        """
+        if not keyframes_data or not isinstance(keyframes_data, dict):
+            return
+
+        # 获取或创建 common_keyframes 数组
+        common_keyframes = segment.raw_data.get("common_keyframes", [])
+        if not isinstance(common_keyframes, list):
+            common_keyframes = []
+
+        # 创建属性类型到关键帧列表的映射
+        property_to_kf_list: Dict[str, Dict[str, Any]] = {}
+        for kf_list in common_keyframes:
+            if isinstance(kf_list, dict):
+                prop_type = kf_list.get("property_type")
+                if prop_type:
+                    property_to_kf_list[prop_type] = kf_list
+
+        # 第一遍：收集所有配置的属性及其时间点
+        configured_props = {}  # property_type -> list of time_offsets
+
+        for prop_name, keyframes in keyframes_data.items():
+            if not isinstance(keyframes, list):
+                continue
+
+            property_type = RuleTestService._map_keyframe_property_name(prop_name)
+            if not property_type:
+                print(f"[WARNING] 无法识别的关键帧属性名: {prop_name}")
+                continue
+
+            # 收集该属性的所有时间点
+            time_offsets = []
+            for kf_data in keyframes:
+                if isinstance(kf_data, dict) and kf_data.get("time") is not None:
+                    try:
+                        time_offset = int(float(kf_data["time"]) * 1_000_000)
+                        time_offsets.append(time_offset)
+                    except (TypeError, ValueError):
+                        pass
+
+            configured_props[property_type] = time_offsets
+
+        # 确定需要同步的属性组
+        position_props = [KeyframeProperty.position_x.value, KeyframeProperty.position_y.value]
+        scale_props = [KeyframeProperty.scale_x.value, KeyframeProperty.scale_y.value]
+
+        # 同步位置属性的时间点
+        position_times = set()
+        for prop in position_props:
+            if prop in configured_props:
+                position_times.update(configured_props[prop])
+
+        if position_times:
+            # 如果配置了任何位置属性，同步所有位置属性的时间点
+            for prop in position_props:
+                if prop in property_to_kf_list and prop not in configured_props:
+                    # 该属性未配置，但需要同步时间点
+                    print(f"[INFO] 同步 {prop} 的关键帧时间点到: {sorted(position_times)}")
+
+        # 处理每个属性的关键帧
+        for prop_name, keyframes in keyframes_data.items():
+            if not isinstance(keyframes, list):
+                continue
+
+            # 映射属性名到 KFType
+            property_type = RuleTestService._map_keyframe_property_name(prop_name)
+            if not property_type:
+                continue
+
+            # 查找或创建对应的 KeyframeList
+            kf_list = property_to_kf_list.get(property_type)
+            if not kf_list:
+                # 创建新的 KeyframeList
+                kf_list = {
+                    "id": str(uuid.uuid4()).upper(),
+                    "property_type": property_type,
+                    "keyframe_list": [],
+                    "material_id": ""
+                }
+                common_keyframes.append(kf_list)
+                property_to_kf_list[property_type] = kf_list
+
+            # 获取现有的关键帧列表
+            existing_keyframes = kf_list.get("keyframe_list", [])
+            if not isinstance(existing_keyframes, list):
+                existing_keyframes = []
+                kf_list["keyframe_list"] = existing_keyframes
+
+            # 构建新的关键帧列表
+            new_keyframes = []
+
+            # 按索引替换或新增关键帧
+            for idx, kf_data in enumerate(keyframes):
+                if not isinstance(kf_data, dict):
+                    continue
+
+                # 获取时间（秒）并转换为微秒
+                time_seconds = kf_data.get("time")
+                if time_seconds is None:
+                    continue
+
+                try:
+                    time_offset = int(float(time_seconds) * 1_000_000)
+                except (TypeError, ValueError):
+                    print(f"[WARNING] 无效的关键帧时间值: {time_seconds}")
+                    continue
+
+                # 获取值
+                value = kf_data.get("value")
+
+                # 如果索引位置已存在关键帧，则复用并修改它
+                if idx < len(existing_keyframes):
+                    existing_kf = existing_keyframes[idx].copy()
+
+                    # 更新 time_offset
+                    existing_kf["time_offset"] = time_offset
+
+                    # 如果指定了 value，则更新；否则保持原值
+                    if value is not None:
+                        existing_kf["values"] = [float(value)]
+                    # 如果没有指定 value，保持 existing_kf["values"] 不变
+
+                    new_keyframes.append(existing_kf)
+
+                else:
+                    # 索引位置不存在，需要新增关键帧
+                    # 如果没有指定 value，无法创建新关键帧
+                    if value is None:
+                        print(f"[WARNING] 关键帧 {prop_name}[{idx}] 是新增关键帧但未指定 value，跳过")
+                        continue
+
+                    # 创建新的关键帧
+                    new_kf = {
+                        "curveType": "Line",
+                        "graphID": "",
+                        "id": str(uuid.uuid4()).upper(),
+                        "left_control": {"x": 0.0, "y": 0.0},
+                        "right_control": {"x": 0.0, "y": 0.0},
+                        "time_offset": time_offset,
+                        "values": [float(value)]
+                    }
+                    new_keyframes.append(new_kf)
+
+            # 替换整个关键帧列表（只保留配置的数量）
+            kf_list["keyframe_list"] = new_keyframes
+
+            # 按 time_offset 排序（确保关键帧按时间顺序）
+            kf_list["keyframe_list"].sort(key=lambda x: x.get("time_offset", 0))
+
+        # 同步位置属性的关键帧时间点
+        if position_times:
+            for prop in position_props:
+                kf_list = property_to_kf_list.get(prop)
+                if kf_list and prop not in configured_props:
+                    # 未配置但需要同步的属性
+                    RuleTestService._sync_keyframe_timepoints(kf_list, sorted(position_times))
+
+        # 更新 segment 的 common_keyframes
+        segment.raw_data["common_keyframes"] = common_keyframes
+
+    @staticmethod
+    def _sync_keyframe_timepoints(kf_list: Dict[str, Any], target_times: List[int]) -> None:
+        """
+        同步关键帧列表的时间点，保持值不变
+
+        Args:
+            kf_list: 关键帧列表对象
+            target_times: 目标时间点列表（微秒）
+        """
+        existing_keyframes = kf_list.get("keyframe_list", [])
+        if not existing_keyframes:
+            return
+
+        # 创建时间点到值的映射
+        time_to_value = {}
+        for kf in existing_keyframes:
+            time_offset = kf.get("time_offset")
+            values = kf.get("values", [])
+            if time_offset is not None and values:
+                time_to_value[time_offset] = values[0]
+
+        # 如果没有现有值，使用默认值
+        if not time_to_value:
+            default_value = 0.0
+        else:
+            # 使用最后一个值作为默认值
+            default_value = list(time_to_value.values())[-1]
+
+        # 构建新的关键帧列表
+        new_keyframes = []
+        for target_time in target_times:
+            # 查找最接近的时间点的值
+            value = time_to_value.get(target_time)
+            if value is None:
+                # 插值：找到前后的关键帧
+                before_times = [t for t in time_to_value.keys() if t <= target_time]
+                after_times = [t for t in time_to_value.keys() if t > target_time]
+
+                if before_times:
+                    # 使用之前最近的值
+                    value = time_to_value[max(before_times)]
+                elif after_times:
+                    # 使用之后最近的值
+                    value = time_to_value[min(after_times)]
+                else:
+                    # 使用默认值
+                    value = default_value
+
+            new_kf = {
+                "curveType": "Line",
+                "graphID": "",
+                "id": str(uuid.uuid4()).upper(),
+                "left_control": {"x": 0.0, "y": 0.0},
+                "right_control": {"x": 0.0, "y": 0.0},
+                "time_offset": target_time,
+                "values": [float(value)]
+            }
+            new_keyframes.append(new_kf)
+
+        kf_list["keyframe_list"] = new_keyframes
+
+    @staticmethod
     def _apply_item_data_to_segment(segment: ImportedSegment, item_data: Dict[str, Any]) -> None:
         start_us = RuleTestService._seconds_to_microseconds(item_data.get("start"))
         duration_us = RuleTestService._seconds_to_microseconds(item_data.get("duration"))
@@ -799,6 +1063,11 @@ class RuleTestService:
                 scale_value = float(scale)
                 scale_obj["x"] = scale_value
                 scale_obj["y"] = scale_value
+
+        # 处理关键帧（keyframes）
+        keyframes = item_data.get("keyframes")
+        if keyframes and isinstance(keyframes, dict):
+            RuleTestService._process_keyframes(segment, keyframes)
 
         # 注意：animations字段在外层单独处理，确保它是最后执行的
 
