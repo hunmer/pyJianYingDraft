@@ -1574,8 +1574,22 @@ class RuleTestService:
 
             # 步骤3: 最后单独处理animations（确保覆盖所有预设）
             animations = item_data.get("animations")
-            if animations and isinstance(animations, dict):
-                RuleTestService._apply_animations_to_segment(new_segment, animations, script)
+            if animations:
+                # 打印调试信息
+                print(f"[DEBUG] animations type: {type(animations)}, value: {animations}")
+
+                # 支持字典格式（单个动画）
+                if isinstance(animations, dict):
+                    RuleTestService._apply_animations_to_segment(new_segment, animations, script)
+                # 支持列表格式（多个动画）
+                elif isinstance(animations, list):
+                    for anim in animations:
+                        if isinstance(anim, dict):
+                            RuleTestService._apply_animations_to_segment(new_segment, anim, script)
+                        else:
+                            print(f"[WARNING] animations列表中的元素不是字典: {type(anim)}")
+                else:
+                    print(f"[WARNING] animations类型不支持: {type(animations)}, 期望 dict 或 list")
 
             # 步骤4: 处理transitions（转场）
             transitions = item_data.get("transitions")
