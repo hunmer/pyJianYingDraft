@@ -218,7 +218,7 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
               }
             }}
             onExecute={async (code: string, params?: any) => {
-              console.log('[代码测试] 执行代码:', { code: code.substring(0, 100) + '...', params });
+              // console.log('[代码测试] 执行代码:', { code: code.substring(0, 100) + '...', params });
 
               try {
                 const AsyncFunction = Object.getPrototypeOf(async function(){}).constructor;
@@ -231,7 +231,7 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
                   }
                 `;
 
-                console.log('[代码测试] 即将执行的完整代码:', fullCode);
+                // console.log('[代码测试] 即将执行的完整代码:', fullCode);
 
                 const createMainFunction = new AsyncFunction(fullCode);
                 const mainFunction = await createMainFunction();
@@ -240,7 +240,7 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
                   ? await mainFunction({ params })
                   : null;
 
-                console.log('[代码测试] 执行结果:', result);
+                // console.log('[代码测试] 执行结果:', result);
 
                 return result;
               } catch (error: any) {

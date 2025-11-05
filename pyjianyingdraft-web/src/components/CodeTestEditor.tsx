@@ -451,7 +451,7 @@ export default function CodeTestEditor({
 
         try {
           console.log('[CodeTestEditor] 执行Python代码...');
-          console.log('[CodeTestEditor] 原始代码:', code);
+          // console.log('[CodeTestEditor] 原始代码:', code);
 
           // 将JavaScript对象转换为Python字典
           // 使用pyodide.toPy来确保正确转换
@@ -505,7 +505,7 @@ export default function CodeTestEditor({
 
         try {
           console.log('[CodeTestEditor] 编译TypeScript代码...');
-          console.log('[CodeTestEditor] 原始代码:', code);
+          // console.log('[CodeTestEditor] 原始代码:', code);
           const ts = (window as any).ts;
 
           // 更激进的编译选项，确保async/await被正确转换，完全禁用类型检查
@@ -561,7 +561,7 @@ export default function CodeTestEditor({
           finalCode = transpileResult.outputText;
 
           console.log('[CodeTestEditor] TypeScript编译成功');
-          console.log('[CodeTestEditor] 编译后代码:', finalCode);
+          // console.log('[CodeTestEditor] 编译后代码:', finalCode);
           console.log('[CodeTestEditor] 编译后代码长度:', finalCode.length);
 
           // 如果编译后的代码为空，说明编译有问题
