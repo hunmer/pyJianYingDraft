@@ -207,6 +207,11 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
     return materials.find(({id}) => id === materialId);
   };
 
+  // 计算单个规则中未找到的素材数量
+  const countRuleMissingMaterials = (rule: Rule): number => {
+    return rule.material_ids.filter(id => !findMaterial(id)).length;
+  };
+
   // 生成素材的展示内容（用于 Tooltip）
   const getMaterialTooltipContent = (material: MaterialInfo): string => {
     const lines: string[] = [];
@@ -352,19 +357,27 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
                   }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                    <ListItemText
-                      primary={rule.title || '未命名'}
-                      secondary={`类型: ${rule.type}`}
-                      primaryTypographyProps={{
-                        variant: 'body2',
-                        fontWeight: 500,
-                        color: 'text.primary',
-                      }}
-                      secondaryTypographyProps={{
-                        variant: 'caption',
-                        color: 'text.secondary',
-                      }}
-                    />
+                    <Box sx={{ flex: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" fontWeight={500} color="text.primary">
+                          {rule.title || '未命名'}
+                        </Typography>
+                        {countRuleMissingMaterials(rule) > 0 && (
+                          <Tooltip title={`有 ${countRuleMissingMaterials(rule)} 个素材未找到`} arrow>
+                            <Chip
+                              label={`未找到: ${countRuleMissingMaterials(rule)}`}
+                              size="small"
+                              color="error"
+                              variant="outlined"
+                              sx={{ fontSize: 10, height: 20 }}
+                            />
+                          </Tooltip>
+                        )}
+                      </Box>
+                      <Typography variant="caption" color="text.secondary">
+                        类型: {rule.type}
+                      </Typography>
+                    </Box>
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                       {isHighlighted && (
                         <Chip

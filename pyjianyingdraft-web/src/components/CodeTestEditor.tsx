@@ -24,6 +24,7 @@ import CodeIcon from '@mui/icons-material/Code';
 import SendIcon from '@mui/icons-material/Send';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor';
 import { useSnapshots } from '@/hooks/useSnapshots';
+import { useDebounce } from '@/hooks/useDebounce';
 import SnapshotManager from './SnapshotManager';
 
 // JavaScript默认代码模板
@@ -112,11 +113,17 @@ export default function CodeTestEditor({
   onSendTest,
 }: CodeTestEditorProps) {
   const [code, setCode] = useState(() => {
-    // 尝试从localStorage恢复上次的代码
-    const stored = localStorage.getItem(`code-test-${testDataId}`);
+    // 尝试从localStorage恢复上次编辑的快照
+    const snapshotKey = `code-test-last-snapshot-${testDataId}`;
+    const stored = localStorage.getItem(snapshotKey);
     return stored || initialCode;
   });
-  const [jsonData, setJsonData] = useState('{}');
+  const [jsonData, setJsonData] = useState(() => {
+    // 尝试从localStorage恢复上次编辑的JSON快照
+    const snapshotKey = `code-test-json-last-snapshot-${testDataId}`;
+    const stored = localStorage.getItem(snapshotKey);
+    return stored || '{}';
+  });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [executing, setExecuting] = useState(false);
@@ -128,6 +135,11 @@ export default function CodeTestEditor({
   const [pyodide, setPyodide] = useState<any>(null); // Pyodide实例
   const codeEditorRef = useRef<any>(null);
   const jsonEditorRef = useRef<any>(null);
+  const previousLanguageRef = useRef(language); // 追踪上次的语言选择
+
+  // 使用节流（1秒延迟）来保存编辑内容到"上次编辑快照"
+  const debouncedCode = useDebounce(code, 1000);
+  const debouncedJsonData = useDebounce(jsonData, 1000);
 
   // 快照管理 - 代码快照
   const {
@@ -155,10 +167,13 @@ export default function CodeTestEditor({
     autoSaveCurrent: false,
   });
 
-  // 当testDataId变化时，恢复对应的代码和JSON数据
+  // 当testDataId变化时，恢复对应的代码和JSON数据（从上次编辑快照恢复）
   useEffect(() => {
-    const storedCode = localStorage.getItem(`code-test-${testDataId}`);
-    const storedJson = localStorage.getItem(`code-test-json-${testDataId}`);
+    const codeSnapshotKey = `code-test-last-snapshot-${testDataId}`;
+    const jsonSnapshotKey = `code-test-json-last-snapshot-${testDataId}`;
+
+    const storedCode = localStorage.getItem(codeSnapshotKey);
+    const storedJson = localStorage.getItem(jsonSnapshotKey);
     const newCode = storedCode || initialCode;
     const newJsonData = storedJson || '{}';
 
@@ -167,7 +182,7 @@ export default function CodeTestEditor({
     setError('');
     setSuccess('');
     setExecutionResult(null);
-    console.log('[CodeTestEditor] 加载数据:', {
+    console.log('[CodeTestEditor] 从上次编辑快照恢复数据:', {
       testDataId,
       hasStoredCode: !!storedCode,
       hasStoredJson: !!storedJson,
@@ -176,19 +191,23 @@ export default function CodeTestEditor({
     });
   }, [testDataId, initialCode]);
 
-  // 保存代码到localStorage
+  // 节流保存代码到localStorage（上次编辑快照）
   useEffect(() => {
-    if (code) {
-      localStorage.setItem(`code-test-${testDataId}`, code);
+    if (debouncedCode) {
+      const snapshotKey = `code-test-last-snapshot-${testDataId}`;
+      localStorage.setItem(snapshotKey, debouncedCode);
+      console.log('[CodeTestEditor] 代码快照已保存 (节流)');
     }
-  }, [code, testDataId]);
+  }, [debouncedCode, testDataId]);
 
-  // 保存JSON数据到localStorage
+  // 节流保存JSON数据到localStorage（上次编辑快照）
   useEffect(() => {
-    if (jsonData) {
-      localStorage.setItem(`code-test-json-${testDataId}`, jsonData);
+    if (debouncedJsonData) {
+      const snapshotKey = `code-test-json-last-snapshot-${testDataId}`;
+      localStorage.setItem(snapshotKey, debouncedJsonData);
+      console.log('[CodeTestEditor] JSON快照已保存 (节流)');
     }
-  }, [jsonData, testDataId]);
+  }, [debouncedJsonData, testDataId]);
 
   // 动态加载TypeScript编译器
   useEffect(() => {
@@ -278,12 +297,37 @@ export default function CodeTestEditor({
     loadPyodide();
   }, [language, pyodideLoaded, pyodide]);
 
-  // 当切换语言时，更新代码模板
+  // 当切换语言时，更新代码模板（仅在语言真正变化时触发）
   useEffect(() => {
+    // 只在语言真正变化时才考虑替换模板
+    if (previousLanguageRef.current === language) {
+      return;
+    }
+
+    console.log('[CodeTestEditor] 语言已切换:', {
+      from: previousLanguageRef.current,
+      to: language
+    });
+
     const currentCode = code.trim();
-    const isDefaultCode = currentCode.includes('// 代码测试环境') ||
-                         currentCode.includes('def main(params)') ||
-                         currentCode.includes('async function main');
+
+    // 更精确的默认代码检测：检查是否完全匹配某个模板的关键部分
+    const isJsTemplate = currentCode.includes('// 构建输出对象') &&
+                         currentCode.includes('"input_value": params.input');
+    const isTsTemplate = currentCode.includes('const ret: TestResult = {') &&
+                         currentCode.includes('"input_value": params.input');
+    const isPyTemplate = currentCode.includes('"""') &&
+                         currentCode.includes('Python代码测试环境') &&
+                         currentCode.includes('def main(params)');
+
+    const isDefaultCode = isJsTemplate || isTsTemplate || isPyTemplate;
+
+    console.log('[CodeTestEditor] 代码检测结果:', {
+      isJsTemplate,
+      isTsTemplate,
+      isPyTemplate,
+      isDefaultCode
+    });
 
     if (isDefaultCode) {
       let newCode = '';
@@ -300,12 +344,18 @@ export default function CodeTestEditor({
       }
 
       if (newCode && newCode !== code) {
+        console.log('[CodeTestEditor] 正在加载新的语言模板...');
         setCode(newCode);
         setSuccess(`已切换到 ${language.toUpperCase()} 模式并加载示例代码`);
         setTimeout(() => setSuccess(''), 3000);
       }
+    } else {
+      console.log('[CodeTestEditor] 检测到用户自定义代码，保留当前代码');
     }
-  }, [language]);
+
+    // 更新上次的语言
+    previousLanguageRef.current = language;
+  }, [language, code]);
 
   // 验证编译器状态
   useEffect(() => {
@@ -341,8 +391,14 @@ export default function CodeTestEditor({
     setError('');
     setSuccess('');
     setExecutionResult(null);
-    localStorage.removeItem(`code-test-${testDataId}`);
-    localStorage.removeItem(`code-test-json-${testDataId}`);
+
+    // 清除上次编辑快照
+    const codeSnapshotKey = `code-test-last-snapshot-${testDataId}`;
+    const jsonSnapshotKey = `code-test-json-last-snapshot-${testDataId}`;
+    localStorage.removeItem(codeSnapshotKey);
+    localStorage.removeItem(jsonSnapshotKey);
+
+    console.log('[CodeTestEditor] 已重置并清除上次编辑快照');
   };
 
   // 执行代码
