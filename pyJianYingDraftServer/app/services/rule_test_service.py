@@ -15,6 +15,11 @@ from typing import Any, Callable, Dict, List, Optional, Set
 import pyJianYingDraft as draft
 from pyJianYingDraft.template_mode import ImportedSegment
 from pyJianYingDraft.metadata.video_group_animation import GroupAnimationType
+from pyJianYingDraft.metadata.text_intro import TextIntro
+from pyJianYingDraft.metadata.text_loop import TextLoopAnim
+from pyJianYingDraft.metadata.text_outro import TextOutro
+from pyJianYingDraft.metadata.video_intro import IntroType
+from pyJianYingDraft.metadata.video_outro import OutroType
 from pyJianYingDraft.metadata.transition_meta import TransitionType
 from pyJianYingDraft.animation import SegmentAnimations, VideoAnimation
 from pyJianYingDraft.keyframe import KeyframeProperty
@@ -1090,10 +1095,19 @@ class RuleTestService:
         - segment.extra_material_refs 引用 material_animation 的 ID
 
         animations格式:
-        - {"name": "动画名称", "duration": 持续时长(秒)} - 创建新动画并替换
-        - {"name": "动画名称"} - 创建新动画,使用片段时长作为duration
+        - {"type": "动画类型", "name": "动画名称", "duration": 持续时长(秒)} - 创建新动画并替换
+        - {"type": "动画类型", "name": "动画名称"} - 创建新动画,使用片段时长作为duration
         - {"duration": 持续时长(秒)} - 仅修改现有动画的duration
+
+        支持的动画类型(type):
+        - video_group_animation: 视频组合动画 (默认)
+        - text_intro: 文字入场动画
+        - text_loop: 文字循环动画
+        - text_outro: 文字出场动画
+        - video_intro: 视频入场动画
+        - video_outro: 视频出场动画
         """
+        animation_type_str = animations.get("type", "video_group_animation")
         animation_name = animations.get("name")
         animation_duration = animations.get("duration")
 
@@ -1128,10 +1142,27 @@ class RuleTestService:
 
             # 情况2: 指定了name，创建新动画（有或没有duration）
             if animation_name:
-                # 从GroupAnimationType枚举中查找动画
+                # 动画类型枚举映射表
+                animation_enum_map = {
+                    "video_group_animation": GroupAnimationType,
+                    "text_intro": TextIntro,
+                    "text_loop": TextLoopAnim,
+                    "text_outro": TextOutro,
+                    "video_intro": IntroType,
+                    "video_outro": OutroType,
+                }
+
+                # 根据type选择对应的枚举类
+                animation_enum_class = animation_enum_map.get(animation_type_str)
+                if not animation_enum_class:
+                    print(f"[ERROR] 不支持的动画类型: {animation_type_str}")
+                    return
+
+                # 从对应的枚举类中查找动画
                 try:
-                    animation_type = GroupAnimationType.from_name(animation_name)
+                    animation_type = animation_enum_class.from_name(animation_name)
                 except ValueError:
+                    print(f"[ERROR] 在 {animation_type_str} 中未找到动画: {animation_name}")
                     return
 
                 # 确定动画duration
