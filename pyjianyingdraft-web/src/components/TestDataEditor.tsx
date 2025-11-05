@@ -307,7 +307,9 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
                 trackType = 'video';
                 break;
               case 'audio':
+              case 'music':
               case 'extract_music':
+              case 'sound':
                 trackType = 'audio';
                 break;
               case 'text':
@@ -315,9 +317,11 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
                 trackType = 'text';
                 break;
               case 'sticker':
+              case 'gif':
                 trackType = 'sticker';
                 break;
               case 'effect':
+              case 'video_effect':
                 trackType = 'effect';
                 break;
               case 'filter':
@@ -327,6 +331,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
                 trackType = 'effect'; // 转场效果通常放在特效轨道
                 break;
               default:
+                console.log('无法识别的素材类型:', material.type);
                 // 如果无法识别类型，保持原来的rule.type
                 break;
             }
