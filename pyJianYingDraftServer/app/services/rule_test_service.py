@@ -168,7 +168,9 @@ class RuleTestService:
             for material_id in rule.material_ids:
                 material = material_lookup.get(material_id)
                 if not material:
-                    raise ValueError(f"素材 {material_id} 未提供")
+                    # 输出警告并跳过当前素材，不中断整个流程
+                    print(f"[WARNING] 素材 {material_id} 未提供，跳过该素材")
+                    continue
                 inferred_type = RuleTestService._infer_track_type(material)
                 configs[track_id]["type"] = inferred_type
 
@@ -218,7 +220,9 @@ class RuleTestService:
             for material_id in rule.material_ids:
                 material = material_lookup.get(material_id)
                 if not material:
-                    raise ValueError(f"素材 {material_id} 未提供")
+                    # 输出警告并跳过当前素材，不中断整个流程
+                    print(f"[WARNING] 素材 {material_id} 未提供，跳过该素材")
+                    continue
                 plans.append(
                     {
                         "track_id": track_id,
