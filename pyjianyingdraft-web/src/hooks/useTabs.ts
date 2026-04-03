@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { CozeZoneTabData } from '@/types/coze';
 
 export interface TabData {
   id: string;
   label: string;
-  type: 'draft_editor' | 'file_diff' | 'test_data' | 'coze_zone' | 'workflow_execution';
+  type: 'draft_editor' | 'file_diff' | 'test_data';
   // 草稿编辑器相关字段
   draftPath?: string;
   draftInfo?: any | null;
@@ -34,27 +33,6 @@ export interface TabData {
       fps?: number;
     };
   };
-  // Coze Zone 相关字段
-  accountId?: string;
-  workspaceId?: string;
-  accounts?: any[];
-  workspaces?: any[];
-  workflows?: any[];
-  files?: any[];
-  executions?: any[];
-  selectedWorkflow?: any;
-  executionHistory?: any[];
-  refreshing?: boolean;
-  executing?: boolean;
-  uploading?: boolean;
-  // Workflow Execution 相关字段
-  workflowId?: string;
-  workflow?: any;
-  onExecuteWorkflow?: (workflowId: string, parameters: Record<string, any>, onStreamEvent?: (event: any) => void) => Promise<any>;
-  onCancelWorkflow?: () => void;
-  onCreateTask?: (taskData: any) => Promise<any>;
-  onCreateAndExecuteTask?: (taskData: any) => Promise<any>;
-  workflowEventLogs?: any[];
 
   // 通用字段
   loading: boolean;
@@ -72,7 +50,6 @@ export interface UseTabsResult {
   refreshTab: (tabId: string) => void;
   updateTab: (tabId: string, updates: Partial<TabData>) => void;
   findExistingTab: (type: TabData['type'], identifier: string) => TabData | undefined;
-  createCozeZoneTab: (accountId?: string) => void;
 }
 
 export const useTabs = (): UseTabsResult => {
@@ -90,10 +67,6 @@ export const useTabs = (): UseTabsResult => {
       return tabs.find(tab => tab.type === type && tab.filePath === identifier);
     } else if (type === 'test_data') {
       return tabs.find(tab => tab.type === type && tab.testDataId === identifier);
-    } else if (type === 'coze_zone') {
-      return tabs.find(tab => tab.type === type && tab.accountId === identifier);
-    } else if (type === 'workflow_execution') {
-      return tabs.find(tab => tab.type === type && tab.workflowId === identifier);
     }
     return undefined;
   }, [tabs]);
@@ -159,45 +132,6 @@ export const useTabs = (): UseTabsResult => {
     ));
   }, []);
 
-  // 创建 Coze Zone tab
-  const createCozeZoneTab = useCallback((accountId?: string) => {
-    const generateTabId = () => `coze_zone_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    const tabId = generateTabId();
-
-    const newTab: TabData = {
-      id: tabId,
-      label: 'Coze Zone',
-      type: 'coze_zone',
-      accountId: accountId || 'default',
-      workspaceId: '',
-      accounts: [],
-      workspaces: [],
-      workflows: [],
-      files: [],
-      executions: [],
-      executionHistory: [],
-      refreshing: false,
-      executing: false,
-      uploading: false,
-      loading: false,
-      error: null,
-    };
-
-    setTabs(prev => {
-      const updatedTabs = [...prev, newTab];
-      // 保存到 localStorage
-      const serializableTabs = updatedTabs.map(tab => {
-        const { onTestData, ...rest } = tab;
-        return rest;
-      });
-      localStorage.setItem('editorTabs', JSON.stringify(serializableTabs));
-      return updatedTabs;
-    });
-
-    setActiveTabId(tabId);
-    localStorage.setItem('activeTabId', tabId);
-  }, []);
-
   // 从localStorage恢复tabs
   useEffect(() => {
     const savedTabs = localStorage.getItem('editorTabs');
@@ -224,7 +158,7 @@ export const useTabs = (): UseTabsResult => {
     if (tabs.length > 0) {
       // 序列化tabs时，移除所有函数字段（这些会在组件内部重新创建）
       const serializableTabs = tabs.map(tab => {
-        const { onTestData, onExecuteWorkflow, onCancelWorkflow, onCreateTask, onCreateAndExecuteTask, ...rest } = tab;
+        const { onTestData, ...rest } = tab;
         return rest;
       });
       localStorage.setItem('editorTabs', JSON.stringify(serializableTabs));
@@ -251,6 +185,5 @@ export const useTabs = (): UseTabsResult => {
     refreshTab,
     updateTab,
     findExistingTab,
-    createCozeZoneTab,
   };
 };

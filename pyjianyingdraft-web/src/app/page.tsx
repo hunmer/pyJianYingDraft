@@ -14,7 +14,6 @@ import {
   Menu as MenuIcon,
   Download as DownloadIcon,
   History as HistoryIcon,
-  SmartToy as CozeIcon,
 } from '@mui/icons-material';
 import { draftApi, tasksApi } from '@/lib/api';
 import { getSidebarState, setSidebarState } from '@/lib/storage';
@@ -27,8 +26,6 @@ import { TabContextMenu } from '@/components/TabContextMenu';
 import { DialogManager } from '@/components/DialogManager';
 import { DraftEditor } from '@/components/DraftEditor';
 import TestDataEditorWithTabs from '@/components/TestDataEditorWithTabs';
-import CozeZone from '@/components/CozeZone';
-import WorkflowExecutionPanel from '@/components/WorkflowExecutionPanel';
 
 /**
  * 主页面 - 草稿编辑器
@@ -72,7 +69,6 @@ export default function Home() {
     refreshTab,
     updateTab,
     findExistingTab,
-    createCozeZoneTab,
   } = useTabs();
 
   const {
@@ -398,16 +394,6 @@ export default function Home() {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Coze Zone - AI 工作流管理">
-            <IconButton
-              onClick={() => createCozeZoneTab()}
-              sx={{ mr: 2 }}
-              color="info"
-            >
-              <CozeIcon />
-            </IconButton>
-          </Tooltip>
-
           {/* Tab管理器 */}
           <TabManager
             tabs={tabs}
@@ -478,44 +464,6 @@ export default function Home() {
               tab={activeTab}
               onRuleGroupsUpdate={handleRuleGroupsUpdate}
               onTestDataSelect={handleTestDataSelectWrapper}
-            />
-          )}
-
-          {/* Coze Zone 内容 */}
-          {activeTab?.type === 'coze_zone' && (
-            <CozeZone
-              tab={activeTab}
-              onTabUpdate={updateTab}
-              onCreateWorkflowExecutionTab={(workflow, callbacks) => {
-                const tabId = `workflow_execution_${workflow.id}_${Date.now()}`;
-                createTab({
-                  id: tabId,
-                  label: `执行: ${workflow.name}`,
-                  type: 'workflow_execution',
-                  workflowId: workflow.id,
-                  workflow: workflow,
-                  onExecuteWorkflow: callbacks.onExecute,
-                  onCancelWorkflow: callbacks.onCancel,
-                  onCreateTask: callbacks.onCreateTask,
-                  onCreateAndExecuteTask: callbacks.onCreateAndExecuteTask,
-                  workflowEventLogs: [],
-                  accountId: activeTab.accountId,
-                });
-              }}
-            />
-          )}
-
-          {/* Workflow Execution 内容 */}
-          {activeTab?.type === 'workflow_execution' && activeTab.workflow && (
-            <WorkflowExecutionPanel
-              workflow={activeTab.workflow}
-              onExecute={activeTab.onExecuteWorkflow}
-              onCancel={activeTab.onCancelWorkflow}
-              accountId={activeTab.accountId}
-              eventLogs={activeTab.workflowEventLogs}
-              onCreateTask={activeTab.onCreateTask}
-              onCreateAndExecuteTask={activeTab.onCreateAndExecuteTask}
-              showActions={true}
             />
           )}
         </Box>
