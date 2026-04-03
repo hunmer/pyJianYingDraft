@@ -90,12 +90,35 @@ class RuleTestService:
         material_lookup = {material.id: material for material in materials}
         plans = RuleTestService._build_segment_plans(test_data, rule_lookup, material_lookup)
 
-        RuleTestService._build_raw_draft(script, payload)
-        if plans:
-            # 将raw_segments的默认时间信息注入到plans中(作为未指定值的后备)
-            RuleTestService._inject_raw_segment_defaults(plans, payload.raw_segments or [])
-            RuleTestService._merge_raw_segments_with_test_data(script, plans)
-     
+        raw_segments = payload.raw_segments or []
+        if raw_segments:
+            # raw_segments模式: 使用原始片段数据构建草稿
+            RuleTestService._build_raw_draft(script, payload)
+            if plans:
+                # 将raw_segments的默认时间信息注入到plans中(作为未指定值的后备)
+                RuleTestService._inject_raw_segment_defaults(plans, raw_segments)
+                RuleTestService._merge_raw_segments_with_test_data(script, plans)
+        else:
+            # 普通模式: 直接创建轨道和片段
+            track_configs = RuleTestService._prepare_tracks(test_data, rule_lookup, material_lookup)
+            track_order = RuleTestService._resolve_track_order(test_data, track_configs)
+
+            track_name_map: Dict[str, str] = {}
+            used_names: set[str] = set()
+            for track_id in track_order:
+                track_info = track_configs[track_id]
+                track_name = RuleTestService._ensure_unique_name(track_info["name"], used_names)
+                track_type = RuleTestService._resolve_track_type(track_info["type"])
+
+                script.add_track(track_type, track_name=track_name)
+                track_name_map[track_id] = track_name
+                used_names.add(track_name)
+
+            for plan in plans:
+                track_name = track_name_map[plan["track_id"]]
+                segment = RuleTestService._build_segment(plan["material"], plan["item"])
+                script.add_segment(segment, track_name=track_name)
+
         script.save()
 
         draft_path = os.path.abspath(os.path.join(draft_root, draft_name))

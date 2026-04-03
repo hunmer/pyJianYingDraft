@@ -148,11 +148,11 @@ export function DownloadProgressBar({
     }
   }, [isFailed, errorMessage, onError]);
 
-  // 连接状态警告
-  if (!isConnected && !isCompleted && !isFailed) {
+  // 连接状态警告 - 仅在任务进行中才提示断开
+  if (!isConnected && isInProgress) {
     return (
       <Alert severity="warning" sx={{ mb: 2 }}>
-        WebSocket连接中断，正在重新连接...
+        SSE连接中断，正在重新连接...
       </Alert>
     );
   }

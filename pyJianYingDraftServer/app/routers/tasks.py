@@ -103,7 +103,7 @@ async def task_progress_stream(task_id: str):
             # 持续监听队列事件
             while True:
                 try:
-                    event_data = await asyncio.wait_for(sse_queue, timeout=30)
+                    event_data = await asyncio.wait_for(sse_queue.get(), timeout=30)
                     yield f"event: {event_data['event']}\ndata: {json.dumps(event_data['data'])}\n\n"
 
                     # 终态事件后关闭连接
