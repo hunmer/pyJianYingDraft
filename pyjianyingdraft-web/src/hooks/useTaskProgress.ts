@@ -123,7 +123,7 @@ export function useTaskProgress(
       `${API_BASE_URL}/api/tasks/${taskId}/progress/stream`
     );
 
-    esRef.current = es;
+    eventSourceRef.current = es;
 
     setIsConnected(true);
 
@@ -171,18 +171,18 @@ export function useTaskProgress(
             setStatus(TaskStatus.COMPLETED);
             if (data.draft_path) setDraftPath(data.draft_path);
             setIsConnected(false);
-            cleanup();
+            es.close();
             break;
           case 'task_failed':
             setStatus(TaskStatus.FAILED);
             if (data.error_message) setErrorMessage(data.error_message);
             setIsConnected(false);
-            cleanup();
+            es.close();
             break;
           case 'task_cancelled':
             setStatus(TaskStatus.CANCELLED);
             setIsConnected(false);
-            cleanup();
+            es.close();
             break;
         }
       } catch (e) {
@@ -190,39 +190,28 @@ export function useTaskProgress(
       }
     };
 
-    es.onerror = (err: {
-      console.error('[useTaskProgress] SSE 错误:', err);
-      setErrorMessage(err.message);
+    es.onerror = () => {
+      console.error('[useTaskProgress] SSE 连接错误');
       setIsConnected(false);
       // 自动重连（最多重试次数内MAX_RETRIES - 1 次）
-        retryCountRef.current += 1;
-        if (retryCountRef.current >= MAX_RETRIES) {
-          console.log(`[useTaskProgress] SSE 最大重试次数(${MAX_RETRIES})，已达`);
-          es.close();
-        }
-      };
-
-      // 超时重连
-      if (retryCountRef.current < MAX_RETRIES) {
-        es = new EventSource(
-          `${API_BASE_URL}/api/tasks/${taskId}/progress/stream`
-        );
-        retryCountRef.current = 0;
-        setIsConnected(true);
+      retryCountRef.current += 1;
+      if (retryCountRef.current >= MAX_RETRIES) {
+        console.log(`[useTaskProgress] SSE 最大重试次数(${MAX_RETRIES})，已达`);
+        es.close();
       }
     };
 
     // 清理
     return () => {
-      if (esRef.current) {
-        es.close();
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
         console.log('[useTaskProgress] SSE 连接已关闭');
       }
     };
   }, [taskId, serverUrl]);
 
   // 计算派生状态
-  const isInProgress = status === TaskStatus.DOWNloading || status === TaskStatus.PROCESSING;
+  const isInProgress = status === TaskStatus.DOWNLOADING || status === TaskStatus.PROCESSING;
   const isCompleted = status === TaskStatus.COMPLETED;
   const isFailed = status === TaskStatus.FAILED;
   const progressPercent = progress?.progress_percent || 0;
@@ -244,3 +233,4 @@ export function useTaskProgress(
     speedText,
     etaText
   };
+}
