@@ -18,6 +18,9 @@ class RetryFailedRequest(BaseModel):
     batch_id: str
 
 
+# ==================== 下载控制 ====================
+
+
 # ==================== 下载组管理 ====================
 
 @router.get("/groups")
@@ -228,10 +231,6 @@ async def get_download_dir():
 
 
 # ==================== 新增端点：配置更新 ====================
-
-class RetryFailedRequest(BaseModel):
-    batch_id: str
-
 
 @router.put("/config")
 async def update_aria2_config(request: UpdateConfigRequest):

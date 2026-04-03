@@ -5,7 +5,7 @@
  * 使用 SSE (Server-Sent Events) 替代 WebSocket
  */
 
-import { useEffect, useState, useRef, from 'react';
+import { useEffect, useState, useRef}  from 'react';
 
 // API基础URL配置
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -244,4 +244,3 @@ export function useTaskProgress(
     speedText,
     etaText
   };
-}

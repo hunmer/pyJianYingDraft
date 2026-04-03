@@ -22,7 +22,7 @@ import uvicorn
 if __name__ == "__main__":
     # 生产环境配置:禁用热重载
     uvicorn.run(
-        "app.main:socket_app",
+        "app.main:app",
         host="0.0.0.0",
         port=8000,
         reload=False,  # 生产环境禁用热重载
