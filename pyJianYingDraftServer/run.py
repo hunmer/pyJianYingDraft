@@ -34,7 +34,7 @@ if __name__ == "__main__":
     os.environ["PYTHONUNBUFFERED"] = "1"
 
     uvicorn.run(
-        "app.main:socket_app",
+        "app.main:app",
         host="0.0.0.0",
         port=8000,
         reload=False,  # ⚠️ 重要: 禁用热重载,防止多个 aria2c 进程

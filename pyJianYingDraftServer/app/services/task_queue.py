@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import uuid
 import asyncio
+import shutil
 import urllib.parse
 from pathlib import Path
 from datetime import datetime
@@ -65,11 +66,8 @@ class TaskQueue:
         self.progress_monitor_task: Optional[asyncio.Task] = None
         self.is_monitoring = False
 
-        # 订阅者管理（用于WebSocket推送）
-        self.subscribers: Dict[str, List[str]] = defaultdict(list)  # task_id -> [sid, sid, ...]
-
-        # Socket.IO实例（由main.py注入）
-        self.sio = None
+        # SSE 事件队列（task_id -> [asyncio.Queue, ...]）
+        self._sse_queues: Dict[str, List[asyncio.Queue]] = defaultdict(list)
 
     def _log(self, message: str) -> None:
         """输出日志"""
@@ -852,16 +850,9 @@ class TaskQueue:
             traceback.print_exc()
 
     async def _push_status_change(self, task: DownloadTask) -> None:
-        """推送任务状态变更通知
-
-        Args:
-            task: 下载任务
-        """
-        if not self.sio:
-            return
-
-        subscribers = self.subscribers.get(task.task_id, [])
-        if not subscribers:
+        """通过 SSE 推送任务状态变更通知"""
+        queues = self._sse_queues.get(task.task_id, [])
+        if not queues:
             return
 
         # 构建状态变更消息
@@ -873,7 +864,7 @@ class TaskQueue:
             'completed_at': task.completed_at.isoformat() if task.completed_at else None
         }
 
-        # 根据状态发送不同的事件
+        # 根据状态确定事件类型
         event_name = 'task_status_changed'
         if task.status == TaskStatus.COMPLETED:
             event_name = 'task_completed'
@@ -882,12 +873,16 @@ class TaskQueue:
         elif task.status == TaskStatus.CANCELLED:
             event_name = 'task_cancelled'
 
-        # 推送给所有订阅者
-        for sid in subscribers:
+        # 推送给所有 SSE 队列
+        dead_queues = []
+        for q in queues:
             try:
-                await self.sio.emit(event_name, status_data, room=sid)
-            except Exception as e:
-                self._log(f"推送状态变更失败 (sid: {sid}): {e}")
+                await q.put({'event': event_name, 'data': status_data})
+            except Exception:
+                dead_queues.append(q)
+
+        for q in dead_queues:
+            queues.remove(q)
 
     def get_task(self, task_id: str) -> Optional[DownloadTask]:
         """获取任务信息
@@ -967,6 +962,64 @@ class TaskQueue:
             self._log(f"✗ 取消任务 {task_id} 失败: {e}")
             return False
 
+    async def regenerate_task(self, task_id: str) -> bool:
+        """重新生成任务：删除下载缓存并重新执行
+
+        Args:
+            task_id: 任务ID
+
+        Returns:
+            bool: 是否成功重新生成
+        """
+        task = self.tasks.get(task_id)
+        if not task:
+            self._log(f"✗ 任务不存在: {task_id}")
+            return False
+
+        # 只有终态任务可以重新生成
+        terminal_states = (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED)
+        if task.status not in terminal_states:
+            self._log(f"✗ 任务 {task_id} 状态为 {task.status}，无法重新生成")
+            return False
+
+        try:
+            # 1. 删除下载缓存目录
+            download_cache_dir = self.aria2_manager.download_dir / task_id
+            if download_cache_dir.exists():
+                shutil.rmtree(download_cache_dir)
+                self._log(f"✓ 已删除下载缓存: {download_cache_dir}")
+
+            # 2. 重置任务状态
+            task.status = TaskStatus.PENDING
+            task.batch_id = None
+            task.progress = None
+            task.download_files = None
+            task.draft_path = None
+            task.error_message = None
+            task.completed_at = None
+            task.updated_at = datetime.now()
+
+            # 3. 清除内部路径映射
+            if hasattr(task, '_url_to_local_path_map'):
+                task._url_to_local_path_map = {}
+
+            # 4. 保存到数据库
+            if self.db:
+                await self._save_task_to_db(task)
+
+            self._log(f"✓ 任务 {task_id} 已重置，开始重新生成...")
+
+            # 5. 重新执行任务
+            asyncio.create_task(self._process_task(task_id))
+
+            return True
+
+        except Exception as e:
+            self._log(f"✗ 重新生成任务 {task_id} 失败: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
+
     async def start_progress_monitor(self) -> None:
         """启动进度监控后台任务"""
         if self.is_monitoring:
@@ -1041,20 +1094,11 @@ class TaskQueue:
         self._log("进度监控循环已停止")
 
     async def _push_progress_update(self, task: DownloadTask) -> None:
-        """通过WebSocket推送进度更新
-
-        Args:
-            task: 下载任务
-        """
-        if not self.sio:
+        """通过 SSE 推送进度更新"""
+        queues = self._sse_queues.get(task.task_id, [])
+        if not queues:
             return
 
-        # 获取订阅该任务的所有客户端
-        subscribers = self.subscribers.get(task.task_id, [])
-        if not subscribers:
-            return
-
-        # 构建进度消息
         progress_data = {
             'task_id': task.task_id,
             'status': task.status.value,
@@ -1062,59 +1106,28 @@ class TaskQueue:
             'updated_at': task.updated_at.isoformat() if task.updated_at else None
         }
 
-        # 推送给所有订阅者
-        for sid in subscribers:
+        dead_queues = []
+        for q in queues:
             try:
-                await self.sio.emit('task_progress', progress_data, room=sid)
-            except Exception as e:
-                self._log(f"推送进度失败 (sid: {sid}): {e}")
+                await q.put({'event': 'task_progress', 'data': progress_data})
+            except Exception:
+                dead_queues.append(q)
 
-    def subscribe(self, task_id: str, subscriber_id: str) -> bool:
-        """订阅任务进度更新
+        for q in dead_queues:
+            queues.remove(q)
 
-        Args:
-            task_id: 任务ID
-            subscriber_id: 订阅者ID（通常是WebSocket session ID）
+    def add_sse_queue(self, task_id: str, queue: asyncio.Queue) -> None:
+        """注册 SSE 队列用于接收任务进度更新"""
+        if task_id not in self._sse_queues:
+            self._sse_queues[task_id] = []
+        self._sse_queues[task_id].append(queue)
 
-        Returns:
-            bool: 是否成功订阅
-        """
-        if task_id not in self.tasks:
-            return False
-
-        if subscriber_id not in self.subscribers[task_id]:
-            self.subscribers[task_id].append(subscriber_id)
-            self._log(f"✓ {subscriber_id} 订阅了任务 {task_id}")
-
-        return True
-
-    def unsubscribe(self, task_id: str, subscriber_id: str) -> bool:
-        """取消订阅任务进度更新
-
-        Args:
-            task_id: 任务ID
-            subscriber_id: 订阅者ID
-
-        Returns:
-            bool: 是否成功取消订阅
-        """
-        if task_id in self.subscribers and subscriber_id in self.subscribers[task_id]:
-            self.subscribers[task_id].remove(subscriber_id)
-            self._log(f"✓ {subscriber_id} 取消订阅任务 {task_id}")
-            return True
-
-        return False
-
-    def get_subscribers(self, task_id: str) -> List[str]:
-        """获取任务的订阅者列表
-
-        Args:
-            task_id: 任务ID
-
-        Returns:
-            List[str]: 订阅者ID列表
-        """
-        return self.subscribers.get(task_id, [])
+    def remove_sse_queue(self, task_id: str, queue: asyncio.Queue) -> None:
+        """移除 SSE 队列"""
+        if task_id in self._sse_queues and queue in self._sse_queues[task_id]:
+            self._sse_queues[task_id].remove(queue)
+            if not self._sse_queues[task_id]:
+                del self._sse_queues[task_id]
 
 
 # 全局单例

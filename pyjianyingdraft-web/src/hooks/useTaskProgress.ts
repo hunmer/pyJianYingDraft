@@ -2,10 +2,10 @@
  * useTaskProgress Hook
  *
  * 用于订阅和追踪异步任务的下载进度
+ * 使用 SSE (Server-Sent Events) 替代 WebSocket
  */
 
-import { useEffect, useState, useRef } from 'react';
-import { io, Socket } from 'socket.io-client';
+import { useEffect, useState, useRef, from 'react';
 
 // API基础URL配置
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -50,7 +50,7 @@ export interface UseTaskProgressReturn {
   draftPath: string | null;
   /** 错误消息（失败时） */
   errorMessage: string | null;
-  /** WebSocket连接状态 */
+  /** SSE连接状态 */
   isConnected: boolean;
   /** 是否正在进行中 */
   isInProgress: boolean;
@@ -91,33 +91,8 @@ function formatSeconds(seconds: number | null): string {
  * 订阅任务进度更新
  *
  * @param taskId - 任务ID
- * @param serverUrl - Socket.IO服务器地址，默认为当前域名
+ * @param serverUrl - SSE服务器地址（可选，默认为当前域名）
  * @returns 任务进度数据和状态
- *
- * @example
- * ```tsx
- * function DownloadStatus({ taskId }: { taskId: string }) {
- *   const {
- *     status,
- *     progress,
- *     progressPercent,
- *     speedText,
- *     isCompleted
- *   } = useTaskProgress(taskId);
- *
- *   if (isCompleted) {
- *     return <div>下载完成！</div>;
- *   }
- *
- *   return (
- *     <div>
- *       <div>状态: {status}</div>
- *       <div>进度: {progressPercent}%</div>
- *       <div>速度: {speedText}</div>
- *     </div>
- *   );
- * }
- * ```
  */
 export function useTaskProgress(
   taskId: string | null,
@@ -129,106 +104,125 @@ export function useTaskProgress(
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
-  const socketRef = useRef<Socket | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  const retryCountRef = useRef(0);
+
+  // 轮询检查任务是否已结束
+  const MAX_RETRIES = 10;
+  const POLL_INTERVAL = 2000; // 2秒
+
+  const MAX_COMPLETED_RETRIES = 30; // 完成后停止轮询
 
   useEffect(() => {
     if (!taskId) {
       return;
     }
 
-    // 创建Socket.IO连接
-    const socket = io(serverUrl || API_BASE_URL, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5
-    });
+    const es = new EventSource(
+      `${API_BASE_URL}/api/tasks/${taskId}/progress/stream`
+    );
 
-    socketRef.current = socket;
+    esRef.current = es;
 
-    // 连接成功
-    socket.on('connect', () => {
-      console.log('[useTaskProgress] Socket.IO已连接');
-      setIsConnected(true);
+    setIsConnected(true);
 
-      // 订阅任务进度
-      socket.emit('subscribe_task', { task_id: taskId });
-    });
+    retryCountRef.current = 0;
 
-    // 连接断开
-    socket.on('disconnect', () => {
-      console.log('[useTaskProgress] Socket.IO已断开');
+    // 拉取初始状态
+    const fetchInitial = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setStatus(data.status);
+          setProgress(data.progress);
+          if (data.draft_path) setDraftPath(data.draft_path);
+          if (data.error_message) setErrorMessage(data.error_message);
+          setIsConnected(true);
+        } else {
+          throw new Error(`HTTP ${response.status}`);
+        }
+      } catch (err) {
+        console.error('[useTaskProgress] 获取初始状态失败:', err);
+        setErrorMessage(err.message);
+      }
+    };
+
+    // 轮询 SSE 事件
+    const handleMessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data);
+
+        const taskStatus = data.status as TaskStatus;
+        const eventType = data.type as string;
+
+        switch (eventType) {
+          case 'task_progress':
+            setProgress(data.progress);
+            setStatus(data.status);
+            break;
+          case 'task_status_changed':
+            setStatus(data.status);
+            if (data.draft_path) setDraftPath(data.draft_path);
+            if (data.error_message) setErrorMessage(data.error_message);
+            break;
+          case 'task_completed':
+            setStatus(TaskStatus.COMPLETED);
+            if (data.draft_path) setDraftPath(data.draft_path);
+            setIsConnected(false);
+            cleanup();
+            break;
+          case 'task_failed':
+            setStatus(TaskStatus.FAILED);
+            if (data.error_message) setErrorMessage(data.error_message);
+            setIsConnected(false);
+            cleanup();
+            break;
+          case 'task_cancelled':
+            setStatus(TaskStatus.CANCELLED);
+            setIsConnected(false);
+            cleanup();
+            break;
+        }
+      } catch (e) {
+        console.error('[useTaskProgress] SSE 解析错误:', e);
+      }
+    };
+
+    es.onerror = (err: {
+      console.error('[useTaskProgress] SSE 错误:', err);
+      setErrorMessage(err.message);
       setIsConnected(false);
-    });
+      // 自动重连（最多重试次数内MAX_RETRIES - 1 次）
+        retryCountRef.current += 1;
+        if (retryCountRef.current >= MAX_RETRIES) {
+          console.log(`[useTaskProgress] SSE 最大重试次数(${MAX_RETRIES})，已达`);
+          es.close();
+        }
+      };
 
-    // 订阅成功
-    socket.on('task_subscribed', (data: TaskProgressData) => {
-      console.log('[useTaskProgress] 订阅成功:', data);
-      setStatus(data.status);
-      setProgress(data.progress);
-    });
-
-    // 进度更新
-    socket.on('task_progress', (data: TaskProgressData) => {
-      console.log('[useTaskProgress] 进度更新:', data);
-      setStatus(data.status);
-      setProgress(data.progress);
-    });
-
-    // 状态变更
-    socket.on('task_status_changed', (data: TaskProgressData) => {
-      console.log('[useTaskProgress] 状态变更:', data);
-      setStatus(data.status);
-      if (data.draft_path) {
-        setDraftPath(data.draft_path);
+      // 超时重连
+      if (retryCountRef.current < MAX_RETRIES) {
+        es = new EventSource(
+          `${API_BASE_URL}/api/tasks/${taskId}/progress/stream`
+        );
+        retryCountRef.current = 0;
+        setIsConnected(true);
       }
-      if (data.error_message) {
-        setErrorMessage(data.error_message);
-      }
-    });
+    };
 
-    // 任务完成
-    socket.on('task_completed', (data: TaskProgressData) => {
-      console.log('[useTaskProgress] 任务完成:', data);
-      setStatus(TaskStatus.COMPLETED);
-      if (data.draft_path) {
-        setDraftPath(data.draft_path);
-      }
-    });
-
-    // 任务失败
-    socket.on('task_failed', (data: TaskProgressData) => {
-      console.log('[useTaskProgress] 任务失败:', data);
-      setStatus(TaskStatus.FAILED);
-      if (data.error_message) {
-        setErrorMessage(data.error_message);
-      }
-    });
-
-    // 任务取消
-    socket.on('task_cancelled', (data: TaskProgressData) => {
-      console.log('[useTaskProgress] 任务已取消:', data);
-      setStatus(TaskStatus.CANCELLED);
-    });
-
-    // 订阅错误
-    socket.on('subscribe_error', (data: { error: string }) => {
-      console.error('[useTaskProgress] 订阅错误:', data.error);
-      setErrorMessage(data.error);
-    });
-
-    // 清理函数
+    // 清理
     return () => {
-      if (socket) {
-        socket.emit('unsubscribe_task', { task_id: taskId });
-        socket.disconnect();
+      if (esRef.current) {
+        es.close();
+        console.log('[useTaskProgress] SSE 连接已关闭');
       }
     };
   }, [taskId, serverUrl]);
 
   // 计算派生状态
-  const isInProgress = status === TaskStatus.DOWNLOADING || status === TaskStatus.PROCESSING;
+  const isInProgress = status === TaskStatus.DOWNloading || status === TaskStatus.PROCESSING;
   const isCompleted = status === TaskStatus.COMPLETED;
   const isFailed = status === TaskStatus.FAILED;
   const progressPercent = progress?.progress_percent || 0;

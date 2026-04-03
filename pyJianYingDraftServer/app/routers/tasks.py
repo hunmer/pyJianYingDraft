@@ -1,14 +1,16 @@
 """
 任务管理HTTP接口
 
-提供任务提交、查询、取消等REST API
+提供任务提交、查询、取消、SSE进度推送等REST API
 """
 
+import asyncio
+import json
 import httpx
 from typing import Optional
 from urllib.parse import quote
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, StreamingResponse
 
 from app.models.download_models import (
     TaskSubmitRequest,
@@ -18,10 +20,83 @@ from app.models.download_models import (
     TaskStatus,
     DownloadTask
 )
+from pydantic import BaseModel, Field
 from app.services.task_queue import get_task_queue
 
 
+# ==================== SSE 进度推送 ====================
+
+@router.get("/{task_id}/progress/stream")
+async def task_progress_stream(task_id: str):
+    """SSE 端点：实时推送任务进度更新
+
+    客户端通过 EventSource 连接此端点，接收格式为:
+    event: task_progress | task_status_changed | task_completed | task_failed | task_cancelled
+    data: {json}
+    """
+    queue = get_task_queue()
+    task = queue.get_task(task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    # 创建 SSE 队列
+    sse_queue: asyncio.Queue = asyncio.Queue()
+    queue.add_sse_queue(task_id, sse_queue)
+
+    async def event_generator():
+        try:
+            # 先发送当前状态
+            task = queue.get_task(task_id)
+            if task:
+                initial_data = {
+                    'task_id': task_id,
+                    'status': task.status.value,
+                    'progress': task.progress.model_dump() if task.progress else None,
+                    'draft_path': task.draft_path,
+                    'error_message': task.error_message,
+                    'updated_at': task.updated_at.isoformat() if task.updated_at else None
+                }
+                yield f"event: task_subscribed\ndata: {json.dumps(initial_data)}\n\n"
+
+            # 持续监听队列事件
+            while True:
+                try:
+                    event_data = await asyncio.wait_for(sse_queue, timeout=30)
+                    yield f"event: {event_data['event']}\ndata: {json.dumps(event_data['data'])}\n\n"
+
+                    # 终态事件后关闭连接
+                    if event_data['event'] in ('task_completed', 'task_failed', 'task_cancelled'):
+                        break
+                except asyncio.TimeoutError:
+                    # 心跳：防止连接超时
+                    yield ":heartbeat\n\n"
+                    # 检查任务是否已结束
+                    task = queue.get_task(task_id)
+                    if task and task.status in (TaskStatus.COMPLETED, TaskStatus.FAILED, TaskStatus.CANCELLED):
+                        break
+                    continue
+        finally:
+            queue.remove_sse_queue(task_id, sse_queue)
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 router = APIRouter(prefix="/api/tasks", tags=["tasks"])
+
+
+class TaskRegenerateResponse(BaseModel):
+    """任务重新生成响应模型"""
+    success: bool = Field(description="是否成功")
+    message: str = Field(description="响应消息")
+    task_id: str = Field(description="任务ID")
 
 
 def _task_to_response(task: DownloadTask) -> TaskResponse:
@@ -308,4 +383,38 @@ async def cancel_task(task_id: str):
         return TaskCancelResponse(
             success=False,
             message=f"无法取消任务 {task_id}（可能已完成或失败）"
+        )
+
+
+@router.post("/{task_id}/regenerate", response_model=TaskRegenerateResponse)
+async def regenerate_task(task_id: str):
+    """重新生成任务
+
+    删除已下载的缓存文件，重置任务状态并重新执行下载和草稿生成
+
+    Args:
+        task_id: 任务ID
+
+    Returns:
+        TaskRegenerateResponse: 重新生成结果
+    """
+    queue = get_task_queue()
+    task = queue.get_task(task_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail=f"任务不存在: {task_id}")
+
+    success = await queue.regenerate_task(task_id)
+
+    if success:
+        return TaskRegenerateResponse(
+            success=True,
+            message=f"任务 {task_id} 已重新生成",
+            task_id=task_id
+        )
+    else:
+        return TaskRegenerateResponse(
+            success=False,
+            message=f"无法重新生成任务 {task_id}（可能任务仍在进行中）",
+            task_id=task_id
         )

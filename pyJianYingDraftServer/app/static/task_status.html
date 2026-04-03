@@ -280,6 +280,16 @@
             background: #5a6268;
         }
 
+        .btn-warning {
+            background: linear-gradient(135deg, #f39c12 0%, #e67e22 100%);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(243, 156, 18, 0.4);
+        }
+
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
@@ -367,6 +377,7 @@
 
             <div class="action-buttons">
                 <button class="btn btn-primary" id="refreshBtn" onclick="refreshStatus()">🔄 立即刷新</button>
+                <button class="btn btn-warning" id="regenerateBtn" onclick="regenerateTask()" style="display: none;">🔁 重新生成</button>
                 <button class="btn btn-secondary" id="cancelBtn" onclick="cancelTask()" style="display: none;">❌ 取消任务</button>
             </div>
 
@@ -542,12 +553,20 @@
                 initJsonUrlUI();
             }
 
-            // 显示/隐藏取消按钮
+            // 显示/隐藏取消按钮和重新生成按钮
             const cancelBtn = document.getElementById('cancelBtn');
+            const regenerateBtn = document.getElementById('regenerateBtn');
             if (data.status === 'pending' || data.status === 'downloading') {
                 cancelBtn.style.display = 'block';
+                regenerateBtn.style.display = 'none';
             } else {
                 cancelBtn.style.display = 'none';
+                // 终态（已完成/失败/已取消）显示重新生成按钮
+                if (['completed', 'failed', 'cancelled'].includes(data.status)) {
+                    regenerateBtn.style.display = 'block';
+                } else {
+                    regenerateBtn.style.display = 'none';
+                }
             }
 
             // 更新进度信息
@@ -684,6 +703,47 @@
                 }
             } catch (error) {
                 alert('取消失败: ' + error.message);
+            }
+        }
+
+        // 重新生成任务
+        async function regenerateTask() {
+            if (!confirm('确定要重新生成吗？将删除已下载的缓存文件并重新执行。')) {
+                return;
+            }
+
+            try {
+                const regenerateBtn = document.getElementById('regenerateBtn');
+                regenerateBtn.disabled = true;
+                regenerateBtn.textContent = '⏳ 提交中...';
+
+                const response = await fetch(`/api/tasks/${taskId}/regenerate`, {
+                    method: 'POST'
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showToast('任务已重新生成，正在执行...');
+                    // 重置状态，恢复自动刷新
+                    isCompleted = false;
+                    document.getElementById('errorMessage').style.display = 'none';
+                    document.getElementById('successMessage').style.display = 'none';
+                    document.getElementById('autoRefreshIndicator').style.display = 'flex';
+                    regenerateBtn.style.display = 'none';
+                    refreshStatus();
+                    startAutoRefresh();
+                } else {
+                    showToast('重新生成失败: ' + data.message, 'error');
+                }
+
+                regenerateBtn.disabled = false;
+                regenerateBtn.textContent = '🔁 重新生成';
+            } catch (error) {
+                showToast('重新生成失败: ' + error.message, 'error');
+                const regenerateBtn = document.getElementById('regenerateBtn');
+                regenerateBtn.disabled = false;
+                regenerateBtn.textContent = '🔁 重新生成';
             }
         }
 
