@@ -63,7 +63,7 @@ def build_executable():
         cmd = [sys.executable, "-m", "PyInstaller", str(spec_file), "--clean"]
         print(f"执行命令: {' '.join(cmd)}")
 
-        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        result = subprocess.run(cmd, check=True, text=True)
 
         print("\n" + "="*50)
         print("构建成功!")
@@ -91,7 +91,7 @@ def build_executable():
         print("\n" + "="*50)
         print("构建失败!")
         print("="*50)
-        print(f"\n错误信息:\n{e.stderr}")
+        print(f"\n错误信息:\n{e}")
         return False
 
 def main():
