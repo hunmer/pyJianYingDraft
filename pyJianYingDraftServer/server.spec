@@ -6,16 +6,37 @@ PyInstaller 配置文件
 
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_all
 
 # 项目根目录
 ROOT_DIR = Path(SPECPATH).parent
 
 block_cipher = None
 
+# 收集所有第三方包（含原生库和数据文件）
+_pkg_datas, _pkg_binaries, _pkg_hiddenimports = [], [], []
+for _pkg in [
+    'pymediainfo', 'imageio', 'uiautomation',
+    'httpx', 'psutil', 'python_multipart',
+    'fastapi', 'uvicorn', 'starlette', 'pydantic',
+    'sqlalchemy', 'aiosqlite',
+    'aria2p', 'loguru', 'websocket',
+    'socketio', 'python_socketio', 'engineio', 'python_engineio',
+    'watchdog',
+    'anyio', 'httptools', 'websockets', 'h11', 'click', 'sniffio',
+]:
+    try:
+        _d, _b, _h = collect_all(_pkg)
+        _pkg_datas.extend(_d)
+        _pkg_binaries.extend(_b)
+        _pkg_hiddenimports.extend(_h)
+    except Exception:
+        pass
+
 a = Analysis(
     ['run.py'],
     pathex=[str(ROOT_DIR)],
-    binaries=[],
+    binaries=_pkg_binaries,
     datas=[
         # 包含配置文件
         ('config.json', '.'),
@@ -25,79 +46,10 @@ a = Analysis(
         (str(ROOT_DIR / 'pyJianYingDraft'), 'pyJianYingDraft'),
         # 包含 aria2 目录(aria2c.exe 及配置文件)
         ('aria2', 'aria2'),
-    ],
+    ] + _pkg_datas,
     hiddenimports=[
-        # Uvicorn 核心模块
-        'uvicorn.logging',
-        'uvicorn.loops',
-        'uvicorn.loops.auto',
-        'uvicorn.protocols',
-        'uvicorn.protocols.http',
-        'uvicorn.protocols.http.auto',
-        'uvicorn.protocols.websockets',
-        'uvicorn.protocols.websockets.auto',
-        'uvicorn.lifespan',
-        'uvicorn.lifespan.on',
-        # FastAPI 核心和中间件
-        'fastapi',
-        'fastapi.staticfiles',
-        'fastapi.middleware',
-        'fastapi.middleware.cors',
-        'fastapi.middleware.trustedhost',
-        'fastapi.middleware.gzip',
-        'fastapi.middleware.httpsredirect',
-        # Starlette (FastAPI 依赖)
-        'starlette.middleware',
-        'starlette.middleware.base',
-        'starlette.middleware.cors',
-        'starlette.middleware.errors',
-        'starlette.middleware.gzip',
-        'starlette.middleware.httpsredirect',
-        'starlette.middleware.trustedhost',
-        # Socket.IO
-        'socketio',
-        'python_socketio',
-        'engineio',
-        'python_engineio',
-        # Pydantic
-        'pydantic',
-        'pydantic.networks',
-        'pydantic.types',
-        # Watchdog (文件监控)
-        'watchdog',
-        'watchdog.observers',
-        'watchdog.events',
-        # SQLAlchemy (数据库ORM)
-        'sqlalchemy',
-        'sqlalchemy.ext',
-        'sqlalchemy.ext.declarative',
-        'sqlalchemy.ext.asyncio',
-        'sqlalchemy.orm',
-        'sqlalchemy.engine',
-        'sqlalchemy.pool',
-        'sqlalchemy.dialects',
-        'sqlalchemy.dialects.sqlite',
-        'sqlalchemy.sql',
-        # aiosqlite (异步SQLite驱动)
-        'aiosqlite',
-        # aria2p (Aria2 RPC客户端)
-        'aria2p',
-        'aria2p.api',
-        'aria2p.client',
-        'aria2p.downloads',
-        'aria2p.options',
-        'aria2p.stats',
-        'aria2p.utils',
-        # aria2p 依赖
-        'loguru',
-        'websocket',
-        'websocket._app',
-        'websocket._core',
-        'websocket._socket',
-        'websocket._utils',
-        # 项目模块
         'pyJianYingDraft',
-    ],
+    ] + _pkg_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],

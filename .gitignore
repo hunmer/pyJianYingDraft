@@ -16,7 +16,6 @@ pyJianYingDraftServer/.file_versions/
 pyjianyingdraft-web/temp_extract/
 pyjianyingdraft-web/dist/
 downloads/
-pyjianyingdraft-web/resources/pyJianYingDraftServer.exe
 pyJianYingDraftServer/data/
 pyJianYingDraftServer/tasks.db
-pyjianyingdraft-web/resources/pyJianYingDraftServer.exe
+*.exe
