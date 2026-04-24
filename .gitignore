@@ -19,3 +19,5 @@ downloads/
 pyJianYingDraftServer/data/
 pyJianYingDraftServer/tasks.db
 *.exe
+pyjianyingdraft-web/resources/tasks.db
+.gitignore
