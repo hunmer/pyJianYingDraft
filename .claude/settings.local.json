@@ -8,7 +8,8 @@
       "mcp__deepwiki__ask_question",
       "mcp__github-repo-mcp__getRepoAllDirectories",
       "mcp__github-repo-mcp__getRepoDirectories",
-      "mcp__fetcher-mcp__fetch_url"
+      "mcp__fetcher-mcp__fetch_url",
+      "PowerShell(py *)"
     ],
     "deny": [],
     "ask": []
