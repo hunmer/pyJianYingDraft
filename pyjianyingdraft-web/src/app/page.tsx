@@ -1,20 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import {
-  Box,
-  Paper,
-  Alert,
-  CircularProgress,
-  Typography,
-  IconButton,
-  Tooltip,
-} from '@mui/material';
-import {
-  Menu as MenuIcon,
-  Download as DownloadIcon,
-  History as HistoryIcon,
-} from '@mui/icons-material';
+import { Button, Tooltip, Spinner } from '@heroui/react';
+import { Menu, Download, History } from 'lucide-react';
 import { draftApi, tasksApi } from '@/lib/api';
 import { getSidebarState, setSidebarState } from '@/lib/storage';
 import type { RuleGroup, TestData, RuleGroupTestRequest } from '@/types/rule';
@@ -271,9 +259,9 @@ export default function Home() {
     );
   }, [handleTestDataSelectWrapper]);
 
-  
+
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <div className="flex h-screen overflow-hidden">
       {/* 侧边栏 */}
       <SideBar
         open={drawerOpen}
@@ -339,59 +327,53 @@ export default function Home() {
       />
 
       {/* 主内容区 */}
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          display: 'flex',
-          flexDirection: 'column',
+      <main
+        className="flex flex-col flex-1 overflow-hidden"
+        style={{
           width: drawerOpen ? `calc(100% - 280px)` : '100%',
           transition: 'width 0.2s',
-          overflow: 'hidden',
         }}
       >
         {/* 顶部工具栏 */}
-        <Paper
-          elevation={0}
-          sx={{
-            borderBottom: 1,
-            borderColor: 'divider',
-            display: 'flex',
-            alignItems: 'center',
-            px: 2,
-            py: 1,
-          }}
-        >
-          <IconButton
-            edge="start"
-            onClick={() => {
-              const newOpenState = !drawerOpen;
-              setDrawerOpen(newOpenState);
-              setSidebarState(newOpenState); // 保存到本地存储
-            }}
-            sx={{ mr: 2 }}
-          >
-            <MenuIcon />
-          </IconButton>
-
-          <Tooltip title="下载管理">
-            <IconButton
-              onClick={() => setDownloadDialogOpen(true)}
-              sx={{ mr: 2 }}
-              color="primary"
+        <div className="flex items-center gap-2 px-4 py-2 border-b border-[var(--border)]">
+          <Tooltip delay={0}>
+            <Button
+              isIconOnly
+              variant="ghost"
+              size="sm"
+              onPress={() => {
+                const newOpenState = !drawerOpen;
+                setDrawerOpen(newOpenState);
+                setSidebarState(newOpenState); // 保存到本地存储
+              }}
             >
-              <DownloadIcon />
-            </IconButton>
+              <Menu size={20} />
+            </Button>
+            <Tooltip.Content placement="bottom">菜单</Tooltip.Content>
           </Tooltip>
 
-          <Tooltip title="生成记录">
-            <IconButton
-              onClick={() => setGenerationRecordsDialogOpen(true)}
-              sx={{ mr: 2 }}
-              color="secondary"
+          <Tooltip delay={0}>
+            <Button
+              isIconOnly
+              variant="ghost"
+              size="sm"
+              onPress={() => setDownloadDialogOpen(true)}
             >
-              <HistoryIcon />
-            </IconButton>
+              <Download size={20} />
+            </Button>
+            <Tooltip.Content placement="bottom">下载管理</Tooltip.Content>
+          </Tooltip>
+
+          <Tooltip delay={0}>
+            <Button
+              isIconOnly
+              variant="ghost"
+              size="sm"
+              onPress={() => setGenerationRecordsDialogOpen(true)}
+            >
+              <History size={20} />
+            </Button>
+            <Tooltip.Content placement="bottom">生成记录</Tooltip.Content>
           </Tooltip>
 
           {/* Tab管理器 */}
@@ -402,10 +384,10 @@ export default function Home() {
             onCloseTab={closeTab}
             onTabContextMenu={handleTabContextMenu}
           />
-        </Paper>
+        </div>
 
         {/* 内容区域 */}
-        <Box sx={{ flex: 1, overflow: 'auto', p: 3 }}>
+        <div className="flex-1 overflow-auto p-6">
           {/* 测试数据视图 */}
           {activeTab?.type === 'test_data' && (
             <TestDataEditorWithTabs
@@ -423,39 +405,35 @@ export default function Home() {
 
           {/* 草稿选择提示 */}
           {!activeTab && (
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100%',
-              }}
-            >
-              <Typography variant="h6" color="text.secondary">
+            <div className="flex items-center justify-center h-full">
+              <p className="text-lg text-[var(--muted-foreground)]">
                 请从左侧选择一个草稿开始编辑
-              </Typography>
-            </Box>
+              </p>
+            </div>
           )}
 
           {activeTab && activeTab.loading && (
-            <Box
-              sx={{
-                display: 'flex',
-                justifyContent: 'center',
-                alignItems: 'center',
-                height: '100%',
-              }}
-            >
-              <CircularProgress />
-            </Box>
+            <div className="flex items-center justify-center h-full">
+              <Spinner size="lg" />
+            </div>
           )}
 
           {activeTab && activeTab.error && (
-            <Alert severity="error" onClose={() => {
-              updateTab(activeTab.id, { error: null });
-            }}>
-              {activeTab.error}
-            </Alert>
+            <div
+              role="alert"
+              className="flex items-start gap-2 p-3 mb-3 rounded-md border border-red-300 bg-red-50 text-red-800"
+            >
+              <span className="flex-1">{activeTab.error}</span>
+              <button
+                type="button"
+                className="text-red-800 hover:text-red-600"
+                onClick={() => {
+                  updateTab(activeTab.id, { error: null });
+                }}
+              >
+                ✕
+              </button>
+            </div>
           )}
 
           {/* 草稿编辑器内容 */}
@@ -466,8 +444,8 @@ export default function Home() {
               onTestDataSelect={handleTestDataSelectWrapper}
             />
           )}
-        </Box>
-      </Box>
+        </div>
+      </main>
 
       {/* 右键菜单 */}
       <TabContextMenu
@@ -496,6 +474,6 @@ export default function Home() {
         onReimport={handleReimport}
         onOpenDownloadManager={handleOpenDownloadManager}
       />
-    </Box>
+    </div>
   );
 }

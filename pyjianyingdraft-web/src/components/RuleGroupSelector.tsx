@@ -1,33 +1,16 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Button, Tooltip, Spinner } from '@heroui/react';
 import {
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  Box,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Typography,
-  Divider,
-  Alert,
-  ButtonGroup,
-  Menu,
-  Tooltip,
-  CircularProgress,
-} from '@mui/material';
-import AddIcon from '@mui/icons-material/Add';
-import DeleteIcon from '@mui/icons-material/Delete';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import FileCopyIcon from '@mui/icons-material/FileCopy';
-import SaveIcon from '@mui/icons-material/Save';
+  Plus as AddIcon,
+  Trash2 as DeleteIcon,
+  ChevronDown as ArrowDropDownIcon,
+  CloudDownload as CloudDownloadIcon,
+  CloudUpload as CloudUploadIcon,
+  Files as FileCopyIcon,
+  Save as SaveIcon,
+} from 'lucide-react';
 import type { RuleGroup } from '@/types/rule';
 
 interface RuleGroupSelectorProps {
@@ -228,7 +211,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    const safeName = value.title.replace(/[^a-zA-Z0-9\u4e00-\u9fa5]/g, '_');
+    const safeName = value.title.replace(/[^a-zA-Z0-9一-龥]/g, '_');
     link.href = url;
     link.download = `${safeName}_${new Date().toISOString().split('T')[0]}.json`;
     document.body.appendChild(link);
@@ -255,12 +238,8 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
     await onSaveToDraft(localRuleGroups);
   };
 
-  const handleChange = (
-    event: React.ChangeEvent<{ value: unknown }> | 
-    (Event & { target: { value: string; name: string } })
-  ) => {
-    const value = 'target' in event ? event.target.value : event.value;
-    const selectedId = typeof value === 'string' ? value : String(value);
+  const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const selectedId = event.target.value;
     const selectedGroup = localRuleGroups.find(group => group.id === selectedId) ?? null;
     onChange(selectedGroup);
   };
@@ -271,81 +250,100 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
   const isSaveDisabled = disabled || loading || !onSaveToDraft;
 
   return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, width: '100%' }}>
-      <FormControl fullWidth size="small" disabled={disabled || loading}>
-        <InputLabel id="rule-group-select-label">选择规则组</InputLabel>
-        <Select
-          labelId="rule-group-select-label"
-          id="rule-group-select"
-          value={value?.id ?? ''}
-          label="选择规则组"
-          onChange={handleChange}
-        >
-          {localRuleGroups.map((group, index) => (
-            <MenuItem key={group.id} value={group.id}>
-              <Typography variant="body2">
-                {renderSelectLabel(index, group)}
-              </Typography>
-            </MenuItem>
-          ))}
-        </Select>
-      </FormControl>
-
-      <ButtonGroup variant="outlined" sx={{ whiteSpace: 'nowrap' }}>
-        <Button
-          size="small"
-          aria-label="更多选项"
-          aria-controls={menuOpen ? 'rule-group-menu' : undefined}
-          aria-haspopup="true"
-          aria-expanded={menuOpen ? 'true' : undefined}
-          onClick={handleMenuClick}
-          disabled={disabled || loading}
-          sx={{ width: 40, minWidth: 40, px: 0 }}
-        >
-          <ArrowDropDownIcon />
-        </Button>
-      </ButtonGroup>
-      <Menu
-        id="rule-group-menu"
-        anchorEl={menuAnchorEl}
-        open={menuOpen}
-        onClose={handleMenuClose}
-        MenuListProps={{
-          'aria-labelledby': 'rule-group-button',
-        }}
+    <div className="flex items-center gap-2 w-full">
+      <select
+        className="flex-1 px-2 py-1 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50"
+        value={value?.id ?? ''}
+        onChange={handleSelectChange}
+        disabled={disabled || loading}
       >
-        <Tooltip title={isSaveDisabled ? '当前不可保存' : '保存到草稿目录'}>
-          <MenuItem onClick={handleSaveToDraft} disabled={isSaveDisabled}>
-            {loading ? <CircularProgress size={16} /> : <SaveIcon fontSize="small" sx={{ mr: 1 }} />}
-            保存到草稿
-          </MenuItem>
-        </Tooltip>
-        <MenuItem onClick={handleNewRuleGroup} disabled={disabled}>
-          <AddIcon fontSize="small" sx={{ mr: 1 }} />
-          新建规则组
-        </MenuItem>
-        <MenuItem onClick={handleImportRuleGroup} disabled={disabled}>
-          <CloudUploadIcon fontSize="small" sx={{ mr: 1 }} />
-          导入规则组
-        </MenuItem>
-        <MenuItem onClick={handleDownloadRuleGroup} disabled={!value}>
-          <CloudDownloadIcon fontSize="small" sx={{ mr: 1 }} />
-          下载规则组
-        </MenuItem>
-        <MenuItem onClick={handleCloneRuleGroup} disabled={!value || disabled}>
-          <FileCopyIcon fontSize="small" sx={{ mr: 1 }} />
-          克隆规则组
-        </MenuItem>
-        <Divider />
-        <MenuItem
-          onClick={handleDeleteCurrentRuleGroup}
-          disabled={!value || disabled}
-          sx={{ color: 'error.main' }}
+        {localRuleGroups.map((group, index) => (
+          <option key={group.id} value={group.id}>
+            {renderSelectLabel(index, group)}
+          </option>
+        ))}
+      </select>
+
+      <Button
+        variant="ghost"
+        size="sm"
+        aria-label="更多选项"
+        aria-controls={menuOpen ? 'rule-group-menu' : undefined}
+        aria-haspopup="true"
+        aria-expanded={menuOpen ? 'true' : undefined}
+        onPress={handleMenuClick}
+        isDisabled={disabled || loading}
+        className="min-w-10 px-0"
+      >
+        <ArrowDropDownIcon size={18} />
+      </Button>
+
+      {menuOpen && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={handleMenuClose}
+          onContextMenu={(e) => { e.preventDefault(); handleMenuClose(); }}
         >
-          <DeleteIcon fontSize="small" sx={{ mr: 1 }} />
-          删除规则组
-        </MenuItem>
-      </Menu>
+          <div
+            className="absolute z-50 min-w-[200px] bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-lg py-1"
+            style={{ top: (menuAnchorEl?.getBoundingClientRect().bottom ?? 0) + 4, left: menuAnchorEl?.getBoundingClientRect().left ?? 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Tooltip delay={0} isDisabled={false}>
+              <button
+                className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={handleSaveToDraft}
+                disabled={isSaveDisabled}
+              >
+                {loading ? <Spinner size="sm" /> : <SaveIcon size={14} />}
+                保存到草稿
+              </button>
+              <Tooltip.Content>{isSaveDisabled ? '当前不可保存' : '保存到草稿目录'}</Tooltip.Content>
+            </Tooltip>
+            <button
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleNewRuleGroup}
+              disabled={disabled}
+            >
+              <AddIcon size={14} />
+              新建规则组
+            </button>
+            <button
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleImportRuleGroup}
+              disabled={disabled}
+            >
+              <CloudUploadIcon size={14} />
+              导入规则组
+            </button>
+            <button
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleDownloadRuleGroup}
+              disabled={!value}
+            >
+              <CloudDownloadIcon size={14} />
+              下载规则组
+            </button>
+            <button
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleCloneRuleGroup}
+              disabled={!value || disabled}
+            >
+              <FileCopyIcon size={14} />
+              克隆规则组
+            </button>
+            <div className="my-1 border-t border-[var(--border)]" />
+            <button
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleDeleteCurrentRuleGroup}
+              disabled={!value || disabled}
+            >
+              <DeleteIcon size={14} />
+              删除规则组
+            </button>
+          </div>
+        </div>
+      )}
 
       <input
         ref={fileInputRef}
@@ -355,51 +353,62 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
         onChange={handleFileUpload}
       />
 
-      <Dialog
-        open={openCreateDialog}
-        onClose={() => {
-          setOpenCreateDialog(false);
-          setNewGroupTitle('');
-          setCreateError('');
-        }}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>创建新规则组</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 2 }}>
-            {createError && (
-              <Alert severity="error" sx={{ mb: 2 }}>
-                {createError}
-              </Alert>
-            )}
-            <TextField
-              autoFocus
-              fullWidth
-              label="规则组标题"
-              value={newGroupTitle}
-              onChange={(event) => setNewGroupTitle(event.target.value)}
-              placeholder="例如: 视频标准模板"
-              helperText="为新规则组输入一个有意义的标题"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button
-            onClick={() => {
-              setOpenCreateDialog(false);
-              setNewGroupTitle('');
-              setCreateError('');
-            }}
+      {openCreateDialog && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => {
+            setOpenCreateDialog(false);
+            setNewGroupTitle('');
+            setCreateError('');
+          }}
+        >
+          <div
+            className="bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-xl w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
           >
-            取消
-          </Button>
-          <Button onClick={handleCreateRuleGroup} variant="contained">
-            创建
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Box>
+            <div className="px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
+              创建新规则组
+            </div>
+            <div className="px-4 py-4">
+              {createError && (
+                <div className="mb-2 p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm">
+                  {createError}
+                </div>
+              )}
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium">规则组标题</label>
+                <input
+                  autoFocus
+                  className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  value={newGroupTitle}
+                  onChange={(event) => setNewGroupTitle(event.target.value)}
+                  placeholder="例如: 视频标准模板"
+                />
+                <span className="text-xs text-[var(--muted-foreground)] mt-1">
+                  为新规则组输入一个有意义的标题
+                </span>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--border)]">
+              <Button
+                variant="ghost"
+                size="sm"
+                onPress={() => {
+                  setOpenCreateDialog(false);
+                  setNewGroupTitle('');
+                  setCreateError('');
+                }}
+              >
+                取消
+              </Button>
+              <Button size="sm" onPress={handleCreateRuleGroup}>
+                创建
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

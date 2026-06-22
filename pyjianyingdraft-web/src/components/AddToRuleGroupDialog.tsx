@@ -1,23 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  Box,
-  Typography,
-  Alert,
-  Divider,
-  Radio,
-  RadioGroup,
-  FormControlLabel,
-  FormControl,
-  FormLabel,
-} from '@mui/material';
+import { Button } from '@heroui/react';
 import type { Rule, RuleGroup } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 
@@ -203,138 +187,172 @@ export const AddToRuleGroupDialog: React.FC<AddToRuleGroupDialogProps> = ({
     }
   };
 
+  if (!open) return null;
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{editingRule ? '编辑规则' : '添加到规则组'}</DialogTitle>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[var(--popover)] text-[var(--popover-foreground)] rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 标题 */}
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+          <h2 className="text-lg font-semibold">
+            {editingRule ? '编辑规则' : '添加到规则组'}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] text-xl"
+          >
+            ✕
+          </button>
+        </div>
 
-      <DialogContent>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 2 }}>
-          {error && (
-            <Alert severity="error" onClose={() => setError('')}>
-              {error}
-            </Alert>
-          )}
-
-          {/* 规则组信息 */}
-          {ruleGroup ? (
-            <Alert severity="info">
-              将添加到规则组: <strong>{ruleGroup.title}</strong>
-            </Alert>
-          ) : (
-            <Alert severity="warning">
-              请先在规则组标签页中选择一个规则组
-            </Alert>
-          )}
-
-          {/* 素材信息 */}
-          {material && (
-            <Box sx={{ p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                当前素材
-              </Typography>
-              <Typography variant="body2">
-                ID: {material.id}
-              </Typography>
-              <Typography variant="body2">
-                类型: {material.type}
-              </Typography>
-              {material.name && (
-                <Typography variant="body2">
-                  名称: {material.name}
-                </Typography>
-              )}
-            </Box>
-          )}
-
-          {/* 规则选择列表（仅在非编辑模式下显示） */}
-          {!editingRule && ruleGroup && ruleGroup.rules.length > 0 && (
-            <>
-              <Divider />
-              <FormControl component="fieldset" fullWidth>
-                <FormLabel component="legend" sx={{ mb: 1 }}>
-                  选择要覆盖的规则（或新增规则）
-                </FormLabel>
-                <RadioGroup
-                  value={selectedRuleIndex}
-                  onChange={(e) => setSelectedRuleIndex(Number(e.target.value))}
+        {/* 内容 */}
+        <div className="p-4 overflow-auto flex-1">
+          <div className="flex flex-col gap-4">
+            {error && (
+              <div className="flex items-start justify-between gap-2 p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm">
+                <span>{error}</span>
+                <button
+                  type="button"
+                  onClick={() => setError('')}
+                  className="text-red-800 hover:text-red-900"
                 >
-                  <FormControlLabel
-                    value={-1}
-                    control={<Radio />}
-                    label={
-                      <Box>
-                        <Typography variant="body2" fontWeight="medium">
-                          新增规则
-                        </Typography>
-                        <Typography variant="caption" color="text.secondary">
+                  ✕
+                </button>
+              </div>
+            )}
+
+            {/* 规则组信息 */}
+            {ruleGroup ? (
+              <div className="p-3 rounded-md border border-blue-300 bg-blue-50 text-blue-800 text-sm">
+                将添加到规则组: <strong>{ruleGroup.title}</strong>
+              </div>
+            ) : (
+              <div className="p-3 rounded-md border border-yellow-300 bg-yellow-50 text-yellow-800 text-sm">
+                请先在规则组标签页中选择一个规则组
+              </div>
+            )}
+
+            {/* 素材信息 */}
+            {material && (
+              <div className="p-4 bg-[var(--muted)] rounded">
+                <div className="text-sm font-medium mb-2">当前素材</div>
+                <div className="text-sm">ID: {material.id}</div>
+                <div className="text-sm">类型: {material.type}</div>
+                {material.name && <div className="text-sm">名称: {material.name}</div>}
+              </div>
+            )}
+
+            {/* 规则选择列表（仅在非编辑模式下显示） */}
+            {!editingRule && ruleGroup && ruleGroup.rules.length > 0 && (
+              <>
+                <div className="border-b border-[var(--border)]" />
+                <div className="w-full">
+                  <div className="mb-2 text-sm font-medium">
+                    选择要覆盖的规则（或新增规则）
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <label className="flex items-start gap-2 text-sm cursor-pointer p-1">
+                      <input
+                        type="radio"
+                        name="ruleSelect"
+                        checked={selectedRuleIndex === -1}
+                        onChange={() => setSelectedRuleIndex(-1)}
+                      />
+                      <span>
+                        <span className="block font-medium">新增规则</span>
+                        <span className="block text-xs text-[var(--muted-foreground)]">
                           添加为新规则，不覆盖现有规则
-                        </Typography>
-                      </Box>
-                    }
-                  />
-                  {ruleGroup.rules.map((rule, index) => (
-                    <FormControlLabel
-                      key={index}
-                      value={index}
-                      control={<Radio />}
-                      label={
-                        <Box>
-                          <Typography variant="body2" fontWeight="medium">
+                        </span>
+                      </span>
+                    </label>
+                    {ruleGroup.rules.map((rule, index) => (
+                      <label
+                        key={index}
+                        className="flex items-start gap-2 text-sm cursor-pointer p-1"
+                      >
+                        <input
+                          type="radio"
+                          name="ruleSelect"
+                          checked={selectedRuleIndex === index}
+                          onChange={() => setSelectedRuleIndex(index)}
+                        />
+                        <span>
+                          <span className="block font-medium">
                             {rule.title || '未命名'}
-                          </Typography>
-                          <Typography variant="caption" color="text.secondary">
+                          </span>
+                          <span className="block text-xs text-[var(--muted-foreground)]">
                             类型: {rule.type} | 素材数: {rule.material_ids.length}
-                          </Typography>
-                        </Box>
-                      }
-                    />
-                  ))}
-                </RadioGroup>
-              </FormControl>
-            </>
-          )}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
 
-          <Divider />
+            <div className="border-b border-[var(--border)]" />
 
-          {/* 规则类型 */}
-          <TextField
-            fullWidth
-            label="规则类型"
-            value={ruleType}
-            onChange={(e) => setRuleType(e.target.value)}
-            placeholder="例如: video-intro"
-            helperText="唯一标识此规则的类型名称(英文,中划线分隔)"
-            required
-          />
+            {/* 规则类型 */}
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">
+                规则类型 <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="text"
+                value={ruleType}
+                onChange={(e) => setRuleType(e.target.value)}
+                placeholder="例如: video-intro"
+                className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              />
+              <span className="text-xs text-[var(--muted-foreground)]">
+                唯一标识此规则的类型名称(英文,中划线分隔)
+              </span>
+            </div>
 
-          {/* 规则标题 */}
-          <TextField
-            fullWidth
-            label="规则标题"
-            value={ruleTitle}
-            onChange={(e) => setRuleTitle(e.target.value)}
-            placeholder="例如: 视频开场动画"
-            helperText="规则的显示标题(中文)"
-          />
-        </Box>
-      </DialogContent>
+            {/* 规则标题 */}
+            <div className="flex flex-col gap-1">
+              <label className="text-sm font-medium">规则标题</label>
+              <input
+                type="text"
+                value={ruleTitle}
+                onChange={(e) => setRuleTitle(e.target.value)}
+                placeholder="例如: 视频开场动画"
+                className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              />
+              <span className="text-xs text-[var(--muted-foreground)]">
+                规则的显示标题(中文)
+              </span>
+            </div>
+          </div>
+        </div>
 
-      <DialogActions>
-        <Button onClick={onClose}>取消</Button>
-        <Button
-          onClick={handleSubmit}
-          variant="contained"
-          disabled={!ruleGroup}
-        >
-          {editingRule
-            ? '保存修改'
-            : selectedRuleIndex >= 0
-              ? '覆盖规则'
-              : '添加规则'
-          } {!ruleGroup && '(无规则组)'}
-        </Button>
-      </DialogActions>
-    </Dialog>
+        {/* 操作按钮 */}
+        <div className="flex justify-end gap-2 p-4 border-t border-[var(--border)]">
+          <Button variant="ghost" onPress={onClose}>
+            取消
+          </Button>
+          <Button
+            onPress={handleSubmit}
+            isDisabled={!ruleGroup}
+          >
+            {editingRule
+              ? '保存修改'
+              : selectedRuleIndex >= 0
+                ? '覆盖规则'
+                : '添加规则'}{' '}
+            {!ruleGroup && '(无规则组)'}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 };
 

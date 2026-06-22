@@ -1,51 +1,24 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
+import { Button, Tooltip, ProgressBar } from '@heroui/react';
 import {
-  Box,
-  Paper,
-  Typography,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  LinearProgress,
-  IconButton,
-  Chip,
-  Divider,
-  Button,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Alert,
-  CircularProgress,
-  Tooltip,
-  Card,
-  CardMedia,
-  CardContent,
-  CardActions,
-  Grid,
-} from '@mui/material';
-import PauseIcon from '@mui/icons-material/Pause';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import DeleteIcon from '@mui/icons-material/Delete';
-import FolderOpenIcon from '@mui/icons-material/FolderOpen';
-import FolderIcon from '@mui/icons-material/Folder';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-import ImageIcon from '@mui/icons-material/Image';
-import VideoFileIcon from '@mui/icons-material/VideoFile';
-import AudioFileIcon from '@mui/icons-material/AudioFile';
-import DescriptionIcon from '@mui/icons-material/Description';
-import ErrorIcon from '@mui/icons-material/Error';
-import LinkIcon from '@mui/icons-material/Link';
-import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
-import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
-import ViewModuleIcon from '@mui/icons-material/ViewModule';
-import ViewListIcon from '@mui/icons-material/ViewList';
-import ToggleButton from '@mui/material/ToggleButton';
-import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
+  Pause as PauseIcon,
+  Play as PlayArrowIcon,
+  Trash2 as DeleteIcon,
+  FolderOpen as FolderOpenIcon,
+  Folder as FolderIcon,
+  File as InsertDriveFileIcon,
+  Image as ImageIcon,
+  FileVideo as VideoFileIcon,
+  FileAudio as AudioFileIcon,
+  FileText as DescriptionIcon,
+  AlertTriangle as ErrorIcon,
+  Link as LinkIcon,
+  Eraser as DeleteSweepIcon,
+  LayoutGrid as ViewModuleIcon,
+  List as ViewListIcon,
+} from 'lucide-react';
 import { useAria2WebSocket } from '@/hooks/useAria2WebSocket';
 import type { Aria2DownloadGroup, Aria2Download } from '@/types/aria2';
 
@@ -81,20 +54,20 @@ function formatTime(seconds: number | null): string {
 }
 
 /**
- * 获取状态颜色
+ * 获取状态 class
  */
-function getStatusColor(status: string): 'success' | 'error' | 'warning' | 'info' | 'default' {
+function getStatusClass(status: string): string {
   switch (status) {
     case 'complete':
-      return 'success';
+      return 'bg-green-100 text-green-800';
     case 'error':
-      return 'error';
+      return 'bg-red-100 text-red-800';
     case 'active':
-      return 'info';
+      return 'bg-blue-100 text-blue-800';
     case 'paused':
-      return 'warning';
+      return 'bg-yellow-100 text-yellow-800';
     default:
-      return 'default';
+      return 'bg-[var(--muted)] text-[var(--muted-foreground)]';
   }
 }
 
@@ -144,10 +117,10 @@ function isAudioFile(filePath: string): boolean {
  * 获取文件类型图标
  */
 function getFileIcon(filePath: string) {
-  if (isImageFile(filePath)) return <ImageIcon sx={{ fontSize: 80, color: 'primary.main' }} />;
-  if (isVideoFile(filePath)) return <VideoFileIcon sx={{ fontSize: 80, color: 'secondary.main' }} />;
-  if (isAudioFile(filePath)) return <AudioFileIcon sx={{ fontSize: 80, color: 'success.main' }} />;
-  return <DescriptionIcon sx={{ fontSize: 80, color: 'text.secondary' }} />;
+  if (isImageFile(filePath)) return <ImageIcon size={80} className="text-[var(--accent)]" />;
+  if (isVideoFile(filePath)) return <VideoFileIcon size={80} className="text-purple-500" />;
+  if (isAudioFile(filePath)) return <AudioFileIcon size={80} className="text-green-500" />;
+  return <DescriptionIcon size={80} className="text-[var(--muted-foreground)]" />;
 }
 
 interface Aria2DownloadManagerProps {
@@ -376,7 +349,11 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
     }
   };
 
-  // 重试失败任务
+  // 使用当前数据或上一次数据,避免闪烁
+  const displayGroups = groups.length > 0 ? groups : prevGroupsRef.current;
+  const displayDownloads = selectedGroupDownloads.length > 0 ? selectedGroupDownloads : prevDownloadsRef.current;
+
+  // 重试失败任务（依赖 displayDownloads，需在其之后定义）
   const handleRetryFailedDownloads = async () => {
     if (!selectedGroupId) return;
 
@@ -467,159 +444,156 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
     window.URL.revokeObjectURL(url);
   };
 
-  // 使用当前数据或上一次数据,避免闪烁
-  const displayGroups = groups.length > 0 ? groups : prevGroupsRef.current;
-  const displayDownloads = selectedGroupDownloads.length > 0 ? selectedGroupDownloads : prevDownloadsRef.current;
-
   return (
-    <Box sx={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
+    <div className="flex h-full w-full overflow-hidden">
       {/* 左侧:组列表 */}
-      <Paper
-        sx={{
-          width: 300,
-          display: 'flex',
-          flexDirection: 'column',
-          borderRight: 1,
-          borderColor: 'divider',
-          borderRadius: 0,
-        }}
-      >
+      <div className="w-[300px] flex flex-col border-r border-[var(--border)] bg-[var(--card)] text-[var(--card-foreground)]">
         {/* 头部 */}
-        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">下载组列表</Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
+        <div className="p-4 border-b border-[var(--border)] flex justify-between items-center">
+          <div className="text-base font-semibold">下载组列表</div>
+          <div className="flex gap-1">
             {selectedGroupId && (
-              <Tooltip title="删除当前组">
-                <IconButton size="small" onClick={() => handleOpenDeleteGroupDialog(selectedGroupId)} color="error">
-                  <DeleteForeverIcon />
-                </IconButton>
+              <Tooltip delay={0}>
+                <Button
+                  isIconOnly
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => handleOpenDeleteGroupDialog(selectedGroupId)}
+                  className="text-red-600"
+                >
+                  <DeleteIcon size={18} />
+                </Button>
+                <Tooltip.Content>删除当前组</Tooltip.Content>
               </Tooltip>
             )}
             {displayGroups.length > 0 && (
-              <Tooltip title="清空所有下载组">
-                <IconButton size="small" onClick={() => setClearAllDialogOpen(true)} color="error">
-                  <DeleteSweepIcon />
-                </IconButton>
+              <Tooltip delay={0}>
+                <Button
+                  isIconOnly
+                  variant="ghost"
+                  size="sm"
+                  onPress={() => setClearAllDialogOpen(true)}
+                  className="text-red-600"
+                >
+                  <DeleteSweepIcon size={18} />
+                </Button>
+                <Tooltip.Content>清空所有下载组</Tooltip.Content>
               </Tooltip>
             )}
-            <Tooltip title="打开下载文件夹">
-              <IconButton size="small" onClick={handleOpenDownloadFolder}>
-                <FolderOpenIcon />
-              </IconButton>
+            <Tooltip delay={0}>
+              <Button isIconOnly variant="ghost" size="sm" onPress={handleOpenDownloadFolder}>
+                <FolderOpenIcon size={18} />
+              </Button>
+              <Tooltip.Content>打开下载文件夹</Tooltip.Content>
             </Tooltip>
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {/* 组列表 */}
-        <List sx={{ flex: 1, overflow: 'auto', p: 0 }}>
+        <div className="flex-1 overflow-auto">
           {displayGroups.length === 0 ? (
-            <Box sx={{ p: 2, textAlign: 'center' }}>
-              <Typography variant="body2" color="text.secondary">
-                暂无下载组
-              </Typography>
-            </Box>
+            <div className="p-4 text-center">
+              <span className="text-sm text-[var(--muted-foreground)]">暂无下载组</span>
+            </div>
           ) : (
             displayGroups.map((group) => (
-              <ListItem key={group.groupId} disablePadding>
-                <ListItemButton
-                  selected={selectedGroupId === group.groupId}
-                  onClick={() => handleSelectGroup(group.groupId)}
-                >
-                  <ListItemText
-                    primary={group.groupName || '未命名'}
-                    secondary={
-                      <>
-                        <Typography variant="caption" display="block">
-                          {group.completedDownloads}/{group.totalDownloads} 已完成
-                        </Typography>
-                        <LinearProgress
-                          variant="determinate"
-                          value={group.progressPercent}
-                          sx={{ mt: 0.5 }}
-                        />
-                        <Typography variant="caption" display="block" sx={{ mt: 0.5 }}>
-                          {formatFileSize(group.downloadedSize)} / {formatFileSize(group.totalSize)} ({group.progressPercent.toFixed(1)}%)
-                        </Typography>
-                        {group.downloadSpeed > 0 && (
-                          <Typography variant="caption" display="block">
-                            速度: {formatSpeed(group.downloadSpeed)} | ETA: {formatTime(group.etaSeconds)}
-                          </Typography>
-                        )}
-                      </>
-                    }
-                  />
-                </ListItemButton>
-              </ListItem>
+              <button
+                key={group.groupId}
+                onClick={() => handleSelectGroup(group.groupId)}
+                className={`w-full text-left px-4 py-2 border-b border-[var(--border)] hover:bg-[var(--muted)] ${
+                  selectedGroupId === group.groupId ? 'bg-[var(--accent)] text-[var(--accent-foreground)]' : ''
+                }`}
+              >
+                <div className="font-medium text-sm">{group.groupName || '未命名'}</div>
+                <div className="block text-xs opacity-80">
+                  {group.completedDownloads}/{group.totalDownloads} 已完成
+                </div>
+                <ProgressBar
+                  aria-label="组进度"
+                  value={group.progressPercent}
+                  className="my-1"
+                />
+                <div className="block text-xs opacity-80">
+                  {formatFileSize(group.downloadedSize)} / {formatFileSize(group.totalSize)} ({group.progressPercent.toFixed(1)}%)
+                </div>
+                {group.downloadSpeed > 0 && (
+                  <div className="block text-xs opacity-80">
+                    速度: {formatSpeed(group.downloadSpeed)} | ETA: {formatTime(group.etaSeconds)}
+                  </div>
+                )}
+              </button>
             ))
           )}
-        </List>
-      </Paper>
+        </div>
+      </div>
 
       {/* 右侧:下载任务列表 */}
-      <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* 头部 */}
-        <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">
+        <div className="p-4 border-b border-[var(--border)] flex justify-between items-center">
+          <div className="text-base font-semibold">
             {selectedGroupId ? '下载任务' : '请选择一个下载组'}
-          </Typography>
+          </div>
           {selectedGroupId && (
-            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-              <ToggleButtonGroup
-                value={viewMode}
-                exclusive
-                onChange={(e, newMode) => newMode && setViewMode(newMode)}
-                size="small"
-              >
-                <ToggleButton value="grid">
-                  <Tooltip title="网格视图">
-                    <ViewModuleIcon />
-                  </Tooltip>
-                </ToggleButton>
-                <ToggleButton value="list">
-                  <Tooltip title="列表视图">
-                    <ViewListIcon />
-                  </Tooltip>
-                </ToggleButton>
-              </ToggleButtonGroup>
+            <div className="flex gap-2 items-center">
+              {/* 视图切换 */}
+              <div className="flex border border-[var(--border)] rounded-md overflow-hidden">
+                <Tooltip delay={0}>
+                  <button
+                    onClick={() => setViewMode('grid')}
+                    className={`p-1.5 ${viewMode === 'grid' ? 'bg-[var(--accent)] text-[var(--accent-foreground)]' : 'bg-transparent'}`}
+                  >
+                    <ViewModuleIcon size={18} />
+                  </button>
+                  <Tooltip.Content>网格视图</Tooltip.Content>
+                </Tooltip>
+                <Tooltip delay={0}>
+                  <button
+                    onClick={() => setViewMode('list')}
+                    className={`p-1.5 ${viewMode === 'list' ? 'bg-[var(--accent)] text-[var(--accent-foreground)]' : 'bg-transparent'}`}
+                  >
+                    <ViewListIcon size={18} />
+                  </button>
+                  <Tooltip.Content>列表视图</Tooltip.Content>
+                </Tooltip>
+              </div>
               <Button
-                variant="outlined"
-                size="small"
-                startIcon={<ErrorIcon />}
-                onClick={handleRetryFailedDownloads}
-                color="error"
+                variant="outline"
+                size="sm"
+                onPress={handleRetryFailedDownloads}
+                className="text-red-600 border-red-300"
               >
+                <ErrorIcon size={16} className="mr-1" />
                 处理失败任务
               </Button>
               <Button
-                variant="outlined"
-                size="small"
-                startIcon={<LinkIcon />}
-                onClick={handleExportDownloadLinks}
+                variant="outline"
+                size="sm"
+                onPress={handleExportDownloadLinks}
               >
+                <LinkIcon size={16} className="mr-1" />
                 导出下载链接
               </Button>
-            </Box>
+            </div>
           )}
-        </Box>
+        </div>
 
         {/* 错误提示 */}
         {error && (
-          <Alert severity="error" sx={{ m: 2 }}>
+          <div className="m-4 p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm">
             {error}
-          </Alert>
+          </div>
         )}
 
         {/* 任务列表 */}
         {selectedGroupId && (
-          <Box sx={{ flex: 1, overflow: 'auto', p: 2, pb: 5 }}>
+          <div className="flex-1 overflow-auto p-4 pb-10">
             {displayDownloads.length === 0 ? (
-              <Box sx={{ textAlign: 'center', p: 4 }}>
-                <Typography variant="body2" color="text.secondary">
-                  该组没有下载任务
-                </Typography>
-              </Box>
+              <div className="text-center p-8">
+                <span className="text-sm text-[var(--muted-foreground)]">该组没有下载任务</span>
+              </div>
             ) : viewMode === 'grid' ? (
-              <Grid container spacing={2}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {displayDownloads.map((download) => {
                   const progress = download.totalLength > 0
                     ? (download.completedLength / download.totalLength) * 100
@@ -636,156 +610,143 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
                   const previewUrl = isImage ? `${apiUrl}/api/files/preview?file_path=${encodeURIComponent(filePath)}` : '';
 
                   return (
-                    <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={download.gid}>
-                      <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                        {/* 卡片封面 */}
-                        <Box
-                          sx={{
-                            aspectRatio: '9 / 16',
-                            width: '100%',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            bgcolor: 'grey.100',
-                            position: 'relative',
-                            overflow: 'hidden',
-                          }}
-                        >
-                          {isImage && previewUrl ? (
-                            <CardMedia
-                              component="img"
-                              image={previewUrl}
-                              alt={fileName}
-                              sx={{
-                                width: '100%',
-                                height: '100%',
-                                objectFit: 'cover',
-                              }}
-                              onError={(e) => {
-                                // 图片加载失败时显示图标
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                                const parent = target.parentElement;
-                                if (parent) {
-                                  parent.innerHTML = '';
-                                  const iconContainer = document.createElement('div');
-                                  iconContainer.style.display = 'flex';
-                                  iconContainer.style.alignItems = 'center';
-                                  iconContainer.style.justifyContent = 'center';
-                                  iconContainer.style.height = '100%';
-                                  parent.appendChild(iconContainer);
-                                }
-                              }}
-                            />
-                          ) : (
-                            <Box sx={{ textAlign: 'center' }}>
-                              {getFileIcon(filePath)}
-                            </Box>
-                          )}
-
-                          {/* 状态标签 */}
-                          <Tooltip
-                            title={
-                              download.errorCode && download.errorCode !== '0'
-                                ? download.errorMessage || `错误: ${download.errorCode}`
-                                : ''
-                            }
-                            arrow
-                          >
-                            <Chip
-                              label={getStatusText(download.status)}
-                              color={getStatusColor(download.status)}
-                              size="small"
-                              sx={{
-                                position: 'absolute',
-                                top: 8,
-                                right: 8,
-                              }}
-                            />
-                          </Tooltip>
-                        </Box>
-
-                        {/* 卡片内容 */}
-                        <CardContent sx={{ flex: 1, pb: 1 }}>
-                          <Typography
-                            variant="subtitle2"
-                            sx={{
-                              mb: 1,
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              display: '-webkit-box',
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: 'vertical',
+                    <div
+                      key={download.gid}
+                      className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-md flex flex-col h-full overflow-hidden"
+                    >
+                      {/* 卡片封面 */}
+                      <div
+                        className="w-full flex items-center justify-center bg-[var(--muted)] relative overflow-hidden"
+                        style={{ aspectRatio: '9 / 16' }}
+                      >
+                        {isImage && previewUrl ? (
+                          <img
+                            src={previewUrl}
+                            alt={fileName}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // 图片加载失败时显示图标
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const parent = target.parentElement;
+                              if (parent) {
+                                parent.innerHTML = '';
+                                const iconContainer = document.createElement('div');
+                                iconContainer.style.display = 'flex';
+                                iconContainer.style.alignItems = 'center';
+                                iconContainer.style.justifyContent = 'center';
+                                iconContainer.style.height = '100%';
+                                parent.appendChild(iconContainer);
+                              }
                             }}
-                            title={fileName}
+                          />
+                        ) : (
+                          <div className="text-center">{getFileIcon(filePath)}</div>
+                        )}
+
+                        {/* 状态标签 */}
+                        <Tooltip delay={0}>
+                          <span
+                            className={`absolute top-2 right-2 px-2 py-0.5 text-xs rounded ${getStatusClass(download.status)}`}
                           >
-                            {fileName}
-                          </Typography>
+                            {getStatusText(download.status)}
+                          </span>
+                          <Tooltip.Content>
+                            {download.errorCode && download.errorCode !== '0'
+                              ? download.errorMessage || `错误: ${download.errorCode}`
+                              : ''}
+                          </Tooltip.Content>
+                        </Tooltip>
+                      </div>
 
-                          {/* 进度条 */}
-                          <LinearProgress variant="determinate" value={progress} sx={{ mb: 1 }} />
+                      {/* 卡片内容 */}
+                      <div className="flex-1 p-3 pb-1">
+                        <div
+                          className="mb-2 text-sm font-medium overflow-hidden text-ellipsis"
+                          style={{
+                            display: '-webkit-box',
+                            WebkitLineClamp: 2,
+                            WebkitBoxOrient: 'vertical',
+                          }}
+                          title={fileName}
+                        >
+                          {fileName}
+                        </div>
 
-                          {/* 下载信息 */}
-                          <Typography variant="caption" display="block" color="text.secondary">
-                            {formatFileSize(download.completedLength)} / {formatFileSize(download.totalLength)}
-                          </Typography>
-                          <Typography variant="caption" display="block" color="text.secondary">
-                            {progress.toFixed(1)}%
-                          </Typography>
-                          {download.downloadSpeed > 0 && (
-                            <Typography variant="caption" display="block" color="primary">
-                              {formatSpeed(download.downloadSpeed)}
-                            </Typography>
+                        {/* 进度条 */}
+                        <ProgressBar aria-label="下载进度" value={progress} className="mb-2" />
+
+                        {/* 下载信息 */}
+                        <div className="block text-xs text-[var(--muted-foreground)]">
+                          {formatFileSize(download.completedLength)} / {formatFileSize(download.totalLength)}
+                        </div>
+                        <div className="block text-xs text-[var(--muted-foreground)]">
+                          {progress.toFixed(1)}%
+                        </div>
+                        {download.downloadSpeed > 0 && (
+                          <div className="block text-xs text-[var(--accent)]">
+                            {formatSpeed(download.downloadSpeed)}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* 卡片操作按钮 */}
+                      <div className="flex justify-between items-center px-3 pb-3 pt-1">
+                        <div className="flex gap-1">
+                          {download.status === 'active' && (
+                            <Tooltip delay={0}>
+                              <Button isIconOnly variant="ghost" size="sm" onPress={() => pauseDownload(download.gid)}>
+                                <PauseIcon size={18} />
+                              </Button>
+                              <Tooltip.Content>暂停</Tooltip.Content>
+                            </Tooltip>
                           )}
-                        </CardContent>
-
-                        {/* 卡片操作按钮 */}
-                        <CardActions sx={{ justifyContent: 'space-between', px: 2, pb: 2 }}>
-                          <Box>
-                            {download.status === 'active' && (
-                              <Tooltip title="暂停">
-                                <IconButton size="small" onClick={() => pauseDownload(download.gid)}>
-                                  <PauseIcon />
-                                </IconButton>
+                          {download.status === 'paused' && (
+                            <Tooltip delay={0}>
+                              <Button isIconOnly variant="ghost" size="sm" onPress={() => resumeDownload(download.gid)}>
+                                <PlayArrowIcon size={18} />
+                              </Button>
+                              <Tooltip.Content>继续</Tooltip.Content>
+                            </Tooltip>
+                          )}
+                          {download.status === 'complete' && filePath && (
+                            <>
+                              <Tooltip delay={0}>
+                                <Button isIconOnly variant="ghost" size="sm" onPress={() => handleOpenFile(filePath)}>
+                                  <InsertDriveFileIcon size={18} />
+                                </Button>
+                                <Tooltip.Content>打开文件</Tooltip.Content>
                               </Tooltip>
-                            )}
-                            {download.status === 'paused' && (
-                              <Tooltip title="继续">
-                                <IconButton size="small" onClick={() => resumeDownload(download.gid)}>
-                                  <PlayArrowIcon />
-                                </IconButton>
+                              <Tooltip delay={0}>
+                                <Button isIconOnly variant="ghost" size="sm" onPress={() => handleShowInFolder(filePath)}>
+                                  <FolderIcon size={18} />
+                                </Button>
+                                <Tooltip.Content>打开文件位置</Tooltip.Content>
                               </Tooltip>
-                            )}
-                            {download.status === 'complete' && filePath && (
-                              <>
-                                <Tooltip title="打开文件">
-                                  <IconButton size="small" onClick={() => handleOpenFile(filePath)}>
-                                    <InsertDriveFileIcon />
-                                  </IconButton>
-                                </Tooltip>
-                                <Tooltip title="打开文件位置">
-                                  <IconButton size="small" onClick={() => handleShowInFolder(filePath)}>
-                                    <FolderIcon />
-                                  </IconButton>
-                                </Tooltip>
-                              </>
-                            )}
-                          </Box>
-                          <Tooltip title="删除">
-                            <IconButton size="small" onClick={() => removeDownload(download.gid)} color="error">
-                              <DeleteIcon />
-                            </IconButton>
-                          </Tooltip>
-                        </CardActions>
-                      </Card>
-                    </Grid>
+                            </>
+                          )}
+                        </div>
+                        <Tooltip delay={0}>
+                          <Button
+                            isIconOnly
+                            variant="ghost"
+                            size="sm"
+                            onPress={() => removeDownload(download.gid)}
+                            className="text-red-600"
+                          >
+                            <DeleteIcon size={18} />
+                          </Button>
+                          <Tooltip.Content>删除</Tooltip.Content>
+                        </Tooltip>
+                      </div>
+                    </div>
                   );
                 })}
-              </Grid>
+              </div>
             ) : (
               // 列表视图
-              <List sx={{ width: '100%' }}>
-                {displayDownloads.map((download) => {
+              <div className="w-full">
+                {displayDownloads.map((download, idx) => {
                   const progress = download.totalLength > 0
                     ? (download.completedLength / download.totalLength) * 100
                     : 0;
@@ -798,40 +759,15 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
 
                   return (
                     <React.Fragment key={download.gid}>
-                      <ListItem
-                        sx={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          alignItems: 'stretch',
-                          py: 2,
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                      <div className="flex flex-col py-4">
+                        <div className="flex items-center mb-1">
                           {/* 文件图标/预览图 */}
-                          <Box
-                            sx={{
-                              mr: 2,
-                              width: 80,
-                              height: 80,
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              bgcolor: 'grey.100',
-                              borderRadius: 1,
-                              overflow: 'hidden',
-                              flexShrink: 0,
-                            }}
-                          >
+                          <div className="mr-2 w-20 h-20 flex items-center justify-center bg-[var(--muted)] rounded-md overflow-hidden flex-shrink-0">
                             {isImageFile(filePath) && (
-                              <Box
-                                component="img"
+                              <img
                                 src={`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/files/preview?file_path=${encodeURIComponent(filePath)}`}
                                 alt={fileName}
-                                sx={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                }}
+                                className="w-full h-full object-cover"
                                 onError={(e) => {
                                   // 图片加载失败时显示图标
                                   const target = e.target as HTMLImageElement;
@@ -850,145 +786,169 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
                               />
                             )}
                             {!isImageFile(filePath) && getFileIcon(filePath)}
-                          </Box>
+                          </div>
 
                           {/* 文件信息 */}
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mb: 0.5 }}>
-                              <Typography
-                                variant="subtitle1"
-                                sx={{
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  flex: 1,
-                                  mr: 2,
-                                }}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center mb-0.5">
+                              <div
+                                className="flex-1 mr-2 text-sm font-medium overflow-hidden text-ellipsis whitespace-nowrap"
                                 title={fileName}
                               >
                                 {fileName}
-                              </Typography>
+                              </div>
 
                               {/* 状态标签 */}
-                              <Tooltip
-                                title={
-                                  download.errorCode && download.errorCode !== '0'
+                              <Tooltip delay={0}>
+                                <span
+                                  className={`px-2 py-0.5 text-xs rounded ${getStatusClass(download.status)}`}
+                                >
+                                  {getStatusText(download.status)}
+                                </span>
+                                <Tooltip.Content>
+                                  {download.errorCode && download.errorCode !== '0'
                                     ? download.errorMessage || `错误: ${download.errorCode}`
-                                    : ''
-                                }
-                                arrow
-                              >
-                                <Chip
-                                  label={getStatusText(download.status)}
-                                  color={getStatusColor(download.status)}
-                                  size="small"
-                                />
+                                    : ''}
+                                </Tooltip.Content>
                               </Tooltip>
-                            </Box>
+                            </div>
 
                             {/* 进度条 */}
-                            <LinearProgress variant="determinate" value={progress} sx={{ mb: 1 }} />
+                            <ProgressBar aria-label="下载进度" value={progress} className="mb-2" />
 
                             {/* 下载信息 */}
-                            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                              <Typography variant="caption" color="text.secondary">
+                            <div className="flex gap-4 flex-wrap">
+                              <span className="text-xs text-[var(--muted-foreground)]">
                                 {formatFileSize(download.completedLength)} / {formatFileSize(download.totalLength)}
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary">
+                              </span>
+                              <span className="text-xs text-[var(--muted-foreground)]">
                                 {progress.toFixed(1)}%
-                              </Typography>
+                              </span>
                               {download.downloadSpeed > 0 && (
-                                <Typography variant="caption" color="primary">
+                                <span className="text-xs text-[var(--accent)]">
                                   {formatSpeed(download.downloadSpeed)}
-                                </Typography>
+                                </span>
                               )}
-                            </Box>
-                          </Box>
+                            </div>
+                          </div>
 
                           {/* 操作按钮 */}
-                          <Box sx={{ display: 'flex', gap: 1, ml: 2 }}>
+                          <div className="flex gap-1 ml-2">
                             {download.status === 'active' && (
-                              <Tooltip title="暂停">
-                                <IconButton size="small" onClick={() => pauseDownload(download.gid)}>
-                                  <PauseIcon />
-                                </IconButton>
+                              <Tooltip delay={0}>
+                                <Button isIconOnly variant="ghost" size="sm" onPress={() => pauseDownload(download.gid)}>
+                                  <PauseIcon size={18} />
+                                </Button>
+                                <Tooltip.Content>暂停</Tooltip.Content>
                               </Tooltip>
                             )}
                             {download.status === 'paused' && (
-                              <Tooltip title="继续">
-                                <IconButton size="small" onClick={() => resumeDownload(download.gid)}>
-                                  <PlayArrowIcon />
-                                </IconButton>
+                              <Tooltip delay={0}>
+                                <Button isIconOnly variant="ghost" size="sm" onPress={() => resumeDownload(download.gid)}>
+                                  <PlayArrowIcon size={18} />
+                                </Button>
+                                <Tooltip.Content>继续</Tooltip.Content>
                               </Tooltip>
                             )}
                             {download.status === 'complete' && filePath && (
                               <>
-                                <Tooltip title="打开文件">
-                                  <IconButton size="small" onClick={() => handleOpenFile(filePath)}>
-                                    <InsertDriveFileIcon />
-                                  </IconButton>
+                                <Tooltip delay={0}>
+                                  <Button isIconOnly variant="ghost" size="sm" onPress={() => handleOpenFile(filePath)}>
+                                    <InsertDriveFileIcon size={18} />
+                                  </Button>
+                                  <Tooltip.Content>打开文件</Tooltip.Content>
                                 </Tooltip>
-                                <Tooltip title="打开文件位置">
-                                  <IconButton size="small" onClick={() => handleShowInFolder(filePath)}>
-                                    <FolderIcon />
-                                  </IconButton>
+                                <Tooltip delay={0}>
+                                  <Button isIconOnly variant="ghost" size="sm" onPress={() => handleShowInFolder(filePath)}>
+                                    <FolderIcon size={18} />
+                                  </Button>
+                                  <Tooltip.Content>打开文件位置</Tooltip.Content>
                                 </Tooltip>
                               </>
                             )}
-                            <Tooltip title="删除">
-                              <IconButton size="small" onClick={() => removeDownload(download.gid)} color="error">
-                                <DeleteIcon />
-                              </IconButton>
+                            <Tooltip delay={0}>
+                              <Button
+                                isIconOnly
+                                variant="ghost"
+                                size="sm"
+                                onPress={() => removeDownload(download.gid)}
+                                className="text-red-600"
+                              >
+                                <DeleteIcon size={18} />
+                              </Button>
+                              <Tooltip.Content>删除</Tooltip.Content>
                             </Tooltip>
-                          </Box>
-                        </Box>
-                      </ListItem>
-                      <Divider />
+                          </div>
+                        </div>
+                      </div>
+                      <div className="border-b border-[var(--border)]" />
                     </React.Fragment>
                   );
                 })}
-              </List>
+              </div>
             )}
-          </Box>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* 删除组确认对话框 */}
-      <Dialog open={deleteGroupDialogOpen} onClose={handleCloseDeleteGroupDialog}>
-        <DialogTitle>确认删除</DialogTitle>
-        <DialogContent>
-          <Typography>
-            确定要删除此下载组吗?此操作将删除该组的所有下载任务记录,但不会删除已下载的文件。
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseDeleteGroupDialog}>取消</Button>
-          <Button onClick={handleDeleteGroup} color="error" variant="contained">
-            删除
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {deleteGroupDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={handleCloseDeleteGroupDialog}
+        >
+          <div
+            className="bg-[var(--popover)] text-[var(--popover-foreground)] rounded-lg shadow-xl max-w-md w-full flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+              <h2 className="text-lg font-semibold">确认删除</h2>
+              <button onClick={handleCloseDeleteGroupDialog} className="text-xl">×</button>
+            </div>
+            <div className="p-4">
+              <p className="text-sm">
+                确定要删除此下载组吗?此操作将删除该组的所有下载任务记录,但不会删除已下载的文件。
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-[var(--border)]">
+              <Button variant="ghost" onPress={handleCloseDeleteGroupDialog}>取消</Button>
+              <Button variant="danger" onPress={handleDeleteGroup}>删除</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 清空所有组确认对话框 */}
-      <Dialog open={clearAllDialogOpen} onClose={() => setClearAllDialogOpen(false)}>
-        <DialogTitle>确认清空所有下载组</DialogTitle>
-        <DialogContent>
-          <Typography>
-            确定要清空所有下载组吗?此操作将删除所有下载组及其下载任务记录,但不会删除已下载的文件。
-          </Typography>
-          <Typography sx={{ mt: 2, color: 'error.main', fontWeight: 'bold' }}>
-            ⚠️ 此操作不可撤销!
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setClearAllDialogOpen(false)}>取消</Button>
-          <Button onClick={handleClearAllGroups} color="error" variant="contained">
-            清空所有
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {clearAllDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={() => setClearAllDialogOpen(false)}
+        >
+          <div
+            className="bg-[var(--popover)] text-[var(--popover-foreground)] rounded-lg shadow-xl max-w-md w-full flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+              <h2 className="text-lg font-semibold">确认清空所有下载组</h2>
+              <button onClick={() => setClearAllDialogOpen(false)} className="text-xl">×</button>
+            </div>
+            <div className="p-4">
+              <p className="text-sm">
+                确定要清空所有下载组吗?此操作将删除所有下载组及其下载任务记录,但不会删除已下载的文件。
+              </p>
+              <p className="mt-2 text-sm font-bold text-red-600">
+                ⚠️ 此操作不可撤销!
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-[var(--border)]">
+              <Button variant="ghost" onPress={() => setClearAllDialogOpen(false)}>取消</Button>
+              <Button variant="danger" onPress={handleClearAllGroups}>清空所有</Button>
+            </div>
+          </div>
+        </div>
+      )}
 
-    </Box>
+    </div>
   );
 }
 

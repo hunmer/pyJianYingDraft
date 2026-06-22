@@ -1,18 +1,6 @@
 'use client';
 
 import React from 'react';
-import {
-  Box,
-  Grid,
-  Card,
-  CardContent,
-  Typography,
-} from '@mui/material';
-import {
-  PlayArrow,
-  Videocam,
-  AudioFile,
-} from '@mui/icons-material';
 import TimelineEditor from './Timeline';
 import type { TabData } from '@/hooks/useTabs';
 
@@ -37,7 +25,7 @@ export const DraftEditor: React.FC<DraftEditorProps> = ({
   }
 
   return (
-    <Box sx={{ width: '100%', height: 'calc(100vh - 120px)', overflow: 'hidden' }}>
+    <div className="w-full overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
       {/* 时间轴编辑器 - 占满页面 */}
       {(tab.tracks || []).length > 0 && (
         <TimelineEditor
@@ -57,6 +45,6 @@ export const DraftEditor: React.FC<DraftEditorProps> = ({
           draftInfo={tab.draftInfo}
         />
       )}
-    </Box>
+    </div>
   );
 };

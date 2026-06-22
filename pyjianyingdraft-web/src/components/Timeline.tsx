@@ -5,14 +5,8 @@ import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
 import { draftApi, ruleTestApi, tasksApi, generationRecordsApi, type AllMaterialsResponse } from '@/lib/api';
-import { Box, Paper, Typography, Chip, Tabs, Tab, Button, Divider, List, ListItem, ListItemText, Menu, MenuItem, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import AddBoxIcon from '@mui/icons-material/AddBox';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import FileDownloadIcon from '@mui/icons-material/FileDownload';
-import FileUploadIcon from '@mui/icons-material/FileUpload';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
-import IconButton from '@mui/material/IconButton';
+import { Button, Tooltip } from '@heroui/react';
+import { Play, Plus, Eye, Download, Upload } from 'lucide-react';
 import { RuleGroupSelector } from './RuleGroupSelector';
 import { RuleGroupList } from './RuleGroupList';
 import TestDataPage from './TestDataPage';
@@ -42,7 +36,7 @@ function TabPanel(props: TabPanelProps) {
       {...other}
       style={{ height: '100%', overflow: 'auto' }}
     >
-      {value === index && <Box sx={{ p: 2, height: '100%' }}>{children}</Box>}
+      {value === index && <div className="p-4 h-full">{children}</div>}
     </div>
   );
 }
@@ -340,95 +334,80 @@ const CustomAction: React.FC<{
 
   // 创建悬浮预览内容
   const tooltipContent = material ? (
-    <Box sx={{ maxWidth: 300 }}>
+    <div className="max-w-[300px]">
       <MaterialPreview material={material} />
-      <Typography variant="caption" sx={{ mt: 1, display: 'block' }}>
+      <div className="mt-2 text-xs text-[var(--muted-foreground)] block">
         {material.name || name}
-      </Typography>
+      </div>
       {material.path && (
-        <Typography variant="caption" sx={{ color: 'grey.400', display: 'block', wordBreak: 'break-all' }}>
+        <div className="text-xs text-[var(--muted-foreground)] opacity-70 block break-all">
           {material.path}
-        </Typography>
+        </div>
       )}
       {selectedRuleGroup && (
-        <Box sx={{ mt: 1, pt: 1, borderTop: '1px solid rgba(255, 255, 255, 0.3)' }}>
+        <div className="mt-2 pt-2 border-t border-white/30">
           {isInRuleGroup ? (
             <>
-              <Typography variant="caption" sx={{ color: 'success.light', display: 'block', fontWeight: 600 }}>
+              <div className="text-xs text-green-400 block font-semibold">
                 ✓ 已添加到规则组: {selectedRuleGroup.title}
-              </Typography>
+              </div>
               {rulesUsingMaterial.map((rule, index) => (
-                <Typography key={index} variant="caption" sx={{ color: 'grey.300', display: 'block', ml: 1 }}>
+                <div key={index} className="text-xs text-gray-300 block ml-2">
                   • {rule.title || '未命名'}({rule.type})
-                </Typography>
+                </div>
               ))}
             </>
           ) : (
-            <Typography variant="caption" sx={{ color: 'warning.light', display: 'block' }}>
+            <div className="text-xs text-yellow-400 block">
               未添加到当前规则组
-            </Typography>
+            </div>
           )}
-        </Box>
+        </div>
       )}
-    </Box>
+    </div>
   ) : (
     name
   );
 
   return (
-    <Tooltip
-      open={tooltipOpen}
-      title={
-        <Box
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
-          sx={{ display: 'inline-block' }}
-        >
-          {tooltipContent}
-        </Box>
-      }
-      placement="top"
-      arrow={false}
-      PopperProps={{
-        anchorEl: {
-          getBoundingClientRect: () => ({
-            top: tooltipPosition.y,
-            left: tooltipPosition.x,
-            right: tooltipPosition.x,
-            bottom: tooltipPosition.y,
-            width: 0,
-            height: 0,
-            x: tooltipPosition.x,
-            y: tooltipPosition.y,
-            toJSON: () => ({})
-          })
-        } as any,
-        disablePortal: false,
-      }}
-      componentsProps={{
-        tooltip: {
-          onMouseEnter: handleTooltipMouseEnter,
-          onMouseLeave: handleTooltipMouseLeave,
-          sx: {
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            maxWidth: 320,
-            p: 1.5,
-          }
-        }
+    <div
+      style={{
+        position: 'fixed',
+        left: tooltipPosition.x,
+        top: tooltipPosition.y,
+        zIndex: 50,
+        pointerEvents: 'none',
+        opacity: tooltipOpen ? 1 : 0,
+        transition: 'opacity 0.15s',
       }}
     >
-      <Box
+      {tooltipOpen && (
+        <div
+          onMouseEnter={handleTooltipMouseEnter}
+          onMouseLeave={handleTooltipMouseLeave}
+          style={{
+            backgroundColor: 'rgba(0, 0, 0, 0.9)',
+            maxWidth: 320,
+            padding: 6,
+            borderRadius: 4,
+            pointerEvents: 'auto',
+          }}
+        >
+          {tooltipContent}
+        </div>
+      )}
+      <div
         onClick={onClick}
         onContextMenu={handleContextMenu}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
-        sx={{
+        style={{
           width: '100%',
           height: '100%',
-          backgroundColor: isInAnyRuleGroup ? color : `${color}99`, // 未绑定的素材降低透明度
+          backgroundColor: isInAnyRuleGroup ? color : `${color}99`,
           color: 'white',
-          borderRadius: 1,
-          padding: 0.5,
+          borderRadius: 4,
+          padding: 2,
           overflow: 'hidden',
           fontSize: '12px',
           fontWeight: 500,
@@ -447,18 +426,15 @@ const CustomAction: React.FC<{
               ? '0 0 0 3px rgba(255, 215, 0, 0.3)'
               : 'none',
           transition: 'all 0.2s ease',
-          opacity: isInAnyRuleGroup ? 1 : 0.7, // 未绑定的素材降低整体透明度
-          '&:hover': {
-            opacity: isInAnyRuleGroup ? 0.9 : 0.8,
-            transform: 'scale(1.02)',
-          },
+          opacity: isInAnyRuleGroup ? 1 : 0.7,
         }}
+        className="hover:opacity-90"
       >
-        <Typography variant="caption" noWrap sx={{ color: 'white', fontWeight: 500 }}>
+        <div className="text-xs text-white font-medium truncate">
           {name}
-        </Typography>
-      </Box>
-    </Tooltip>
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -786,7 +762,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
         const groups = response.rule_groups ?? [];
         if (groups.length > 0) {
           applyRuleGroups(groups);
-        } 
+        }
       } catch (error) {
         console.error('加载草稿规则组失败:', error);
         if (!cancelled) {
@@ -1231,120 +1207,67 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
   };
 
   return (
-    <Paper elevation={2} sx={{ width: '100%', height: '100%', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <div className="w-full h-full overflow-hidden flex flex-col bg-[var(--card)] border border-[var(--border)] rounded-md">
       {/* 顶部按钮栏 */}
-      <Box sx={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        p: 1,
-        borderBottom: 1,
-        borderColor: 'divider',
-        backgroundColor: 'grey.100'
-      }}>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <IconButton
-            size="small"
-            onClick={() => {
+      <div className="flex justify-between items-center p-2 border-b border-[var(--border)] bg-[var(--muted)]">
+        <div className="flex gap-1">
+          <Button
+            isIconOnly
+            variant="ghost"
+            size="sm"
+            onPress={() => {
               const panel = document.querySelector('.timeline-left-panel') as HTMLElement | null;
               if (panel) {
                 panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
               }
             }}
-            sx={{
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              p: 0.5
-            }}
           >
-            <VisibilityIcon fontSize="small" />
-          </IconButton>
-        </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <IconButton
-            size="small"
-            sx={{
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              p: 0.5
-            }}
-          >
-            <FileDownloadIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            sx={{
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              p: 0.5
-            }}
-          >
-            <FileUploadIcon fontSize="small" />
-          </IconButton>
-          <IconButton
-            size="small"
-            onClick={() => {
+            <Eye size={18} />
+          </Button>
+        </div>
+        <div className="flex gap-1">
+          <Button isIconOnly variant="ghost" size="sm">
+            <Download size={18} />
+          </Button>
+          <Button isIconOnly variant="ghost" size="sm">
+            <Upload size={18} />
+          </Button>
+          <Button
+            isIconOnly
+            variant="ghost"
+            size="sm"
+            onPress={() => {
               const panel = document.querySelector('.timeline-right-panel') as HTMLElement | null;
               if (panel) {
                 panel.style.display = panel.style.display === 'none' ? 'flex' : 'none';
               }
             }}
-            sx={{
-              border: '1px solid',
-              borderColor: 'divider',
-              borderRadius: 1,
-              p: 0.5
-            }}
           >
-            <VisibilityIcon fontSize="small" />
-          </IconButton>
-        </Box>
-      </Box>
+            <Eye size={18} />
+          </Button>
+        </div>
+      </div>
 
-      <Box
-        className="timeline-editor-main-container"
-        sx={{
-          display: 'flex',
-          flex: 1,
-          position: 'relative', // 添加相对定位,使菜单相对于此容器定位
-          overflow: 'hidden',
-        }}
+      <div
+        className="timeline-editor-main-container flex flex-1 relative overflow-hidden"
       >
         {/* 左侧轨道列表 */}
-        <Box
-          className="timeline-left-panel"
-          sx={{
-            width: '80px',
-            height: '100%',
-            borderRight: 1,
-            borderColor: 'divider',
-            display: 'flex',
-            flexDirection: 'column',
-          }}
+        <div
+          className="timeline-left-panel flex flex-col h-full border-r border-[var(--border)]"
+          style={{ width: '80px' }}
         >
           {/* 顶部按钮栏 - 与时间标尺高度对齐 */}
-          <Box
-            sx={{
-              height: '42px', // 与时间标尺高度一致
-              borderBottom: 1,
-              borderColor: 'divider',
-              backgroundColor: 'grey.100',
-              display: 'flex',
-              alignItems: 'center',
-              px: 1.5,
-              gap: 1,
-            }}
+          <div
+            className="flex items-center px-3 gap-2 border-b border-[var(--border)] bg-[var(--muted)]"
+            style={{ height: '42px' }}
           >
-            <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary' }}>
+            <div className="text-xs font-semibold text-[var(--muted-foreground)]">
               轨道列表
-            </Typography>
-          </Box>
+            </div>
+          </div>
 
           {/* 可滚动的轨道列表 */}
-          <Box
+          <div
             ref={trackListRef}
             onScroll={(e) => {
               const target = e.target as HTMLDivElement;
@@ -1352,12 +1275,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 timelineRef.current.setScrollTop(target.scrollTop);
               }
             }}
-            sx={{
-              flex: 1,
-              overflow: 'auto',
-              backgroundColor: 'grey.50',
-              position: 'relative',
-            }}
+            className="flex-1 overflow-auto relative bg-[var(--background)]"
           >
 
             {data.map((row) => {
@@ -1375,43 +1293,26 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               };
 
               return (
-                <Box
+                <div
                   key={row.id}
-                  sx={{
-                    height: '36px',  // 与 Timeline rowHeight 一致
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 1,
-                    px: 1.5,
-                    py: 0.25,  // 上下内边距增加间距
-                    borderBottom: 1,
-                    borderColor: 'divider',
-                    '&:hover': {
-                      backgroundColor: 'grey.100',
-                    },
-                  }}
+                  className="flex items-center gap-1 px-3 py-1 border-b border-[var(--border)] hover:bg-[var(--muted)]"
+                  style={{ height: '36px' }}
                 >
-                  <Chip
-                    label={typeLabels[trackType] || trackType}
-                    size="small"
-                    sx={{
-                      backgroundColor: color,
-                      color: 'white',
-                      fontWeight: 500,
-                      fontSize: '10px',
-                      height: '20px',
-                    }}
-                  />
-                </Box>
+                  <span
+                    className="text-white font-medium text-[10px] px-2 rounded leading-5"
+                    style={{ backgroundColor: color, height: '20px' }}
+                  >
+                    {typeLabels[trackType] || trackType}
+                  </span>
+                </div>
               );
             })}
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {/* 右侧时间轴 */}
-        <Box
-          className="timeline-editor-container"
-          sx={{ flex: 1, height: '100%', overflow: 'auto' }}
+        <div
+          className="timeline-editor-container flex-1 h-full overflow-auto"
           onWheel={handleWheel}
         >
           <Timeline
@@ -1462,41 +1363,41 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
               );
             }}
             getScaleRender={(scale) => (
-              <Box sx={{ textAlign: 'center', fontSize: '12px', color: '#333', fontWeight: 500 }}>
+              <div className="text-center text-xs text-gray-700 font-medium">
                 {scale.toFixed(1)}s
-              </Box>
+              </div>
             )}
           />
-        </Box>
+        </div>
 
         {/* 右侧信息面板 */}
-        <Box
-          className="timeline-right-panel"
-          sx={{
-            width: '300px',
-            height: '100%',
-            borderLeft: 1,
-            borderColor: 'divider',
-            display: 'flex',
-            flexDirection: 'column',
-            backgroundColor: 'background.paper',
-          }}
+        <div
+          className="timeline-right-panel flex flex-col h-full border-l border-[var(--border)] bg-[var(--card)]"
+          style={{ width: '300px' }}
         >
-          <Tabs
-            value={activeTab}
-            onChange={(e, newValue) => setActiveTab(newValue)}
-            sx={{ borderBottom: 1, borderColor: 'divider', minHeight: '42px' }}
-          >
-            <Tab label="素材信息" sx={{ minHeight: '42px' }} />
-            <Tab label="规则组" sx={{ minHeight: '42px' }} />
-          </Tabs>
+          <div className="flex border-b border-[var(--border)]" style={{ minHeight: '42px' }}>
+            <button
+              onClick={() => setActiveTab(0)}
+              className={`px-4 text-sm font-medium border-b-2 ${activeTab === 0 ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted-foreground)]'}`}
+              style={{ minHeight: '42px' }}
+            >
+              素材信息
+            </button>
+            <button
+              onClick={() => setActiveTab(1)}
+              className={`px-4 text-sm font-medium border-b-2 ${activeTab === 1 ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted-foreground)]'}`}
+              style={{ minHeight: '42px' }}
+            >
+              规则组
+            </button>
+          </div>
 
           <TabPanel value={activeTab} index={0}>
             {selectedActionId ? (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
+              <div className="flex flex-col gap-4">
+                <div className="text-sm font-semibold">
                   素材详情
-                </Typography>
+                </div>
                 {(() => {
                   // 查找选中的片段
                   let selectedAction: TimelineAction | null = null;
@@ -1510,7 +1411,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                   });
 
                   if (!selectedAction || !selectedRow) {
-                    return <Typography variant="body2">未找到片段信息</Typography>;
+                    return <div className="text-sm">未找到片段信息</div>;
                   }
 
                   // 创建局部常量以避免类型推断问题
@@ -1525,87 +1426,87 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
                   return (
                     <>
-                      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">名称</Typography>
-                          <Typography variant="body2">{actionData?.name || '未命名'}</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">轨道类型</Typography>
-                          <Typography variant="body2">{rowData?.type || '未知'}</Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">时间范围</Typography>
-                          <Typography variant="body2">
+                      <div className="flex flex-col gap-1.5">
+                        <div>
+                          <div className="text-xs text-[var(--muted-foreground)]">名称</div>
+                          <div className="text-sm">{actionData?.name || '未命名'}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-[var(--muted-foreground)]">轨道类型</div>
+                          <div className="text-sm">{rowData?.type || '未知'}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-[var(--muted-foreground)]">时间范围</div>
+                          <div className="text-sm">
                             {action.start.toFixed(2)}s - {action.end.toFixed(2)}s
-                          </Typography>
-                        </Box>
-                        <Box>
-                          <Typography variant="caption" color="text.secondary">持续时长</Typography>
-                          <Typography variant="body2">
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-[var(--muted-foreground)]">持续时长</div>
+                          <div className="text-sm">
                             {(action.end - action.start).toFixed(2)}s
-                          </Typography>
-                        </Box>
+                          </div>
+                        </div>
                         {actionData?.speed && (
-                          <Box>
-                            <Typography variant="caption" color="text.secondary">播放速度</Typography>
-                            <Typography variant="body2">{actionData.speed}x</Typography>
-                          </Box>
+                          <div>
+                            <div className="text-xs text-[var(--muted-foreground)]">播放速度</div>
+                            <div className="text-sm">{actionData.speed}x</div>
+                          </div>
                         )}
                         {actionData?.volume !== undefined && (
-                          <Box>
-                            <Typography variant="caption" color="text.secondary">音量</Typography>
-                            <Typography variant="body2">{Math.round(actionData.volume * 100)}%</Typography>
-                          </Box>
+                          <div>
+                            <div className="text-xs text-[var(--muted-foreground)]">音量</div>
+                            <div className="text-sm">{Math.round(actionData.volume * 100)}%</div>
+                          </div>
                         )}
                         {material && (
                           <>
-                            <Box>
-                              <Typography variant="caption" color="text.secondary">素材ID</Typography>
-                              <Typography variant="body2" sx={{ wordBreak: 'break-all', fontSize: '11px' }}>
+                            <div>
+                              <div className="text-xs text-[var(--muted-foreground)]">素材ID</div>
+                              <div className="text-sm break-all" style={{ fontSize: '11px' }}>
                                 {material.id}
-                              </Typography>
-                            </Box>
-                            <Box>
-                              <Typography variant="caption" color="text.secondary">素材类型</Typography>
-                              <Typography variant="body2">{material.type}</Typography>
-                            </Box>
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-[var(--muted-foreground)]">素材类型</div>
+                              <div className="text-sm">{material.type}</div>
+                            </div>
                             {material.path && (
-                              <Box>
-                                <Typography variant="caption" color="text.secondary">文件路径</Typography>
-                                <Typography variant="body2" sx={{ wordBreak: 'break-all', fontSize: '11px' }}>
+                              <div>
+                                <div className="text-xs text-[var(--muted-foreground)]">文件路径</div>
+                                <div className="text-sm break-all" style={{ fontSize: '11px' }}>
                                   {material.path}
-                                </Typography>
-                              </Box>
+                                </div>
+                              </div>
                             )}
                             {material.width && material.height && (
-                              <Box>
-                                <Typography variant="caption" color="text.secondary">分辨率</Typography>
-                                <Typography variant="body2">
+                              <div>
+                                <div className="text-xs text-[var(--muted-foreground)]">分辨率</div>
+                                <div className="text-sm">
                                   {material.width} × {material.height}
-                                </Typography>
-                              </Box>
+                                </div>
+                              </div>
                             )}
                             {material.duration_seconds && (
-                              <Box>
-                                <Typography variant="caption" color="text.secondary">素材时长</Typography>
-                                <Typography variant="body2">
+                              <div>
+                                <div className="text-xs text-[var(--muted-foreground)]">素材时长</div>
+                                <div className="text-sm">
                                   {material.duration_seconds.toFixed(2)}s
-                                </Typography>
-                              </Box>
+                                </div>
+                              </div>
                             )}
                           </>
                         )}
-                      </Box>
+                      </div>
 
                       {/* 规则组状态信息 */}
                       {material && selectedRuleGroup && (
                         <>
-                          <Divider />
-                          <Box>
-                            <Typography variant="subtitle2" gutterBottom>
+                          <div className="border-b border-[var(--border)]" />
+                          <div>
+                            <div className="text-sm font-semibold">
                               规则组状态
-                            </Typography>
+                            </div>
                             {(() => {
                               const rulesUsingMaterial = selectedRuleGroup.rules.filter(rule =>
                                 rule.material_ids.includes(material.id)
@@ -1613,61 +1514,58 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                               const isInRuleGroup = rulesUsingMaterial.length > 0;
 
                               return (
-                                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                                  <Box>
-                                    <Typography variant="caption" color="text.secondary">当前规则组</Typography>
-                                    <Typography variant="body2">{selectedRuleGroup.title}</Typography>
-                                  </Box>
-                                  <Box>
-                                    <Typography variant="caption" color="text.secondary">状态</Typography>
-                                    <Typography
-                                      variant="body2"
-                                      sx={{
-                                        color: isInRuleGroup ? 'success.main' : 'warning.main',
-                                        fontWeight: 600
-                                      }}
+                                <div className="flex flex-col gap-1">
+                                  <div>
+                                    <div className="text-xs text-[var(--muted-foreground)]">当前规则组</div>
+                                    <div className="text-sm">{selectedRuleGroup.title}</div>
+                                  </div>
+                                  <div>
+                                    <div className="text-xs text-[var(--muted-foreground)]">状态</div>
+                                    <div
+                                      className="text-sm font-semibold"
+                                      style={{ color: isInRuleGroup ? '#16a34a' : '#d97706' }}
                                     >
                                       {isInRuleGroup ? '✓ 已添加' : '未添加'}
-                                    </Typography>
-                                  </Box>
+                                    </div>
+                                  </div>
                                   {isInRuleGroup && rulesUsingMaterial.length > 0 && (
-                                    <Box>
-                                      <Typography variant="caption" color="text.secondary">使用此素材的规则</Typography>
+                                    <div>
+                                      <div className="text-xs text-[var(--muted-foreground)]">使用此素材的规则</div>
                                       {rulesUsingMaterial.map((rule, index) => (
-                                        <Typography key={index} variant="body2" sx={{ ml: 1 }}>
+                                        <div key={index} className="text-sm ml-2">
                                           • {rule.title}
-                                        </Typography>
+                                        </div>
                                       ))}
-                                    </Box>
+                                    </div>
                                   )}
-                                </Box>
+                                </div>
                               );
                             })()}
-                          </Box>
+                          </div>
                         </>
                       )}
 
                       {/* 素材预览 */}
                       {material && (
                         <>
-                          <Divider />
-                          <Box>
-                            <Typography variant="subtitle2" gutterBottom>
+                          <div className="border-b border-[var(--border)]" />
+                          <div>
+                            <div className="text-sm font-semibold">
                               素材预览
-                            </Typography>
+                            </div>
                             <MaterialPreview material={material} />
-                          </Box>
+                          </div>
                         </>
                       )}
 
                       {/* 添加到规则组按钮 */}
                       {material && (
                         <>
-                          <Divider />
+                          <div className="border-b border-[var(--border)]" />
                           <Button
                             variant="outlined"
-                            startIcon={<AddBoxIcon />}
-                            onClick={() => setAddToRuleGroupDialogOpen(true)}
+                            startContent={<Plus size={16} />}
+                            onPress={() => setAddToRuleGroupDialogOpen(true)}
                             fullWidth
                           >
                             {selectedRuleGroup && selectedRuleGroup.rules.some(rule => rule.material_ids.includes(material.id))
@@ -1680,18 +1578,18 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                     </>
                   );
                 })()}
-              </Box>
+              </div>
             ) : (
-              <Box sx={{ textAlign: 'center', py: 4 }}>
-                <Typography variant="body2" color="text.secondary">
+              <div className="text-center py-8">
+                <div className="text-sm text-[var(--muted-foreground)]">
                   请点击时间轴上的片段查看详情
-                </Typography>
-              </Box>
+                </div>
+              </div>
             )}
           </TabPanel>
 
           <TabPanel value={activeTab} index={1}>
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <div className="flex flex-col gap-4">
               {/* 规则组选择器 */}
               <RuleGroupSelector
                 value={selectedRuleGroup}
@@ -1713,14 +1611,13 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 loading={savingRuleGroups}
               />
 
-              <Divider />
+              <div className="border-b border-[var(--border)]" />
 
               {/* 提交按钮 */}
               <Button
                 variant="outlined"
-                color="secondary"
-                startIcon={<CloudUploadIcon />}
-                onClick={() => {
+                startContent={<Upload size={16} />}
+                onPress={() => {
                   const testDataId = selectedRuleGroup?.id ?? `test_data_${Date.now()}`;
                   handleTestDataSelect(
                     testDataId,
@@ -1742,21 +1639,20 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
               {/* 测试结果显示 */}
               {testResult && (
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 2,
-                    bgcolor: testResult.includes('失败') || testResult.includes('不存在') ? 'error.light' : 'success.light',
-                    color: testResult.includes('失败') || testResult.includes('不存在') ? 'error.dark' : 'success.dark'
+                <div
+                  className="p-4 rounded-md text-sm"
+                  style={{
+                    backgroundColor: (testResult.includes('失败') || testResult.includes('不存在')) ? '#fef2f2' : '#f0fdf4',
+                    color: (testResult.includes('失败') || testResult.includes('不存在')) ? '#991b1b' : '#166534',
                   }}
                 >
-                  <Typography variant="body2" sx={{ whiteSpace: 'pre-wrap' }}>
+                  <div className="whitespace-pre-wrap">
                     {testResult}
-                  </Typography>
-                </Paper>
+                  </div>
+                </div>
               )}
 
-              <Divider />
+              <div className="border-b border-[var(--border)]" />
 
               {/* 规则列表 */}
               <RuleGroupList
@@ -1765,59 +1661,50 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 onSuccess={handleRuleGroupRuleSave}
                 onRuleClick={handleRuleClick}
               />
-            </Box>
+            </div>
           </TabPanel>
-        </Box>
+        </div>
 
         {/* 右键菜单 */}
-        <Menu
-          open={contextMenu !== null}
-          onClose={handleCloseContextMenu}
-          anchorReference="anchorPosition"
-          anchorPosition={
-            contextMenu !== null
-              ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
-              : undefined
-          }
-          disableScrollLock={true}
-          sx={{
-            '& .MuiPaper-root': {
-              maxHeight: '300px',
-            }
-          }}
-        >
-          <MenuItem onClick={handleAddToRuleGroupFromContextMenu}>
-            <AddBoxIcon sx={{ mr: 1 }} fontSize="small" />
-            添加到规则组
-          </MenuItem>
-          <MenuItem onClick={handleOpenPreviewFile}>
-            <VisibilityIcon sx={{ mr: 1 }} fontSize="small" />
-            打开预览文件
-          </MenuItem>
-        </Menu>
-      </Box>
+        {contextMenu !== null && (
+          <>
+            <div
+              className="fixed inset-0 z-40"
+              onClick={handleCloseContextMenu}
+              onContextMenu={(e) => { e.preventDefault(); handleCloseContextMenu(); }}
+            />
+            <div
+              className="fixed z-50 bg-[var(--card)] border border-[var(--border)] rounded-md shadow-lg py-1"
+              style={{ left: contextMenu.mouseX, top: contextMenu.mouseY, maxHeight: '300px' }}
+            >
+              <button
+                onClick={handleAddToRuleGroupFromContextMenu}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-[var(--muted)]"
+              >
+                <Plus size={16} />
+                添加到规则组
+              </button>
+              <button
+                onClick={handleOpenPreviewFile}
+                className="flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-[var(--muted)]"
+              >
+                <Eye size={16} />
+                打开预览文件
+              </button>
+            </div>
+          </>
+        )}
+      </div>
 
       {/* 轨道类型切换按钮和草稿信息 */}
-      <Box sx={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        gap: 2,
-        flexWrap: 'wrap',
-        padding: '10px',
-        borderTop: 1,
-        borderColor: 'divider',
-        backgroundColor: 'grey.50'
-      }}>
+      <div className="flex justify-between items-center gap-4 flex-wrap p-2.5 border-t border-[var(--border)] bg-[var(--muted)]">
         {/* 左侧：轨道类型切换按钮 */}
-        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+        <div className="flex gap-1 flex-wrap">
           {Object.entries(TRACK_COLORS).map(([type, color]) => {
             const isHidden = hiddenTrackTypes.includes(type);
             return (
-              <Chip
+              <button
                 key={type}
-                label={type}
-                size="small"
                 onClick={() => {
                   setHiddenTrackTypes(prev =>
                     isHidden
@@ -1825,54 +1712,33 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                       : [...prev, type]
                   );
                 }}
-                sx={{
-                  backgroundColor: isHidden ? '#999' : color,
-                  color: 'white',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  '&:hover': {
-                    opacity: 0.8
-                  }
-                }}
-              />
+                className="text-white text-[11px] px-2 py-0.5 rounded hover:opacity-80"
+                style={{ backgroundColor: isHidden ? '#999' : color }}
+              >
+                {type}
+              </button>
             );
           })}
-        </Box>
+        </div>
 
         {/* 右侧：草稿信息 */}
         {draftInfo && (
-          <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-            <Chip
-              label={`时长: ${draftInfo.duration_seconds.toFixed(2)}s`}
-              size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ fontWeight: 500 }}
-            />
-            <Chip
-              label={`轨道: ${draftInfo.track_count}`}
-              size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ fontWeight: 500 }}
-            />
-            <Chip
-              label={`分辨率: ${draftInfo.width}×${draftInfo.height}`}
-              size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ fontWeight: 500 }}
-            />
-            <Chip
-              label={`FPS: ${draftInfo.fps}`}
-              size="small"
-              color="primary"
-              variant="outlined"
-              sx={{ fontWeight: 500 }}
-            />
-          </Box>
+          <div className="flex gap-1 flex-wrap">
+            <span className="text-xs font-medium px-2 py-0.5 rounded border border-[var(--accent)] text-[var(--accent)]">
+              时长: {draftInfo.duration_seconds.toFixed(2)}s
+            </span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded border border-[var(--accent)] text-[var(--accent)]">
+              轨道: {draftInfo.track_count}
+            </span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded border border-[var(--accent)] text-[var(--accent)]">
+              分辨率: {draftInfo.width}×{draftInfo.height}
+            </span>
+            <span className="text-xs font-medium px-2 py-0.5 rounded border border-[var(--accent)] text-[var(--accent)]">
+              FPS: {draftInfo.fps}
+            </span>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* 测试数据页面 */}
       {testDialogOpen && (
@@ -1911,35 +1777,38 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       />
 
       {/* 异步任务进度对话框 */}
-      <Dialog
-        open={asyncDialogOpen}
-        onClose={() => setAsyncDialogOpen(false)}
-        maxWidth="md"
-        fullWidth
-      >
-        <DialogTitle>异步任务进度</DialogTitle>
-        <DialogContent>
-          {currentTaskId && (
-            <DownloadProgressBar
-              taskId={currentTaskId}
-              onComplete={(draftPath) => {
-                console.log('草稿生成完成:', draftPath);
-                setTestResult(`✅ 任务完成！草稿路径: ${draftPath}`);
-                setAsyncDialogOpen(false);
-              }}
-              onError={(error) => {
-                console.error('任务失败:', error);
-                setTestResult(`❌ 任务失败: ${error}`);
-              }}
-              showDetails
-            />
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setAsyncDialogOpen(false)}>关闭</Button>
-        </DialogActions>
-      </Dialog>
-    </Paper>
+      {asyncDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
+          onClick={() => setAsyncDialogOpen(false)}
+        >
+          <div
+            className="bg-[var(--card)] border border-[var(--border)] rounded-md p-6 max-w-2xl w-full mx-4 max-h-[80vh] overflow-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold mb-4">异步任务进度</div>
+            {currentTaskId && (
+              <DownloadProgressBar
+                taskId={currentTaskId}
+                onComplete={(draftPath) => {
+                  console.log('草稿生成完成:', draftPath);
+                  setTestResult(`✅ 任务完成！草稿路径: ${draftPath}`);
+                  setAsyncDialogOpen(false);
+                }}
+                onError={(error) => {
+                  console.error('任务失败:', error);
+                  setTestResult(`❌ 任务失败: ${error}`);
+                }}
+                showDetails
+              />
+            )}
+            <div className="flex justify-end mt-4">
+              <Button onPress={() => setAsyncDialogOpen(false)}>关闭</Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 };
 

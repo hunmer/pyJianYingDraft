@@ -10,10 +10,8 @@ import { foldGutter, indentOnInput, syntaxHighlighting, defaultHighlightStyle, b
 import { lintKeymap } from '@codemirror/lint';
 import { json } from '@codemirror/lang-json';
 import { javascript } from '@codemirror/lang-javascript';
-import { typescript } from '@codemirror/lang-typescript';
 import { python } from '@codemirror/lang-python';
 import { oneDark } from '@codemirror/theme-one-dark';
-import { Box } from '@mui/material';
 
 /**
  * 自定义 Tab 键绑定
@@ -205,29 +203,10 @@ export default function CodeMirrorEditor({
   // 如果需要动态更新，应该使用 compartments 或重新创建编辑器
 
   return (
-    <Box
+    <div
       ref={editorRef}
-      sx={{
-        height,
-        width: '100%',
-        overflow: 'hidden',
-        '& .cm-editor': {
-          height: '100%',
-          fontSize: '14px',
-        },
-        '& .cm-scroller': {
-          overflow: 'auto',
-          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-        },
-        '& .cm-content': {
-          fontFamily: 'Consolas, Monaco, "Courier New", monospace',
-          fontSize: '14px',
-          lineHeight: '1.6',
-        },
-        '& .cm-gutters': {
-          fontSize: '14px',
-        },
-      }}
+      style={{ height, width: '100%', overflow: 'hidden' }}
+      className="[&_.cm-editor]:h-full [&_.cm-editor]:text-sm [&_.cm-scroller]:overflow-auto [&_.cm-scroller]:font-mono [&_.cm-content]:font-mono [&_.cm-content]:text-sm [&_.cm-content]:leading-relaxed [&_.cm-gutters]:text-sm"
     />
   );
 }

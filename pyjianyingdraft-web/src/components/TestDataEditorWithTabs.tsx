@@ -1,12 +1,6 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
-import {
-  Box,
-  Tabs,
-  Tab,
-  Typography,
-} from '@mui/material';
 import TestDataEditor, { TestDataEditorRef } from './TestDataEditor';
 import CodeTestEditor from './CodeTestEditor';
 import type { TestData, RuleGroup, MaterialInfo } from '@/types/rule';
@@ -74,10 +68,6 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
     return currentTestData;
   }, [currentTestData]);
 
-  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
-    setCurrentTab(newValue);
-  };
-
   // 暴露给父组件的方法
   useImperativeHandle(ref, () => ({
     setJsonDataAndSwitchTab: (data: any) => {
@@ -103,32 +93,36 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
     }
   }), []);
 
+  const tabs = ['json数据', '代码测试'];
+
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="flex flex-col h-full">
       {/* Tab切换器 */}
-      <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-        <Tabs value={currentTab} onChange={handleTabChange}>
-          <Tab
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography>json数据</Typography>
-              </Box>
+      <div className="flex border-b border-[var(--border)]">
+        {tabs.map((label, idx) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => setCurrentTab(idx)}
+            className={
+              'flex items-center gap-1 px-4 py-2 text-sm font-medium transition-colors ' +
+              (currentTab === idx
+                ? 'border-b-2 border-[var(--accent)] text-[var(--accent)]'
+                : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]')
             }
-          />
-          <Tab
-            label={
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography>代码测试</Typography>
-              </Box>
-            }
-          />
-        </Tabs>
-      </Box>
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
       {/* Tab内容 */}
-      <Box sx={{ flex: 1, overflow: 'hidden' }}>
+      <div className="flex-1 overflow-hidden">
         {/* json数据Tab - 使用display控制显示/隐藏而非条件渲染 */}
-        <Box sx={{ display: currentTab === 0 ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+        <div
+          className="flex flex-col h-full"
+          style={{ display: currentTab === 0 ? 'flex' : 'none' }}
+        >
           <TestDataEditor
             ref={testDataEditorRef}
             testDataId={testDataId}
@@ -142,10 +136,13 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
             onDataChange={handleTestDataChange}
             draftConfig={draftConfig}
           />
-        </Box>
+        </div>
 
         {/* 代码测试Tab - 使用display控制显示/隐藏而非条件渲染 */}
-        <Box sx={{ display: currentTab === 1 ? 'flex' : 'none', height: '100%', flexDirection: 'column' }}>
+        <div
+          className="flex flex-col h-full"
+          style={{ display: currentTab === 1 ? 'flex' : 'none' }}
+        >
           <CodeTestEditor
             testDataId={`${testDataId}-code`}
             getJsonData={getJsonData}
@@ -249,9 +246,9 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
               }
             }}
           />
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 });
 

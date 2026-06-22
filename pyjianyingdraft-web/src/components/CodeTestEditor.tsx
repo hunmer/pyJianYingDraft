@@ -1,27 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import {
-  Box,
-  Paper,
-  Typography,
-  Button,
-  Alert,
-  IconButton,
-  Tooltip,
-  Divider,
-  Tabs,
-  Tab,
-  Radio,
-  RadioGroup,
-  FormControlLabel,
-  FormControl,
-  FormLabel,
-} from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import RefreshIcon from '@mui/icons-material/Refresh';
-import CodeIcon from '@mui/icons-material/Code';
-import SendIcon from '@mui/icons-material/Send';
+import { Button, Tooltip } from '@heroui/react';
+import { Play, RefreshCw, Code, Send, X } from 'lucide-react';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor';
 import { useSnapshots } from '@/hooks/useSnapshots';
 import { useDebounce } from '@/hooks/useDebounce';
@@ -861,98 +842,76 @@ export default function CodeTestEditor({
     }
   };
 
+  const rightTabs = ['输入数据', '输出数据'];
+  const currentLangLabel = language === 'typescript' ? 'TypeScript' : language === 'python' ? 'Python' : 'JavaScript';
+
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="h-full flex flex-col">
       {/* 顶部工具栏 */}
-      <Paper elevation={0} sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Typography variant="h6">代码测试</Typography>
-          <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
-            <FormControl>
-              <RadioGroup
-                row
-                value={language}
-                onChange={(e) => setLanguage(e.target.value as 'javascript' | 'typescript' | 'python')}
-              >
-                <FormControlLabel
-                  value="javascript"
-                  control={<Radio size="small" />}
-                  label={<Typography variant="body2">JavaScript</Typography>}
-                />
-                <FormControlLabel
-                  value="typescript"
-                  control={<Radio size="small" />}
-                  label={
-                    <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      TypeScript
-                      {language === 'typescript' && !tsLoaded && (
-                        <Typography variant="caption" color="warning.main">
-                          (加载中...)
-                        </Typography>
-                      )}
-                    </Typography>
-                  }
-                />
-                <FormControlLabel
-                  value="python"
-                  control={<Radio size="small" />}
-                  label={
-                    <Typography variant="body2" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                      Python
-                      {language === 'python' && !pyodideLoaded && (
-                        <Typography variant="caption" color="warning.main">
-                          (加载中...)
-                        </Typography>
-                      )}
-                    </Typography>
-                  }
-                />
-              </RadioGroup>
-            </FormControl>
-            <Button size="small" onClick={handleReset} variant="outlined">
+      <div className="p-4 border-b border-[var(--border)]">
+        <div className="flex justify-between items-center">
+          <div className="text-base font-semibold">代码测试</div>
+          <div className="flex gap-4 items-center">
+            <div className="flex items-center gap-3">
+              {(['javascript', 'typescript', 'python'] as const).map((lang) => (
+                <label key={lang} className="flex items-center gap-1 text-sm cursor-pointer">
+                  <input
+                    type="radio"
+                    name="language"
+                    value={lang}
+                    checked={language === lang}
+                    onChange={(e) => setLanguage(e.target.value as 'javascript' | 'typescript' | 'python')}
+                    className="accent-[var(--accent)]"
+                  />
+                  <span>{lang === 'javascript' ? 'JavaScript' : lang === 'typescript' ? 'TypeScript' : 'Python'}</span>
+                  {lang === 'typescript' && language === 'typescript' && !tsLoaded && (
+                    <span className="text-xs text-amber-600">(加载中...)</span>
+                  )}
+                  {lang === 'python' && language === 'python' && !pyodideLoaded && (
+                    <span className="text-xs text-amber-600">(加载中...)</span>
+                  )}
+                </label>
+              ))}
+            </div>
+            <Button size="sm" variant="outline" onPress={handleReset}>
               重置全部
             </Button>
-          </Box>
-        </Box>
-      </Paper>
+          </div>
+        </div>
+      </div>
 
       {/* 消息提示 */}
       {(error || success) && (
-        <Box sx={{ p: 2, pt: 0, pb: 0 }}>
+        <div className="px-4 py-2 flex flex-col gap-2">
           {error && (
-            <Alert severity="error" onClose={() => setError('')}>
-              {error}
-            </Alert>
+            <div className="p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm flex justify-between items-start gap-2">
+              <div className="whitespace-pre-wrap">{error}</div>
+              <button onClick={() => setError('')} className="text-red-600 hover:text-red-800 shrink-0">
+                <X size={16} />
+              </button>
+            </div>
           )}
           {success && (
-            <Alert severity="success" onClose={() => setSuccess('')}>
-              {success}
-            </Alert>
+            <div className="p-3 rounded-md border border-green-300 bg-green-50 text-green-800 text-sm flex justify-between items-start gap-2">
+              <div className="whitespace-pre-wrap">{success}</div>
+              <button onClick={() => setSuccess('')} className="text-green-600 hover:text-green-800 shrink-0">
+                <X size={16} />
+              </button>
+            </div>
           )}
-        </Box>
+        </div>
       )}
 
       {/* 左右分栏编辑器 */}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden', gap: 2 }}>
+      <div className="flex-1 flex overflow-hidden gap-2">
         {/* 左侧：代码编辑器 */}
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              border: 1,
-              borderColor: 'divider',
-              borderRadius: 1,
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                代码编辑器 ({language === 'typescript' ? 'TypeScript' : language === 'python' ? 'Python' : 'JavaScript'})
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-4 border border-[var(--border)] rounded-md h-full flex flex-col">
+            <div className="flex justify-between items-center mb-2">
+              <div className="text-sm font-semibold">
+                代码编辑器 ({currentLangLabel})
+              </div>
+              <div className="flex gap-1 items-center">
                 <SnapshotManager
                   snapshots={codeSnapshots}
                   onCreateSnapshot={handleCreateCodeSnapshot}
@@ -960,29 +919,23 @@ export default function CodeTestEditor({
                   onDeleteSnapshot={deleteCodeSnapshot}
                   onRenameSnapshot={renameCodeSnapshot}
                 />
-                <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                <Tooltip title={`加载${language === 'typescript' ? 'TypeScript' : language === 'python' ? 'Python' : 'JavaScript'}示例代码`}>
-                  <IconButton
-                    size="small"
-                    onClick={handleLoadExample}
-                    color="primary"
-                  >
-                    <CodeIcon />
-                  </IconButton>
+                <div className="mx-2 self-stretch border-l border-[var(--border)]" />
+                <Tooltip delay={0}>
+                  <Button isIconOnly variant="ghost" size="sm" onPress={handleLoadExample}>
+                    <Code size={18} />
+                  </Button>
+                  <Tooltip.Content>{`加载${currentLangLabel}示例代码`}</Tooltip.Content>
                 </Tooltip>
-                <Tooltip title="刷新代码">
-                  <IconButton
-                    size="small"
-                    onClick={handleFormatCode}
-                    color="primary"
-                  >
-                    <RefreshIcon />
-                  </IconButton>
+                <Tooltip delay={0}>
+                  <Button isIconOnly variant="ghost" size="sm" onPress={handleFormatCode}>
+                    <RefreshCw size={18} />
+                  </Button>
+                  <Tooltip.Content>刷新代码</Tooltip.Content>
                 </Tooltip>
-              </Box>
-            </Box>
+              </div>
+            </div>
 
-            <Box sx={{ flex: 1, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+            <div className="flex-1 border border-[var(--border)] rounded-md overflow-hidden">
               <CodeMirrorEditor
                 height="100%"
                 language={language}
@@ -999,44 +952,38 @@ export default function CodeTestEditor({
                   tabSize: 2,
                 }}
               />
-            </Box>
-          </Paper>
-        </Box>
+            </div>
+          </div>
+        </div>
 
         {/* 右侧：数据面板 */}
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Paper
-            elevation={0}
-            sx={{
-              p: 2,
-              border: 1,
-              borderColor: 'divider',
-              borderRadius: 1,
-              height: '100%',
-              display: 'flex',
-              flexDirection: 'column'
-            }}
-          >
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-4 border border-[var(--border)] rounded-md h-full flex flex-col">
             {/* Tab切换器 */}
-            <Tabs
-              value={rightTabValue}
-              onChange={(_, newValue) => setRightTabValue(newValue)}
-              sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}
-            >
-              <Tab label="输入数据" />
-              <Tab label="输出数据" />
-            </Tabs>
+            <div className="flex border-b border-[var(--border)] mb-4">
+              {rightTabs.map((label, idx) => (
+                <button
+                  key={label}
+                  onClick={() => setRightTabValue(idx)}
+                  className={'px-4 py-2 text-sm font-medium ' + (rightTabValue === idx
+                    ? 'border-b-2 border-[var(--accent)] text-[var(--accent)]'
+                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]')}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
 
             {/* Tab内容 */}
-            <Box sx={{ flex: 1, overflow: 'hidden' }}>
+            <div className="flex-1 overflow-hidden">
               {/* 输入数据Tab */}
               {rightTabValue === 0 && (
-                <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
+                <div className="h-full flex flex-col">
+                  <div className="flex justify-between items-center mb-2">
+                    <div className="text-sm font-semibold">
                       JSON参数编辑器
-                    </Typography>
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                    </div>
+                    <div className="flex gap-1 items-center">
                       <SnapshotManager
                         snapshots={jsonSnapshots}
                         onCreateSnapshot={handleCreateJsonSnapshot}
@@ -1044,20 +991,17 @@ export default function CodeTestEditor({
                         onDeleteSnapshot={deleteJsonSnapshot}
                         onRenameSnapshot={renameJsonSnapshot}
                       />
-                      <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
-                      <Tooltip title="格式化JSON">
-                        <IconButton
-                          size="small"
-                          onClick={handleFormatJson}
-                          color="primary"
-                        >
-                          <RefreshIcon />
-                        </IconButton>
+                      <div className="mx-2 self-stretch border-l border-[var(--border)]" />
+                      <Tooltip delay={0}>
+                        <Button isIconOnly variant="ghost" size="sm" onPress={handleFormatJson}>
+                          <RefreshCw size={18} />
+                        </Button>
+                        <Tooltip.Content>格式化JSON</Tooltip.Content>
                       </Tooltip>
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
 
-                  <Box sx={{ flex: 1, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+                  <div className="flex-1 border border-[var(--border)] rounded-md overflow-hidden">
                     <CodeMirrorEditor
                       height="100%"
                       language="json"
@@ -1074,18 +1018,18 @@ export default function CodeTestEditor({
                         tabSize: 2,
                       }}
                     />
-                  </Box>
-                </Box>
+                  </div>
+                </div>
               )}
 
               {/* 输出数据Tab */}
               {rightTabValue === 1 && (
-                <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-                  <Typography variant="subtitle1" sx={{ fontWeight: 600, mb: 1 }}>
+                <div className="h-full flex flex-col">
+                  <div className="text-sm font-semibold mb-2">
                     执行结果
-                  </Typography>
+                  </div>
 
-                  <Box sx={{ flex: 1, border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden' }}>
+                  <div className="flex-1 border border-[var(--border)] rounded-md overflow-hidden">
                     {executionResult ? (
                       <CodeMirrorEditor
                         height="100%"
@@ -1101,54 +1045,46 @@ export default function CodeTestEditor({
                         }}
                       />
                     ) : (
-                      <Box
-                        sx={{
-                          height: '100%',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          color: 'text.secondary'
-                        }}
-                      >
-                        <Typography variant="body2">
+                      <div className="h-full flex items-center justify-center text-[var(--muted-foreground)]">
+                        <div className="text-sm">
                           暂无执行结果，请先执行代码
-                        </Typography>
-                      </Box>
+                        </div>
+                      </div>
                     )}
-                  </Box>
-                </Box>
+                  </div>
+                </div>
               )}
-            </Box>
-          </Paper>
-        </Box>
-      </Box>
+            </div>
+          </div>
+        </div>
+      </div>
 
-  
+
       {/* 底部执行按钮 */}
-      <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', gap: 2 }}>
+      <div className="p-4 border-t border-[var(--border)]">
+        <div className="flex gap-4">
           <Button
-            onClick={handleExecute}
-            variant="contained"
-            startIcon={<PlayArrowIcon />}
-            disabled={executing}
+            onPress={handleExecute}
+            variant="primary"
+            isDisabled={executing}
             fullWidth
-            size="large"
+            size="lg"
+            startContent={<Play size={18} />}
           >
             {executing ? '执行中...' : '执行代码'}
           </Button>
           <Button
-            onClick={handleSendTest}
-            variant="outlined"
-            startIcon={<SendIcon />}
-            disabled={!executionResult && !jsonData}
-            size="large"
-            sx={{ minWidth: '120px' }}
+            onPress={handleSendTest}
+            variant="outline"
+            isDisabled={!executionResult && !jsonData}
+            size="lg"
+            startContent={<Send size={18} />}
+            className="min-w-[120px]"
           >
             发送测试
           </Button>
-        </Box>
-      </Box>
-    </Box>
+        </div>
+      </div>
+    </div>
   );
 }

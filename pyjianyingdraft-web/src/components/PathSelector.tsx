@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { TextField, Button, Box } from '@mui/material';
-import { FolderOpen } from '@mui/icons-material';
+import { Button } from '@heroui/react';
+import { FolderOpen } from 'lucide-react';
 
 interface PathSelectorProps {
   /** 当前路径值 */
@@ -30,6 +30,9 @@ interface PathSelectorProps {
   /** 自定义样式 */
   sx?: any;
 }
+
+const inputClass =
+  'w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--surface)] text-[var(--foreground)] placeholder:text-[var(--muted-foreground)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50';
 
 /**
  * 路径选择组件
@@ -84,47 +87,47 @@ export default function PathSelector({
     }
   };
 
+  const widthClass = fullWidth ? 'w-full' : '';
+  const sizePaddingClass = size === 'small' ? 'py-1.5' : 'py-2';
+
   if (isElectron) {
     // Electron 环境: 只读输入框 + 选择按钮
     return (
-      <Box sx={sx}>
-        <TextField
-          fullWidth={fullWidth}
-          size={size}
-          label={label}
+      <div style={sx} className={widthClass}>
+        <label className="block mb-1 text-sm text-[var(--muted-foreground)]">{label}</label>
+        <input
+          type="text"
+          className={`${inputClass} mb-2`}
           value={value}
-          InputProps={{
-            readOnly: true,
-          }}
+          readOnly
           placeholder={placeholder}
           disabled={disabled}
-          sx={{ mb: 1 }}
         />
         <Button
           fullWidth={fullWidth}
-          variant="contained"
-          size={size}
-          onClick={handleSelectPath}
-          disabled={disabled}
-          startIcon={<FolderOpen />}
+          size={size === 'small' ? 'sm' : 'md'}
+          onPress={handleSelectPath}
+          isDisabled={disabled}
         >
+          <FolderOpen size={16} />
           {buttonText}
         </Button>
-      </Box>
+      </div>
     );
   }
 
   // 浏览器环境: 可编辑输入框
   return (
-    <TextField
-      fullWidth={fullWidth}
-      size={size}
-      label={label}
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      disabled={disabled}
-      sx={sx}
-    />
+    <div style={sx} className={widthClass}>
+      <label className="block mb-1 text-sm text-[var(--muted-foreground)]">{label}</label>
+      <input
+        type="text"
+        className={`${inputClass} ${sizePaddingClass}`}
+        placeholder={placeholder}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        disabled={disabled}
+      />
+    </div>
   );
 }

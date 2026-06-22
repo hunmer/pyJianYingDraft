@@ -1,40 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Button, Tooltip } from '@heroui/react';
 import {
-  Box,
-  Typography,
-  List,
-  ListItem,
-  ListItemText,
-  IconButton,
-  Collapse,
-  Button,
-  Chip,
-  Tooltip,
-  Paper,
-  Snackbar,
-  Alert,
-  Tabs,
-  Tab,
-  Menu,
-  MenuItem,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogContentText,
-  DialogActions,
-  TextField,
-} from '@mui/material';
-import {
-  ExpandMore as ExpandMoreIcon,
-  ExpandLess as ExpandLessIcon,
-  Visibility as VisibilityIcon,
-  ContentCopy as ContentCopyIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
+  ChevronDown as ExpandMoreIcon,
+  ChevronUp as ExpandLessIcon,
+  Eye as VisibilityIcon,
+  Copy as ContentCopyIcon,
+  Pencil as EditIcon,
+  Trash2 as DeleteIcon,
   Settings as SettingsIcon,
-} from '@mui/icons-material';
+} from 'lucide-react';
 import type { RuleGroup, Rule } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { AddToRuleGroupDialog } from './AddToRuleGroupDialog';
@@ -234,108 +210,93 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
 
     if (!material) {
       return (
-        <Tooltip title={`素材未找到: ${materialId}`} arrow>
-          <Chip
-            label="未找到"
-            size="small"
-            color="error"
-            variant="outlined"
-            sx={{ m: 0.5 }}
-          />
+        <Tooltip delay={0}>
+          <span className="m-0.5 inline-flex items-center px-2 py-0.5 text-xs rounded border border-red-400 text-red-700">
+            未找到
+          </span>
+          <Tooltip.Content>{`素材未找到: ${materialId}`}</Tooltip.Content>
         </Tooltip>
       );
     }
-
-    // 获取素材类型的颜色
-    const getTypeColor = (type: string): 'primary' | 'success' | 'warning' | 'info' | 'error' => {
-      const colorMap: Record<string, 'primary' | 'success' | 'warning' | 'info' | 'error'> = {
-        video: 'primary',
-        audio: 'success',
-        text: 'warning',
-        image: 'info',
-        effect: 'secondary' as any,
-        filter: 'error',
-      };
-      return colorMap[type] || 'primary';
-    };
 
     const tooltipContent = getMaterialTooltipContent(material);
     const label = material.name || material.id.slice(0, 8);
 
     return (
-      <Box>
-        <Box sx={{ mt: 1 }}>
-          <Tabs value={0} variant="scrollable" scrollButtons="auto">
-            <Tab label={material.id} />
-          </Tabs>
-          <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1 }}>
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+      <div>
+        <div className="mt-2">
+          <div className="border-b border-[var(--border)] pb-1 mb-2">
+            <span className="text-xs font-medium text-[var(--muted-foreground)]">{material.id}</span>
+          </div>
+          <div className="p-4 bg-[var(--card)] rounded-md">
+            <div className="flex flex-wrap gap-1">
               {Object.keys(material).map((key) => (
-                <Tooltip 
+                <Tooltip
                   key={`tooltip-${key}`}
-                  title={`${key}: ${JSON.stringify(material[key as keyof MaterialInfo])}`}
-                  arrow
+                  delay={0}
                 >
-                  <Chip
-                    label={key}
-                    size="small"
-                    variant="outlined"
+                  <span
                     onClick={() => copyToClipboard(key, key)}
-                    sx={{ cursor: 'pointer' }}
-                  />
+                    className="px-2 py-0.5 text-xs rounded border border-[var(--border)] cursor-pointer hover:bg-[var(--muted)]"
+                  >
+                    {key}
+                  </span>
+                  <Tooltip.Content>{`${key}: ${JSON.stringify(material[key as keyof MaterialInfo])}`}</Tooltip.Content>
                 </Tooltip>
               ))}
-            </Box>
-          </Box>
-        </Box>
-      </Box>
+            </div>
+          </div>
+        </div>
+      </div>
     );
   };
 
   if (!ruleGroup) {
     return (
-      <Box sx={{ textAlign: 'center', py: 4, bgcolor: 'grey.50', borderRadius: 1 }}>
-        <Typography variant="body2" color="text.secondary">
+      <div className="text-center py-8 bg-[var(--muted)] rounded-md">
+        <span className="text-sm text-[var(--muted-foreground)]">
           请选择一个规则组
-        </Typography>
-      </Box>
+        </span>
+      </div>
     );
   }
 
   return (
     <>
       {showTitle && (
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
+        <div className="flex justify-between items-center mb-2">
+          <span className="text-sm font-semibold">
             {customTitle || ruleGroup.title}
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Tooltip title="编辑规则组">
-              <IconButton
-                size="small"
-                color="primary"
-                onClick={handleEditRuleGroup}
+          </span>
+          <div className="flex gap-1">
+            <Tooltip delay={0}>
+              <Button
+                isIconOnly
+                variant="ghost"
+                size="sm"
+                onPress={handleEditRuleGroup}
               >
-                <SettingsIcon />
-              </IconButton>
+                <SettingsIcon size={18} />
+              </Button>
+              <Tooltip.Content>编辑规则组</Tooltip.Content>
             </Tooltip>
             <Button
-              variant="outlined"
-              size="small"
-              startIcon={<EditIcon />}
-              onClick={() => {
+              variant="ghost"
+              size="sm"
+              startContent={<EditIcon size={16} />}
+              onPress={() => {
                 setEditingRule(null);
                 setEditDialogOpen(true);
               }}
             >
               添加
             </Button>
-          </Box>
-        </Box>
+          </div>
+        </div>
       )}
 
       {ruleGroup.rules.length > 0 ? (
-        <List dense sx={{ bgcolor: 'grey.50', borderRadius: 1 }}>
+        <div className="bg-[var(--muted)] rounded-md">
           {ruleGroup.rules.map((rule, index) => {
             const isExpanded = expandedRules.has(index);
             const hasMaterials = rule.material_ids.length > 0;
@@ -343,98 +304,90 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
 
             return (
               <React.Fragment key={index}>
-                <ListItem
-                  divider={index < ruleGroup.rules.length - 1 || isExpanded}
+                <div
                   onContextMenu={(e) => handleContextMenu(e, index)}
                   onClick={() => onRuleClick?.(rule, index)}
-                  sx={{
-                    flexDirection: 'column',
-                    alignItems: 'stretch',
-                    cursor: onRuleClick ? 'pointer' : 'context-menu',
-                    '&:hover': {
-                      backgroundColor: 'action.hover',
-                    },
-                  }}
+                  className={`p-2 ${index < ruleGroup.rules.length - 1 || isExpanded ? 'border-b border-[var(--border)]' : ''} flex flex-col ${onRuleClick ? 'cursor-pointer' : 'cursor-context-menu'} hover:bg-[var(--accent)]/10`}
                 >
-                  <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
-                    <Box sx={{ flex: 1 }}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <Typography variant="body2" fontWeight={500} color="text.primary">
+                  <div className="flex items-center w-full">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">
                           {rule.title || '未命名'}
-                        </Typography>
+                        </span>
                         {countRuleMissingMaterials(rule) > 0 && (
-                          <Tooltip title={`有 ${countRuleMissingMaterials(rule)} 个素材未找到`} arrow>
-                            <Chip
-                              label={`未找到: ${countRuleMissingMaterials(rule)}`}
-                              size="small"
-                              color="error"
-                              variant="outlined"
-                              sx={{ fontSize: 10, height: 20 }}
-                            />
+                          <Tooltip delay={0}>
+                            <span className="text-[10px] leading-5 px-2 rounded border border-red-400 text-red-700">
+                              未找到: {countRuleMissingMaterials(rule)}
+                            </span>
+                            <Tooltip.Content>{`有 ${countRuleMissingMaterials(rule)} 个素材未找到`}</Tooltip.Content>
                           </Tooltip>
                         )}
-                      </Box>
-                      <Typography variant="caption" color="text.secondary">
+                      </div>
+                      <span className="text-xs text-[var(--muted-foreground)]">
                         类型: {rule.type}
-                      </Typography>
-                    </Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                      </span>
+                    </div>
+                    <div className="flex items-center">
                       {isHighlighted && (
-                        <Chip
-                          label="已添加"
-                          size="small"
-                          color="success"
-                          sx={{ mr: 1, fontSize: 10, height: 20 }}
-                        />
+                        <span className="mr-1 text-[10px] leading-5 px-2 rounded bg-green-100 text-green-800">
+                          已添加
+                        </span>
                       )}
                       {hasMaterials && (
-                        <Tooltip title={isExpanded ? '收起素材' : '查看素材'}>
-                          <IconButton
-                            size="small"
-                            onClick={() => toggleExpand(index)}
-                            sx={{ ml: 1 }}
+                        <Tooltip delay={0}>
+                          <Button
+                            isIconOnly
+                            variant="ghost"
+                            size="sm"
+                            onPress={() => toggleExpand(index)}
+                            className="ml-1"
                           >
-                            {isExpanded ? <ExpandLessIcon /> : <VisibilityIcon />}
-                          </IconButton>
+                            {isExpanded ? <ExpandLessIcon size={18} /> : <VisibilityIcon size={18} />}
+                          </Button>
+                          <Tooltip.Content>{isExpanded ? '收起素材' : '查看素材'}</Tooltip.Content>
                         </Tooltip>
                       )}
-                      <Tooltip title="编辑规则">
-                        <IconButton
-                          size="small"
-                          onClick={() => {
+                      <Tooltip delay={0}>
+                        <Button
+                          isIconOnly
+                          variant="ghost"
+                          size="sm"
+                          onPress={() => {
                             setEditingRule(rule);
                             setEditDialogOpen(true);
                           }}
-                          sx={{ ml: 1 }}
+                          className="ml-1"
                         >
-                          <EditIcon />
-                        </IconButton>
+                          <EditIcon size={18} />
+                        </Button>
+                        <Tooltip.Content>编辑规则</Tooltip.Content>
                       </Tooltip>
-                    </Box>
-                  </Box>
+                    </div>
+                  </div>
 
-                  <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                    <Box sx={{ mt: 1, pl: 0 }}>
-                      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {isExpanded && (
+                    <div className="mt-2 pl-0">
+                      <div className="flex flex-wrap gap-1">
                         {rule.material_ids.map((materialId) => (
                           <React.Fragment key={materialId}>
                             {renderMaterialChip(materialId)}
                           </React.Fragment>
                         ))}
-                      </Box>
-                    </Box>
-                  </Collapse>
-                </ListItem>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </React.Fragment>
             );
           })}
-        </List>
+        </div>
       ) : (
-        <Box sx={{ textAlign: 'center', py: 4, bgcolor: 'grey.50', borderRadius: 1 }}>
-          <Typography variant="body2" color="text.secondary">
+        <div className="text-center py-8 bg-[var(--muted)] rounded-md">
+          <span className="text-sm text-[var(--muted-foreground)]">
             当前规则组没有规则
-          </Typography>
-        </Box>
+          </span>
+        </div>
       )}
 
       {/* 编辑对话框 */}
@@ -455,121 +408,135 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
       />
 
       {/* 右键菜单 */}
-      <Menu
-        open={contextMenu !== null}
-        onClose={handleCloseContextMenu}
-        anchorReference="anchorPosition"
-        anchorPosition={
-          contextMenu !== null
-            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
-            : undefined
-        }
-      >
-        <MenuItem
-          onClick={() => {
-            if (contextMenu !== null && ruleGroup) {
-              const rule = ruleGroup.rules[contextMenu.ruleIndex];
-              setEditingRule(rule);
-              setEditDialogOpen(true);
-              handleCloseContextMenu();
-            }
-          }}
+      {contextMenu !== null && (
+        <div
+          className="fixed inset-0 z-40"
+          onClick={handleCloseContextMenu}
+          onContextMenu={(e) => { e.preventDefault(); handleCloseContextMenu(); }}
         >
-          <EditIcon sx={{ mr: 1 }} fontSize="small" />
-          编辑规则
-        </MenuItem>
-        <MenuItem
-          onClick={() => {
-            if (contextMenu !== null) {
-              handleDeleteRule(contextMenu.ruleIndex);
-            }
-          }}
-          sx={{ color: 'error.main' }}
-        >
-          <DeleteIcon sx={{ mr: 1 }} fontSize="small" />
-          删除节点
-        </MenuItem>
-      </Menu>
+          <div
+            className="absolute z-50 min-w-[160px] bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-lg py-1"
+            style={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2"
+              onClick={() => {
+                if (contextMenu !== null && ruleGroup) {
+                  const rule = ruleGroup.rules[contextMenu.ruleIndex];
+                  setEditingRule(rule);
+                  setEditDialogOpen(true);
+                  handleCloseContextMenu();
+                }
+              }}
+            >
+              <EditIcon size={14} />
+              编辑规则
+            </button>
+            <button
+              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 text-red-600"
+              onClick={() => {
+                if (contextMenu !== null) {
+                  handleDeleteRule(contextMenu.ruleIndex);
+                }
+              }}
+            >
+              <DeleteIcon size={14} />
+              删除节点
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 删除确认对话框 */}
-      <Dialog
-        open={deleteDialogOpen}
-        onClose={() => setDeleteDialogOpen(false)}
-      >
-        <DialogTitle>确认删除</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {deletingRuleIndex !== null && ruleGroup
-              ? `确定要删除规则 "${ruleGroup.rules[deletingRuleIndex]?.title}" 吗?此操作不可撤销。`
-              : '确定要删除此规则吗?'}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>取消</Button>
-          <Button onClick={confirmDeleteRule} color="error" variant="contained">
-            删除
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {deleteDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setDeleteDialogOpen(false)}
+        >
+          <div
+            className="bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-xl min-w-[360px] max-w-md"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
+              确认删除
+            </div>
+            <div className="px-4 py-4 text-sm text-[var(--popover-foreground)]">
+              {deletingRuleIndex !== null && ruleGroup
+                ? `确定要删除规则 "${ruleGroup.rules[deletingRuleIndex]?.title}" 吗?此操作不可撤销。`
+                : '确定要删除此规则吗?'}
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--border)]">
+              <Button variant="ghost" size="sm" onPress={() => setDeleteDialogOpen(false)}>
+                取消
+              </Button>
+              <Button variant="danger" size="sm" onPress={confirmDeleteRule}>
+                删除
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 编辑规则组对话框 */}
-      <Dialog
-        open={editRuleGroupDialogOpen}
-        onClose={() => setEditRuleGroupDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>编辑规则组</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 2, display: 'flex', flexDirection: 'column', gap: 2 }}>
-            <TextField
-              label="规则组标题"
-              fullWidth
-              value={editedRuleGroupTitle}
-              onChange={(e) => setEditedRuleGroupTitle(e.target.value)}
-              placeholder="请输入规则组标题"
-              required
-            />
-            <TextField
-              label="规则组描述"
-              fullWidth
-              multiline
-              rows={3}
-              value={editedRuleGroupDescription}
-              onChange={(e) => setEditedRuleGroupDescription(e.target.value)}
-              placeholder="请输入规则组描述(可选)"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setEditRuleGroupDialogOpen(false)}>取消</Button>
-          <Button
-            onClick={handleSaveRuleGroup}
-            variant="contained"
-            color="primary"
-            disabled={!editedRuleGroupTitle.trim()}
+      {editRuleGroupDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setEditRuleGroupDialogOpen(false)}
+        >
+          <div
+            className="bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-xl w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
           >
-            保存
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <div className="px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
+              编辑规则组
+            </div>
+            <div className="px-4 py-4 flex flex-col gap-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium">规则组标题 *</label>
+                <input
+                  className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  value={editedRuleGroupTitle}
+                  onChange={(e) => setEditedRuleGroupTitle(e.target.value)}
+                  placeholder="请输入规则组标题"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium">规则组描述</label>
+                <textarea
+                  rows={3}
+                  className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  value={editedRuleGroupDescription}
+                  onChange={(e) => setEditedRuleGroupDescription(e.target.value)}
+                  placeholder="请输入规则组描述(可选)"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--border)]">
+              <Button variant="ghost" size="sm" onPress={() => setEditRuleGroupDialogOpen(false)}>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                isDisabled={!editedRuleGroupTitle.trim()}
+                onPress={handleSaveRuleGroup}
+              >
+                保存
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 复制成功提示 */}
-      <Snackbar
-        open={snackbar.open}
-        autoHideDuration={2000}
-        onClose={() => setSnackbar({ ...snackbar, open: false })}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      >
-        <Alert
-          onClose={() => setSnackbar({ ...snackbar, open: false })}
-          severity="success"
-          variant="filled"
-          sx={{ width: '100%' }}
+      {snackbar.open && (
+        <div
+          className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md bg-green-600 text-white text-sm shadow-lg cursor-pointer"
+          onClick={() => setSnackbar({ ...snackbar, open: false })}
         >
           {snackbar.message}
-        </Alert>
-      </Snackbar>
+        </div>
+      )}
     </>
   );
 };

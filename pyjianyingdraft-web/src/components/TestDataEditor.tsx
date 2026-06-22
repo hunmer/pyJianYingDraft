@@ -2,39 +2,9 @@
 
 import React, { useEffect, useMemo, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 
-import {
-  Box,
-  Paper,
-  Typography,
-  Button,
-  Alert,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel,
-  IconButton,
-  Tooltip,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  CircularProgress,
-  ButtonGroup,
-  Menu,
-  MenuItem as MuiMenuItem,
-  ListItemText,
-} from '@mui/material';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import SaveIcon from '@mui/icons-material/Save';
-import DeleteIcon from '@mui/icons-material/Delete';
-import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import { Button, Tooltip } from '@heroui/react';
+import { Play, Save, Trash2, RotateCcw, Download, ChevronDown, AlignLeft, Plus, X } from 'lucide-react';
 import MonacoEditor from '@/components/MonacoEditor';
-import DownloadIcon from '@mui/icons-material/Download';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
-import FormatAlignLeftIcon from '@mui/icons-material/FormatAlignLeft';
-import AddTrackIcon from '@mui/icons-material/AddRoad';
-import HighlightIcon from '@mui/icons-material/Highlight';
 import type { TestData, TestDataset, RuleGroup, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest, SegmentStylesPayload } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { EXAMPLE_TEST_DATA } from '@/config/defaultRules';
@@ -119,8 +89,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
   const [showProgressInline, setShowProgressInline] = useState(false);
 
   // 下载菜单状态
-  const [downloadMenuAnchor, setDownloadMenuAnchor] = useState<null | HTMLElement>(null);
-  const downloadMenuOpen = Boolean(downloadMenuAnchor);
+  const [downloadMenuOpen, setDownloadMenuOpen] = useState(false);
 
   // 下载确认对话框状态
   const [downloadDialogOpen, setDownloadDialogOpen] = useState(false);
@@ -391,22 +360,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
   useEffect(() => {
     updateHighlightTypes();
   }, [testDataJson, ruleGroup, updateHighlightTypes]);
-
-  // 暴露给父组件的方法
-  useImperativeHandle(ref, () => ({
-    setTestData: (data: TestData) => {
-      console.log('[TestDataEditor] setTestData 被调用:', data);
-      const jsonString = JSON.stringify(data, null, 2);
-      setTestDataJson(jsonString);
-      // 强制重新渲染编辑器
-      setEditorKey(prev => prev + 1);
-      console.log('[TestDataEditor] 测试数据已设置');
-    },
-    runTest: async () => {
-      console.log('[TestDataEditor] runTest 被调用');
-      await handleTest();
-    }
-  }), [testDataJson]);
 
   // 内部默认测试实现（当未提供 onTest 回调时使用）
   const defaultTestHandler = useCallback(async (testData: TestData) => {
@@ -751,7 +704,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
 
     setPendingDownloadData({ data, filename, type });
     setDownloadDialogOpen(true);
-    setDownloadMenuAnchor(null);
+    setDownloadMenuOpen(false);
   };
 
   // 确认下载
@@ -777,7 +730,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     }
     // 打开路径替换对话框
     setPathReplacementDialogOpen(true);
-    setDownloadMenuAnchor(null);
+    setDownloadMenuOpen(false);
   };
 
   // 处理路径替换确认
@@ -863,20 +816,36 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     }
   };
 
+  // 暴露给父组件的方法
+  useImperativeHandle(ref, () => ({
+    setTestData: (data: TestData) => {
+      console.log('[TestDataEditor] setTestData 被调用:', data);
+      const jsonString = JSON.stringify(data, null, 2);
+      setTestDataJson(jsonString);
+      // 强制重新渲染编辑器
+      setEditorKey(prev => prev + 1);
+      console.log('[TestDataEditor] 测试数据已设置');
+    },
+    runTest: async () => {
+      console.log('[TestDataEditor] runTest 被调用');
+      await handleTest();
+    }
+  }), [testDataJson]);
+
   return (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', gap: 0 }}>
+    <div className="h-full flex flex-col">
       {/* 顶部标题栏 */}
-      <Paper elevation={0} sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Button size="small" onClick={handleReset} variant="outlined" startIcon={<RestartAltIcon />}>
+      <div className="p-4 border-b border-[var(--border)]">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center gap-4">
+            <Button size="sm" variant="outline" onPress={handleReset} startContent={<RotateCcw size={16} />}>
               重置为示例数据
             </Button>
-            <Typography variant="caption" color="text.secondary">
+            <div className="text-xs text-[var(--muted-foreground)]">
               实例ID: {testDataId}
-            </Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
             <SnapshotManager
               snapshots={snapshots}
               onCreateSnapshot={handleCreateSnapshot}
@@ -884,89 +853,79 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
               onDeleteSnapshot={deleteSnapshot}
               onRenameSnapshot={renameSnapshot}
             />
-          </Box>
-        </Box>
-      </Paper>
+          </div>
+        </div>
+      </div>
 
       {/* 主内容区域 */}
-      <Box sx={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      <div className="flex-1 flex overflow-hidden">
         {/* 左侧规则组列表 */}
-        <Box
-          sx={{
-            width: '280px',
-            borderRight: 1,
-            borderColor: 'divider',
-            overflow: 'auto',
-            backgroundColor: 'grey.50',
-            p: 2,
-          }}
-        >
+        <div className="w-[280px] border-r border-[var(--border)] overflow-auto bg-[var(--muted)] p-4">
           <RuleGroupList
             ruleGroup={ruleGroup ?? null}
             showTitle={true}
             materials={materials}
             highlightedTypes={highlightedTypes}
           />
-        </Box>
+        </div>
 
         {/* 右侧编辑器区域 */}
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="flex-1 flex flex-col overflow-hidden">
           {/* 数据集选择器 */}
           {datasets.length > 0 && (
-            <Box sx={{ p: 2, pb: 0, display: 'flex', gap: 1, alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
-              <FormControl size="small" sx={{ minWidth: 200, flex: 1 }}>
-                <InputLabel>选择数据集</InputLabel>
-                <Select
-                  value={selectedDatasetId}
-                  onChange={(e) => handleLoadDataset(e.target.value)}
-                  label="选择数据集"
-                >
-                  <MenuItem value="">
-                    <em>无</em>
-                  </MenuItem>
-                  {datasets.map((dataset) => (
-                    <MenuItem key={dataset.id} value={dataset.id}>
-                      {dataset.name}
-                      {dataset.description && (
-                        <Typography variant="caption" sx={{ ml: 1, color: 'text.secondary' }}>
-                          - {dataset.description}
-                        </Typography>
-                      )}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
+            <div className="p-4 pb-0 flex gap-2 items-center border-b border-[var(--border)]">
+              <select
+                value={selectedDatasetId}
+                onChange={(e) => handleLoadDataset(e.target.value)}
+                className="min-w-[200px] flex-1 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+              >
+                <option value="">无</option>
+                {datasets.map((dataset) => (
+                  <option key={dataset.id} value={dataset.id}>
+                    {dataset.name}{dataset.description ? ` - ${dataset.description}` : ''}
+                  </option>
+                ))}
+              </select>
               {selectedDatasetId && (
-                <Tooltip title="删除当前数据集">
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleDeleteDataset(selectedDatasetId)}
+                <Tooltip delay={0}>
+                  <Button
+                    isIconOnly
+                    variant="ghost"
+                    size="sm"
+                    className="text-red-600"
+                    onPress={() => handleDeleteDataset(selectedDatasetId)}
                   >
-                    <DeleteIcon />
-                  </IconButton>
+                    <Trash2 size={18} />
+                  </Button>
+                  <Tooltip.Content>删除当前数据集</Tooltip.Content>
                 </Tooltip>
               )}
-            </Box>
+            </div>
           )}
 
           {/* 消息提示 */}
-          <Box sx={{ p: 2, pb: datasets.length > 0 ? 2 : 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <div className={`p-4 ${datasets.length > 0 ? '' : 'pb-0'} flex flex-col gap-2`}>
             {error && (
-              <Alert severity="error" onClose={() => setError('')}>
-                {error}
-              </Alert>
+              <div className="p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm flex justify-between items-start gap-2">
+                <div className="whitespace-pre-wrap">{error}</div>
+                <button onClick={() => setError('')} className="text-red-600 hover:text-red-800 shrink-0">
+                  <X size={16} />
+                </button>
+              </div>
             )}
 
             {success && (
-              <Alert severity="success" onClose={() => setSuccess('')}>
-                {success}
-              </Alert>
+              <div className="p-3 rounded-md border border-green-300 bg-green-50 text-green-800 text-sm flex justify-between items-start gap-2">
+                <div className="whitespace-pre-wrap">{success}</div>
+                <button onClick={() => setSuccess('')} className="text-green-600 hover:text-green-800 shrink-0">
+                  <X size={16} />
+                </button>
+              </div>
             )}
 
             {/* 异步任务下载进度 */}
             {showProgressInline && currentTaskId && (
-              <Box>
+              <div>
                 <DownloadProgressBar
                   taskId={currentTaskId}
                   onComplete={(draftPath) => {
@@ -982,39 +941,38 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
                   }}
                   showDetails
                 />
-              </Box>
+              </div>
             )}
-          </Box>
+          </div>
 
           {/* 编辑器工具栏 */}
-          <Box sx={{ px: 2, py: 1, display: 'flex', gap: 1, alignItems: 'center', backgroundColor: 'grey.50', borderBottom: 1, borderColor: 'divider' }}>
-            <Tooltip title="格式化JSON">
-              <IconButton
-                size="small"
-                onClick={handleFormatJson}
-                color="primary"
-              >
-                <FormatAlignLeftIcon />
-              </IconButton>
+          <div className="px-4 py-2 flex gap-2 items-center bg-[var(--muted)] border-b border-[var(--border)]">
+            <Tooltip delay={0}>
+              <Button isIconOnly variant="ghost" size="sm" onPress={handleFormatJson}>
+                <AlignLeft size={18} />
+              </Button>
+              <Tooltip.Content>格式化JSON</Tooltip.Content>
             </Tooltip>
-            <Tooltip title="一键添加轨道">
-              <IconButton
-                size="small"
-                onClick={handleAddTracks}
-                color="secondary"
-                disabled={!ruleGroup || !ruleGroup.rules.length}
+            <Tooltip delay={0}>
+              <Button
+                isIconOnly
+                variant="ghost"
+                size="sm"
+                onPress={handleAddTracks}
+                isDisabled={!ruleGroup || !ruleGroup.rules.length}
               >
-                <AddTrackIcon />
-              </IconButton>
+                <Plus size={18} />
+              </Button>
+              <Tooltip.Content>一键添加轨道</Tooltip.Content>
             </Tooltip>
-            <Typography variant="caption" color="text.secondary" sx={{ ml: 1 }}>
+            <div className="ml-2 text-xs text-[var(--muted-foreground)]">
               {highlightedTypes.size > 0 && `已匹配 ${highlightedTypes.size} 个规则类型`}
-            </Typography>
-          </Box>
+            </div>
+          </div>
 
           {/* CodeMirror 编辑器 */}
-          <Box sx={{ flex: 1, p: 2, pt: 1, overflow: 'hidden' }}>
-            <Box sx={{ border: 1, borderColor: 'divider', borderRadius: 1, overflow: 'hidden', height: '100%' }}>
+          <div className="flex-1 p-4 pt-2 overflow-hidden">
+            <div className="border border-[var(--border)] rounded-md overflow-hidden h-full">
               <MonacoEditor
                 key={editorKey}
                 height="100%"
@@ -1031,150 +989,168 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
                   tabSize: 2,
                 }}
               />
-            </Box>
-          </Box>
+            </div>
+          </div>
 
           {/* 底部操作按钮 */}
-          <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider', display: 'flex', gap: 1, justifyContent: 'space-between' }}>
-            <Box sx={{ display: 'flex', gap: 1 }}>
-              <ButtonGroup variant="outlined" disabled={!fullRequestPayload}>
+          <div className="p-4 border-t border-[var(--border)] flex gap-2 justify-between">
+            <div className="flex gap-2 relative">
+              <div className="flex">
                 <Button
-                  onClick={handleDownloadBaseRequestData}
-                  startIcon={<DownloadIcon />}
+                  variant="outline"
+                  isDisabled={!fullRequestPayload}
+                  onPress={handleDownloadBaseRequestData}
+                  startContent={<Download size={16} />}
                 >
                   下载基础数据
                 </Button>
                 <Button
-                  size="small"
-                  onClick={(e) => setDownloadMenuAnchor(e.currentTarget)}
-                  aria-controls={downloadMenuOpen ? 'download-menu' : undefined}
-                  aria-expanded={downloadMenuOpen ? 'true' : undefined}
+                  isIconOnly
+                  variant="outline"
+                  isDisabled={!fullRequestPayload}
+                  onPress={() => setDownloadMenuOpen((v) => !v)}
+                  aria-expanded={downloadMenuOpen}
                   aria-haspopup="menu"
+                  className="border-l-0"
                 >
-                  <ArrowDropDownIcon />
+                  <ChevronDown size={18} />
                 </Button>
-              </ButtonGroup>
+              </div>
 
               {/* 下载选项菜单 */}
-              <Menu
-                id="download-menu"
-                anchorEl={downloadMenuAnchor}
-                open={downloadMenuOpen}
-                onClose={() => setDownloadMenuAnchor(null)}
-                MenuListProps={{
-                  'aria-labelledby': 'download-split-button',
-                }}
-              >
-                <MuiMenuItem onClick={handleDownloadFullRequestData}>
-                  <ListItemText
-                    primary="下载完整数据"
-                    secondary="包含请求的items"
+              {downloadMenuOpen && (
+                <>
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setDownloadMenuOpen(false)}
                   />
-                </MuiMenuItem>
-              </Menu>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 1 }}>
+                  <div className="absolute bottom-full mb-1 left-0 z-50 min-w-[200px] bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-lg">
+                    <button
+                      onClick={handleDownloadFullRequestData}
+                      className="w-full text-left px-3 py-2 hover:bg-[var(--muted)] text-sm"
+                    >
+                      <div className="font-medium">下载完整数据</div>
+                      <div className="text-xs text-[var(--muted-foreground)]">包含请求的items</div>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <div className="flex gap-2">
               <Button
-                onClick={handleOpenSaveDialog}
-                variant="outlined"
-                startIcon={<SaveIcon />}
+                onPress={handleOpenSaveDialog}
+                variant="outline"
+                startContent={<Save size={16} />}
               >
                 保存数据集
               </Button>
               <Button
-                onClick={handleTest}
-                variant="contained"
-                startIcon={<PlayArrowIcon />}
-                disabled={testing}
+                onPress={handleTest}
+                variant="primary"
+                startContent={<Play size={16} />}
+                isDisabled={testing}
                 data-testid="test-run-button"
               >
                 {testing ? '测试中...' : '运行测试'}
               </Button>
-            </Box>
-          </Box>
-        </Box>
-      </Box>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* 保存数据集对话框 */}
-      <Dialog open={saveDialogOpen} onClose={() => setSaveDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>保存测试数据集</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            {error && (
-              <Alert severity="error" onClose={() => setError('')}>
-                {error}
-              </Alert>
-            )}
-            <TextField
-              label="数据集名称"
-              value={datasetName}
-              onChange={(e) => setDatasetName(e.target.value)}
-              fullWidth
-              required
-              autoFocus
-              placeholder="例如: 示例视频数据"
-            />
-            <TextField
-              label="描述(可选)"
-              value={datasetDescription}
-              onChange={(e) => setDatasetDescription(e.target.value)}
-              fullWidth
-              multiline
-              rows={2}
-              placeholder="简要描述这个数据集的用途"
-            />
-            <Alert severity="info">
-              如果数据集名称已存在,将会更新现有数据集
-            </Alert>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setSaveDialogOpen(false)}>取消</Button>
-          <Button onClick={handleSaveDataset} variant="contained" startIcon={<SaveIcon />}>
-            保存
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {saveDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setSaveDialogOpen(false)}>
+          <div
+            className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
+              保存测试数据集
+            </div>
+            <div className="p-4">
+              <div className="flex flex-col gap-4 pt-1">
+                {error && (
+                  <div className="p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm flex justify-between items-start gap-2">
+                    <div className="whitespace-pre-wrap">{error}</div>
+                    <button onClick={() => setError('')} className="text-red-600 hover:text-red-800 shrink-0">
+                      <X size={16} />
+                    </button>
+                  </div>
+                )}
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium">数据集名称 <span className="text-red-600">*</span></label>
+                  <input
+                    type="text"
+                    value={datasetName}
+                    onChange={(e) => setDatasetName(e.target.value)}
+                    autoFocus
+                    placeholder="例如: 示例视频数据"
+                    className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-sm font-medium">描述(可选)</label>
+                  <textarea
+                    value={datasetDescription}
+                    onChange={(e) => setDatasetDescription(e.target.value)}
+                    rows={2}
+                    placeholder="简要描述这个数据集的用途"
+                    className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  />
+                </div>
+                <div className="p-3 rounded-md border border-blue-300 bg-blue-50 text-blue-800 text-sm">
+                  如果数据集名称已存在,将会更新现有数据集
+                </div>
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-[var(--border)] flex justify-end gap-2">
+              <Button variant="ghost" onPress={() => setSaveDialogOpen(false)}>取消</Button>
+              <Button variant="primary" onPress={handleSaveDataset} startContent={<Save size={16} />}>
+                保存
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 下载确认对话框 */}
-      <Dialog
-        open={downloadDialogOpen}
-        onClose={() => setDownloadDialogOpen(false)}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>下载JSON文件</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <Typography>
-              请选择下载格式:
-            </Typography>
-            <Alert severity="info">
-              <Typography variant="body2" gutterBottom>
-                <strong>普通格式:</strong> JSON紧凑单行,无换行
-              </Typography>
-              <Typography variant="body2">
-                <strong>压缩并转义:</strong> JSON紧凑单行 + 转义所有双引号(\")
-              </Typography>
-            </Alert>
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDownloadDialogOpen(false)}>取消</Button>
-          <Button
-            onClick={() => handleConfirmDownload(false)}
-            variant="outlined"
+      {downloadDialogOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" onClick={() => setDownloadDialogOpen(false)}>
+          <div
+            className="w-full max-w-md bg-[var(--background)] border border-[var(--border)] rounded-md shadow-lg"
+            onClick={(e) => e.stopPropagation()}
           >
-            普通格式
-          </Button>
-          <Button
-            onClick={() => handleConfirmDownload(true)}
-            variant="contained"
-          >
-            压缩并转义
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <div className="px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
+              下载JSON文件
+            </div>
+            <div className="p-4">
+              <div className="flex flex-col gap-4 pt-1">
+                <div className="text-sm">
+                  请选择下载格式:
+                </div>
+                <div className="p-3 rounded-md border border-blue-300 bg-blue-50 text-blue-800 text-sm">
+                  <div className="mb-1">
+                    <strong>普通格式:</strong> JSON紧凑单行,无换行
+                  </div>
+                  <div>
+                    <strong>压缩并转义:</strong> JSON紧凑单行 + 转义所有双引号(\")
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="px-4 py-3 border-t border-[var(--border)] flex justify-end gap-2">
+              <Button variant="ghost" onPress={() => setDownloadDialogOpen(false)}>取消</Button>
+              <Button variant="outline" onPress={() => handleConfirmDownload(false)}>
+                普通格式
+              </Button>
+              <Button variant="primary" onPress={() => handleConfirmDownload(true)}>
+                压缩并转义
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 路径替换对话框 */}
       <PathReplacementDialog
@@ -1183,7 +1159,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
         materials={fullRequestPayload?.materials || []}
         onConfirm={handlePathReplacementConfirm}
       />
-    </Box>
+    </div>
   );
 });
 

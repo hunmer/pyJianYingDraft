@@ -1,8 +1,4 @@
 import type { Metadata } from "next";
-import { AppRouterCacheProvider } from '@mui/material-nextjs/v15-appRouter';
-import { ThemeProvider } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
-import theme from '@/theme';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -15,15 +11,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // HeroUI v3 无需 Provider，主题通过 CSS 变量 + html class 控制
   return (
-    <html lang="zh-CN">
-      <body>
-        <AppRouterCacheProvider>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            {children}
-          </ThemeProvider>
-        </AppRouterCacheProvider>
+    <html lang="zh-CN" className="light" data-theme="light" suppressHydrationWarning>
+      <body className="bg-background text-foreground">
+        {children}
       </body>
     </html>
   );

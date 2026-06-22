@@ -1,31 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
+import { Button, Tooltip } from '@heroui/react';
 import {
-  Box,
-  Button,
-  IconButton,
-  Tooltip,
-  Menu,
-  MenuItem,
-  ListItemText,
-  ListItemIcon,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Typography,
-  Chip,
-  Divider,
-  Alert,
-} from '@mui/material';
-import CameraAltIcon from '@mui/icons-material/CameraAlt';
-import RestoreIcon from '@mui/icons-material/Restore';
-import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
-import HistoryIcon from '@mui/icons-material/History';
-import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown';
+  Camera as CameraAltIcon,
+  RotateCcw as RestoreIcon,
+  Trash2 as DeleteIcon,
+  Pencil as EditIcon,
+  History as HistoryIcon,
+  ChevronDown as ArrowDropDownIcon,
+} from 'lucide-react';
 import type { Snapshot } from '@/hooks/useSnapshots';
 
 interface SnapshotManagerProps {
@@ -131,13 +115,13 @@ export default function SnapshotManager({
 
   return (
     <>
-      <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+      <div className="flex gap-2 items-center">
         <Button
-          size="small"
-          variant="outlined"
-          startIcon={<CameraAltIcon />}
-          onClick={handleOpenCreateDialog}
-          disabled={disabled}
+          size="sm"
+          variant="ghost"
+          startContent={<CameraAltIcon size={16} />}
+          onPress={handleOpenCreateDialog}
+          isDisabled={disabled}
         >
           创建快照
         </Button>
@@ -145,158 +129,203 @@ export default function SnapshotManager({
         {snapshots.length > 0 && (
           <>
             <Button
-              size="small"
-              variant="outlined"
-              startIcon={<HistoryIcon />}
-              endIcon={<ArrowDropDownIcon />}
-              onClick={(e) => setMenuAnchor(e.currentTarget)}
-              disabled={disabled}
+              size="sm"
+              variant="ghost"
+              startContent={<HistoryIcon size={16} />}
+              endContent={<ArrowDropDownIcon size={16} />}
+              onPress={(e) => setMenuAnchor(e.currentTarget as HTMLElement)}
+              isDisabled={disabled}
             >
               快照 ({snapshots.length})
             </Button>
 
-            <Menu
-              anchorEl={menuAnchor}
-              open={menuOpen}
-              onClose={() => setMenuAnchor(null)}
-              PaperProps={{
-                sx: { minWidth: 320, maxWidth: 400 },
-              }}
-            >
-              <Box sx={{ px: 2, py: 1 }}>
-                <Typography variant="subtitle2" color="text.secondary">
-                  已保存的快照
-                </Typography>
-              </Box>
-              <Divider />
+            {menuOpen && (
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setMenuAnchor(null)}
+                onContextMenu={(e) => { e.preventDefault(); setMenuAnchor(null); }}
+              >
+                <div
+                  className="absolute z-50 min-w-[320px] max-w-[400px] bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-lg"
+                  style={{
+                    top: (menuAnchor?.getBoundingClientRect().bottom ?? 0) + 4,
+                    left: menuAnchor?.getBoundingClientRect().left ?? 0,
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="px-4 py-2">
+                    <span className="text-sm font-semibold text-[var(--muted-foreground)]">
+                      已保存的快照
+                    </span>
+                  </div>
+                  <div className="border-b border-[var(--border)]" />
 
-              {snapshots.length === 0 ? (
-                <MenuItem disabled>
-                  <ListItemText primary="暂无快照" />
-                </MenuItem>
-              ) : (
-                snapshots
-                  .slice()
-                  .reverse()
-                  .map((snapshot) => (
-                    <Box key={snapshot.id}>
-                      <MenuItem
-                        onClick={() => handleRestoreSnapshot(snapshot.id)}
-                        sx={{ py: 1.5 }}
-                      >
-                        <Box sx={{ flex: 1, mr: 1 }}>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.5 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                              {snapshot.name}
-                            </Typography>
-                            <Chip
-                              label={formatTime(snapshot.timestamp)}
-                              size="small"
-                              variant="outlined"
-                              sx={{ height: 20, fontSize: '0.7rem' }}
-                            />
-                          </Box>
-                          {snapshot.description && (
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                              {snapshot.description}
-                            </Typography>
-                          )}
-                        </Box>
-                        <Box sx={{ display: 'flex', gap: 0.5 }}>
-                          {onRenameSnapshot && (
-                            <Tooltip title="重命名">
-                              <IconButton
-                                size="small"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleOpenRenameDialog(snapshot);
-                                }}
-                              >
-                                <EditIcon fontSize="small" />
-                              </IconButton>
-                            </Tooltip>
-                          )}
-                          <Tooltip title="删除">
-                            <IconButton
-                              size="small"
-                              color="error"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteSnapshot(snapshot.id);
-                              }}
-                            >
-                              <DeleteIcon fontSize="small" />
-                            </IconButton>
-                          </Tooltip>
-                        </Box>
-                      </MenuItem>
-                      <Divider />
-                    </Box>
-                  ))
-              )}
-            </Menu>
+                  {snapshots.length === 0 ? (
+                    <div className="px-4 py-3 text-sm text-[var(--muted-foreground)]">
+                      暂无快照
+                    </div>
+                  ) : (
+                    snapshots
+                      .slice()
+                      .reverse()
+                      .map((snapshot) => (
+                        <div key={snapshot.id}>
+                          <div
+                            onClick={() => handleRestoreSnapshot(snapshot.id)}
+                            className="px-4 py-3 flex items-start hover:bg-[var(--muted)] cursor-pointer"
+                          >
+                            <div className="flex-1 mr-2">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <span className="text-sm font-semibold">
+                                  {snapshot.name}
+                                </span>
+                                <span className="text-[0.7rem] leading-5 px-2 rounded border border-[var(--border)]">
+                                  {formatTime(snapshot.timestamp)}
+                                </span>
+                              </div>
+                              {snapshot.description && (
+                                <span className="block text-xs text-[var(--muted-foreground)]">
+                                  {snapshot.description}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex gap-1">
+                              {onRenameSnapshot && (
+                                <Tooltip delay={0}>
+                                  <Button
+                                    isIconOnly
+                                    variant="ghost"
+                                    size="sm"
+                                    onPress={(e) => {
+                                      (e as unknown as React.MouseEvent).stopPropagation();
+                                      handleOpenRenameDialog(snapshot);
+                                    }}
+                                  >
+                                    <EditIcon size={14} />
+                                  </Button>
+                                  <Tooltip.Content>重命名</Tooltip.Content>
+                                </Tooltip>
+                              )}
+                              <Tooltip delay={0}>
+                                <Button
+                                  isIconOnly
+                                  variant="ghost"
+                                  size="sm"
+                                  onPress={(e) => {
+                                    (e as unknown as React.MouseEvent).stopPropagation();
+                                    handleDeleteSnapshot(snapshot.id);
+                                  }}
+                                >
+                                  <DeleteIcon size={14} />
+                                </Button>
+                                <Tooltip.Content>删除</Tooltip.Content>
+                              </Tooltip>
+                            </div>
+                          </div>
+                          <div className="border-b border-[var(--border)]" />
+                        </div>
+                      ))
+                  )}
+                </div>
+              </div>
+            )}
           </>
         )}
-      </Box>
+      </div>
 
       {/* 创建快照对话框 */}
-      <Dialog open={createDialogOpen} onClose={() => setCreateDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>创建快照</DialogTitle>
-        <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
-            <Alert severity="info">
-              快照将保存当前的编辑内容，您可以随时恢复到任意快照状态
-            </Alert>
-            <TextField
-              label="快照名称"
-              value={snapshotName}
-              onChange={(e) => setSnapshotName(e.target.value)}
-              fullWidth
-              required
-              autoFocus
-              placeholder="例如: 测试版本1"
-            />
-            <TextField
-              label="描述（可选）"
-              value={snapshotDescription}
-              onChange={(e) => setSnapshotDescription(e.target.value)}
-              fullWidth
-              multiline
-              rows={2}
-              placeholder="简要描述这个快照的内容"
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setCreateDialogOpen(false)}>取消</Button>
-          <Button onClick={handleCreateSnapshot} variant="contained" startIcon={<CameraAltIcon />}>
-            创建
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {createDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setCreateDialogOpen(false)}
+        >
+          <div
+            className="bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-xl w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
+              创建快照
+            </div>
+            <div className="px-4 py-4 flex flex-col gap-4">
+              <div className="p-3 rounded-md border border-blue-300 bg-blue-50 text-blue-800 text-sm">
+                快照将保存当前的编辑内容，您可以随时恢复到任意快照状态
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium">快照名称 *</label>
+                <input
+                  autoFocus
+                  className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  value={snapshotName}
+                  onChange={(e) => setSnapshotName(e.target.value)}
+                  placeholder="例如: 测试版本1"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium">描述（可选）</label>
+                <textarea
+                  rows={2}
+                  className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  value={snapshotDescription}
+                  onChange={(e) => setSnapshotDescription(e.target.value)}
+                  placeholder="简要描述这个快照的内容"
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--border)]">
+              <Button variant="ghost" size="sm" onPress={() => setCreateDialogOpen(false)}>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                startContent={<CameraAltIcon size={16} />}
+                onPress={handleCreateSnapshot}
+              >
+                创建
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 重命名快照对话框 */}
-      <Dialog open={renameDialogOpen} onClose={() => setRenameDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>重命名快照</DialogTitle>
-        <DialogContent>
-          <Box sx={{ pt: 1 }}>
-            <TextField
-              label="新名称"
-              value={snapshotName}
-              onChange={(e) => setSnapshotName(e.target.value)}
-              fullWidth
-              required
-              autoFocus
-            />
-          </Box>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setRenameDialogOpen(false)}>取消</Button>
-          <Button onClick={handleRenameSnapshot} variant="contained" startIcon={<EditIcon />}>
-            确定
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {renameDialogOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+          onClick={() => setRenameDialogOpen(false)}
+        >
+          <div
+            className="bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-xl w-full max-w-md mx-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
+              重命名快照
+            </div>
+            <div className="px-4 py-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-sm font-medium">新名称 *</label>
+                <input
+                  autoFocus
+                  className="w-full px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                  value={snapshotName}
+                  onChange={(e) => setSnapshotName(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--border)]">
+              <Button variant="ghost" size="sm" onPress={() => setRenameDialogOpen(false)}>
+                取消
+              </Button>
+              <Button
+                size="sm"
+                startContent={<EditIcon size={16} />}
+                onPress={handleRenameSnapshot}
+              >
+                确定
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -1,20 +1,8 @@
 'use client';
 
 import React, { useCallback } from 'react';
-import {
-  Box,
-  List,
-  Typography,
-  Alert,
-  CircularProgress,
-  ListItemButton,
-  ListItemText,
-  Tooltip,
-  IconButton,
-} from '@mui/material';
-import {
-  Refresh as RefreshIcon,
-} from '@mui/icons-material';
+import { Button, Tooltip, Spinner } from '@heroui/react';
+import { RefreshCw } from 'lucide-react';
 import type { RuleGroup } from '@/types/rule';
 
 interface RuleGroupPanelProps {
@@ -40,94 +28,59 @@ export const RuleGroupPanel: React.FC<RuleGroupPanelProps> = ({
   }, [onRuleGroupSelect]);
 
   return (
-    <Box sx={{
-      display: 'flex',
-      flexDirection: 'column',
-      height: '100%',
-      width: '100%',
-    }}>
+    <div className="flex flex-col w-full h-full">
       {/* 规则组标题和刷新按钮 */}
-      <Box sx={{
-        p: 2,
-        borderBottom: 1,
-        borderColor: 'divider',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between'
-      }}>
-        <Typography variant="h6">
-          规则组
-        </Typography>
-        <Tooltip title="刷新规则组列表">
-          <IconButton
-            size="small"
-            onClick={onRefresh}
-            disabled={loading}
+      <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+        <h2 className="text-base font-semibold">规则组</h2>
+        <Tooltip delay={0}>
+          <Button
+            isIconOnly
+            variant="ghost"
+            size="sm"
+            onPress={onRefresh}
+            isDisabled={loading}
           >
-            <RefreshIcon fontSize="small" />
-          </IconButton>
+            <RefreshCw size={16} />
+          </Button>
+          <Tooltip.Content placement="bottom">刷新规则组列表</Tooltip.Content>
         </Tooltip>
-      </Box>
+      </div>
 
       {/* 内容区域 */}
-      <Box sx={{ flex: 1, overflow: 'auto', px: 2, pb: 2 }}>
+      <div className="flex-1 overflow-auto px-4 pb-4 pt-2">
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', pt: 4 }}>
-            <CircularProgress />
-          </Box>
+          <div className="flex justify-center pt-8">
+            <Spinner />
+          </div>
         ) : error ? (
-          <Alert severity="error">
+          <div role="alert" className="p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm">
             {error}
-          </Alert>
+          </div>
         ) : ruleGroups.length ? (
-          <List dense>
+          <div className="flex flex-col gap-1">
             {ruleGroups.map((group: RuleGroup) => (
-              <ListItemButton
+              <button
                 key={group.id}
+                type="button"
                 onClick={() => handleRuleGroupClick(group)}
-                sx={{
-                  mb: 1,
-                  borderRadius: 1,
-                  '&:hover': {
-                    backgroundColor: 'action.hover',
-                  }
-                }}
+                className="px-3 py-2 mb-1 text-left rounded-md hover:bg-[var(--muted)] transition-colors"
               >
-                <ListItemText
-                  primary={group.title}
-                  secondary={
-                    <>
-                      {group.rules.length} 条规则
-                      {group.draft_name && (
-                        <>
-                          {' • '}
-                          <Typography
-                            component="span"
-                            variant="caption"
-                            sx={{
-                              color: 'text.secondary',
-                              fontStyle: 'italic'
-                            }}
-                          >
-                            来自: {group.draft_name}
-                          </Typography>
-                        </>
-                      )}
-                    </>
-                  }
-                  primaryTypographyProps={{ fontWeight: 500 }}
-                />
-              </ListItemButton>
+                <div className="font-medium text-sm">{group.title}</div>
+                <div className="text-xs text-[var(--muted-foreground)]">
+                  {group.rules.length} 条规则
+                  {group.draft_name && (
+                    <span className="italic"> {' • '} 来自: {group.draft_name}</span>
+                  )}
+                </div>
+              </button>
             ))}
-          </List>
+          </div>
         ) : (
-          <Box sx={{ textAlign: 'center', py: 4 }}>
-            <Typography variant="body2" color="text.secondary">
-              当前没有可用的规则组
-            </Typography>
-          </Box>
+          <div className="py-8 text-center text-sm text-[var(--muted-foreground)]">
+            当前没有可用的规则组
+          </div>
         )}
-      </Box>
-    </Box>
+      </div>
+    </div>
   );
 };

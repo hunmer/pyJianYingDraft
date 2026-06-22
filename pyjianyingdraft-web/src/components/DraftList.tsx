@@ -1,37 +1,15 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { Button, Tooltip, Spinner } from '@heroui/react';
 import {
-  Box,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  Typography,
-  TextField,
-  Button,
-  CircularProgress,
-  Alert,
-  Divider,
-  IconButton,
-  Tooltip,
-  Menu,
-  MenuItem,
-  Chip,
-  ListItemIcon,
-  FormControlLabel,
-  Switch,
-} from '@mui/material';
-import {
-  Folder,
-  Refresh,
+  RefreshCw,
   Settings,
   FolderOpen,
-  ContentCopy,
-  MoreVert,
+  Copy,
+  MoreVertical,
   Upload,
-  History,
-} from '@mui/icons-material';
+} from 'lucide-react';
 import { draftApi, type DraftListItem } from '@/lib/api';
 import PathSelector from '@/components/PathSelector';
 
@@ -40,6 +18,41 @@ interface DraftListProps {
   onRulesUpdated?: () => void;
   onDraftRootChanged?: () => void;
   selectedDraftPath?: string;
+}
+
+/** 浮动菜单项样式 */
+const menuItemClass =
+  'flex items-center gap-2 w-full px-3 py-1.5 text-sm text-left hover:bg-[var(--muted)] transition-colors';
+
+/** 浮动菜单容器 */
+function FloatingMenu({
+  position,
+  onClose,
+  children,
+}: {
+  position: { top: number; left: number };
+  onClose: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <>
+      <div
+        className="fixed inset-0 z-40"
+        onClick={onClose}
+        onContextMenu={(e) => {
+          e.preventDefault();
+          onClose();
+        }}
+      />
+      <div
+        role="menu"
+        className="fixed z-50 min-w-[180px] py-1 bg-[var(--popover)] text-[var(--popover-foreground)] border border-[var(--border)] rounded-md shadow-lg"
+        style={{ top: position.top, left: position.left }}
+      >
+        {children}
+      </div>
+    </>
+  );
 }
 
 /**
@@ -60,9 +73,8 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
     draft: DraftListItem | null;
   } | null>(null);
 
-  // 下拉菜单状态
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const dropdownOpen = Boolean(anchorEl);
+  // 下拉菜单状态（记录按钮位置）
+  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
 
   // 检查是否在 Electron 环境
   const isElectron = typeof window !== 'undefined' && (window as any).electron;
@@ -254,28 +266,30 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
     } else {
       alert('此功能仅在 Electron 环境下可用');
     }
-    setAnchorEl(null);
+    setDropdownPos(null);
   };
 
   /**
    * 打开下拉菜单
    */
   const handleOpenDropdown = (event: React.MouseEvent<HTMLElement>) => {
-    setAnchorEl(event.currentTarget);
+    const rect = event.currentTarget.getBoundingClientRect();
+    // 定位到按钮左下角
+    setDropdownPos({ top: rect.bottom, left: rect.left });
   };
 
   /**
    * 关闭下拉菜单
    */
   const handleCloseDropdown = () => {
-    setAnchorEl(null);
+    setDropdownPos(null);
   };
 
   /**
    * 导入压缩包草稿
    */
   const handleImportZip = async () => {
-    setAnchorEl(null);
+    setDropdownPos(null);
 
     if (!isElectron) {
       alert('此功能仅在 Electron 环境下可用');
@@ -326,7 +340,7 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
    * 处理刷新
    */
   const handleRefresh = () => {
-    setAnchorEl(null);
+    setDropdownPos(null);
     loadDrafts();
   };
 
@@ -334,7 +348,7 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
    * 处理设置
    */
   const handleSettings = () => {
-    setAnchorEl(null);
+    setDropdownPos(null);
     setShowSettings(!showSettings);
   };
 
@@ -349,47 +363,41 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
   }, [drafts, showOnlyWithRules]);
 
   return (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="flex flex-col h-full">
       {/* 头部 */}
-      <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="h6" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            草稿列表
-          </Typography>
-          <Box>
-            <Tooltip title="刷新">
-              <IconButton size="small" onClick={() => loadDrafts()} disabled={loading}>
-                <Refresh />
-              </IconButton>
+      <div className="p-4 border-b border-[var(--border)]">
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="flex items-center gap-2 text-base font-semibold">草稿列表</h2>
+          <div className="flex items-center gap-1">
+            <Tooltip delay={0}>
+              <Button isIconOnly variant="ghost" size="sm" onPress={() => loadDrafts()} isDisabled={loading}>
+                <RefreshCw size={18} />
+              </Button>
+              <Tooltip.Content placement="bottom">刷新</Tooltip.Content>
             </Tooltip>
-            <Tooltip title="更多操作">
-              <IconButton size="small" onClick={handleOpenDropdown}>
-                <MoreVert />
-              </IconButton>
+            <Tooltip delay={0}>
+              <Button isIconOnly variant="ghost" size="sm" onPress={handleOpenDropdown}>
+                <MoreVertical size={18} />
+              </Button>
+              <Tooltip.Content placement="bottom">更多操作</Tooltip.Content>
             </Tooltip>
-          </Box>
-        </Box>
+          </div>
+        </div>
 
         {/* 过滤开关 */}
-        <FormControlLabel
-          control={
-            <Switch
-              checked={showOnlyWithRules}
-              onChange={(e) => setShowOnlyWithRules(e.target.checked)}
-              size="small"
-            />
-          }
-          label={
-            <Typography variant="body2" color="text.secondary">
-              只显示有规则的草稿
-            </Typography>
-          }
-          sx={{ mb: 0 }}
-        />
+        <label className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] cursor-pointer">
+          <input
+            type="checkbox"
+            checked={showOnlyWithRules}
+            onChange={(e) => setShowOnlyWithRules(e.target.checked)}
+            className="w-4 h-4"
+          />
+          只显示有规则的草稿
+        </label>
 
         {/* 设置面板 */}
         {showSettings && (
-          <Box sx={{ mt: 2 }}>
+          <div className="mt-4">
             <PathSelector
               value={basePath}
               onChange={(newPath) => {
@@ -409,158 +417,126 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
             {!isElectron && (
               <Button
                 fullWidth
-                variant="contained"
-                size="small"
-                onClick={() => loadDrafts()}
-                disabled={loading || !basePath.trim()}
-                sx={{ mt: 1 }}
+                size="sm"
+                onPress={() => loadDrafts()}
+                isDisabled={loading || !basePath.trim()}
+                className="mt-2"
               >
                 保存并加载草稿
               </Button>
             )}
-          </Box>
+          </div>
         )}
-      </Box>
+      </div>
 
       {/* 错误提示 */}
       {error && (
-        <Alert severity="error" onClose={() => setError(null)} sx={{ m: 2 }}>
-          {error}
-        </Alert>
+        <div
+          role="alert"
+          className="flex items-start gap-2 m-4 p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm"
+        >
+          <span className="flex-1">{error}</span>
+          <button type="button" className="text-red-800 hover:text-red-600" onClick={() => setError(null)}>
+            ✕
+          </button>
+        </div>
       )}
 
       {/* 加载中 */}
       {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-          <CircularProgress />
-        </Box>
+        <div className="flex justify-center p-8">
+          <Spinner />
+        </div>
       )}
 
       {/* 草稿列表 */}
       {!loading && filteredDrafts.length > 0 && (
-        <List sx={{ flex: 1, overflow: 'auto', py: 0 }}>
-          {filteredDrafts.map((draft, index) => (
-            <React.Fragment key={draft.path}>
-              <ListItem disablePadding>
-                <ListItemButton
-                  selected={selectedDraftPath === draft.path}
+        <div className="flex-1 overflow-auto">
+          {filteredDrafts.map((draft, index) => {
+            const selected = selectedDraftPath === draft.path;
+            return (
+              <React.Fragment key={draft.path}>
+                <button
+                  type="button"
                   onClick={() => handleDraftClick(draft)}
                   onContextMenu={(e) => handleContextMenu(e, draft)}
-                  sx={{
-                    py: 1.5,
-                    '&.Mui-selected': {
-                      backgroundColor: 'primary.light',
-                      '&:hover': {
-                        backgroundColor: 'primary.light',
-                      },
-                    },
-                  }}
+                  className={
+                    'flex items-center justify-between w-full gap-2 py-3 px-4 text-left transition-colors ' +
+                    (selected
+                      ? 'bg-[var(--accent)]/15 hover:bg-[var(--accent)]/20'
+                      : 'hover:bg-[var(--muted)]')
+                  }
                 >
-                  <Box
-                    sx={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                      width: '100%',
-                      gap: 1,
-                    }}
-                  >
-                    <ListItemText
-                      primary={draft.name}
-                      secondary={formatTime(draft.modified_time)}
-                      primaryTypographyProps={{
-                        variant: 'body2',
-                        fontWeight: selectedDraftPath === draft.path ? 600 : 400,
-                      }}
-                      secondaryTypographyProps={{
-                        variant: 'caption',
-                      }}
-                      sx={{ mr: draft.has_rules ? 1 : 0 }}
-                    />
-                    {draft.has_rules ? (
-                      <Chip
-                        label="规则"
-                        size="small"
-                        color="primary"
-                        sx={{ fontWeight: 600 }}
-                      />
-                    ) : null}
-                  </Box>
-                </ListItemButton>
-              </ListItem>
-              {index < filteredDrafts.length - 1 && <Divider />}
-            </React.Fragment>
-          ))}
-        </List>
+                  <div className="flex-1 min-w-0 mr-2">
+                    <div className={'text-sm ' + (selected ? 'font-semibold' : 'font-normal')}>
+                      {draft.name}
+                    </div>
+                    <div className="text-xs text-[var(--muted-foreground)]">
+                      {formatTime(draft.modified_time)}
+                    </div>
+                  </div>
+                  {draft.has_rules && (
+                    <span className="px-1.5 py-0.5 text-xs font-semibold rounded bg-[var(--accent)] text-[var(--accent-foreground)]">
+                      规则
+                    </span>
+                  )}
+                </button>
+                {index < filteredDrafts.length - 1 && (
+                  <div className="border-b border-[var(--border)]" />
+                )}
+              </React.Fragment>
+            );
+          })}
+        </div>
       )}
 
       {/* 空状态 */}
       {!loading && !error && filteredDrafts.length === 0 && basePath && (
-        <Box sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
-            {showOnlyWithRules && drafts.length > 0
-              ? '没有符合条件的草稿'
-              : '未找到草稿文件'}
-          </Typography>
-        </Box>
+        <div className="p-8 text-center text-sm text-[var(--muted-foreground)]">
+          {showOnlyWithRules && drafts.length > 0
+            ? '没有符合条件的草稿'
+            : '未找到草稿文件'}
+        </div>
       )}
 
       {/* 右键菜单 */}
-      <Menu
-        open={contextMenu !== null}
-        onClose={handleCloseContextMenu}
-        anchorReference="anchorPosition"
-        anchorPosition={
-          contextMenu !== null
-            ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
-            : undefined
-        }
-      >
-        <MenuItem onClick={handleCopyPath}>
-          <ListItemIcon>
-            <ContentCopy fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>复制完整路径</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={handleOpenInFolder}>
-          <ListItemIcon>
-            <FolderOpen fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>打开文件夹位置</ListItemText>
-        </MenuItem>
-      </Menu>
+      {contextMenu && (
+        <FloatingMenu
+          position={{ top: contextMenu.mouseY, left: contextMenu.mouseX }}
+          onClose={handleCloseContextMenu}
+        >
+          <button type="button" role="menuitem" className={menuItemClass} onClick={handleCopyPath}>
+            <Copy size={14} />
+            复制完整路径
+          </button>
+          <button type="button" role="menuitem" className={menuItemClass} onClick={handleOpenInFolder}>
+            <FolderOpen size={14} />
+            打开文件夹位置
+          </button>
+        </FloatingMenu>
+      )}
 
       {/* 下拉菜单 */}
-      <Menu
-        anchorEl={anchorEl}
-        open={dropdownOpen}
-        onClose={handleCloseDropdown}
-        transformOrigin={{ horizontal: 'right', vertical: 'top' }}
-        anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
-      >
-        {isElectron && basePath && (
-          <MenuItem onClick={handleOpenDraftRootFolder}>
-            <ListItemIcon>
-              <FolderOpen fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>打开草稿文件夹</ListItemText>
-          </MenuItem>
-        )}
-        {isElectron && (
-          <MenuItem onClick={handleImportZip}>
-            <ListItemIcon>
-              <Upload fontSize="small" />
-            </ListItemIcon>
-            <ListItemText>导入压缩包草稿</ListItemText>
-          </MenuItem>
-        )}
-        <MenuItem onClick={handleSettings}>
-          <ListItemIcon>
-            <Settings fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>设置草稿目录</ListItemText>
-        </MenuItem>
-      </Menu>
-    </Box>
+      {dropdownPos && (
+        <FloatingMenu position={dropdownPos} onClose={handleCloseDropdown}>
+          {isElectron && basePath && (
+            <button type="button" role="menuitem" className={menuItemClass} onClick={handleOpenDraftRootFolder}>
+              <FolderOpen size={14} />
+              打开草稿文件夹
+            </button>
+          )}
+          {isElectron && (
+            <button type="button" role="menuitem" className={menuItemClass} onClick={handleImportZip}>
+              <Upload size={14} />
+              导入压缩包草稿
+            </button>
+          )}
+          <button type="button" role="menuitem" className={menuItemClass} onClick={handleSettings}>
+            <Settings size={14} />
+            设置草稿目录
+          </button>
+        </FloatingMenu>
+      )}
+    </div>
   );
 }

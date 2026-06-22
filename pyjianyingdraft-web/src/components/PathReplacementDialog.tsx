@@ -1,28 +1,14 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { Button } from '@heroui/react';
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
-  TextField,
-  Box,
-  Typography,
-  Alert,
-  List,
-  ListItem,
-  ListItemText,
-  Divider,
-  Chip,
-  Paper,
-} from '@mui/material';
-import LinkIcon from '@mui/icons-material/Link';
-import WarningIcon from '@mui/icons-material/Warning';
-import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
-import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+  Link as LinkIcon,
+  AlertTriangle,
+  GripVertical,
+  CheckCircle,
+  CloudUpload,
+} from 'lucide-react';
 
 interface MaterialPathInfo {
   materialId: string;
@@ -187,175 +173,177 @@ export default function PathReplacementDialog({
     (key) => replacements[key].trim() !== ''
   ).length;
 
+  if (!open) return null;
+
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="md"
-      fullWidth
-      scroll="paper"
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
     >
-      <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-        <LinkIcon />
-        路径替换 - 本地路径转 HTTP 路径
-      </DialogTitle>
+      <div
+        className="bg-[var(--popover)] text-[var(--popover-foreground)] rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* 标题 */}
+        <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+          <h2 className="flex items-center gap-2 text-lg font-semibold">
+            <LinkIcon size={20} />
+            路径替换 - 本地路径转 HTTP 路径
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] text-xl"
+          >
+            ✕
+          </button>
+        </div>
 
-      <DialogContent dividers>
-        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-          {/* 提示信息 */}
-          <Alert severity="info" icon={<WarningIcon />}>
-            <Typography variant="body2" gutterBottom>
-              检测到 <strong>{localPaths.length}</strong> 个本地文件路径
-            </Typography>
-            <Typography variant="body2">
-              您可以为这些文件提供 HTTP URL 进行替换。未填写的路径将保留原值。
-            </Typography>
-          </Alert>
+        {/* 内容 */}
+        <div className="p-4 overflow-auto flex-1">
+          <div className="flex flex-col gap-4">
+            {/* 提示信息 */}
+            <div className="p-3 rounded-md border border-blue-300 bg-blue-50 text-blue-800 text-sm flex items-start gap-2">
+              <AlertTriangle size={16} className="flex-shrink-0 mt-0.5" />
+              <div>
+                <div className="mb-1">
+                  检测到 <strong>{localPaths.length}</strong> 个本地文件路径
+                </div>
+                <div>
+                  您可以为这些文件提供 HTTP URL 进行替换。未填写的路径将保留原值。
+                </div>
+              </div>
+            </div>
 
-          {/* 路径列表 */}
-          {localPaths.length === 0 ? (
-            <Alert severity="success">
-              未检测到本地文件路径，可以直接导出！
-            </Alert>
-          ) : (
-            <List sx={{ width: '100%' }}>
-              {localPaths.map((pathInfo, index) => (
-                <React.Fragment key={`${pathInfo.materialId}-${index}`}>
-                  <ListItem
-                    sx={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'stretch',
-                      gap: 1,
-                      py: 2,
-                    }}
-                  >
-                    {/* 素材信息 */}
-                    <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
-                      <Chip
-                        label={`素材 ${index + 1}`}
-                        size="small"
-                        color="primary"
-                        variant="outlined"
-                      />
-                      {pathInfo.materialName && (
-                        <Typography variant="body2" color="text.secondary">
-                          {pathInfo.materialName}
-                        </Typography>
-                      )}
-                    </Box>
+            {/* 路径列表 */}
+            {localPaths.length === 0 ? (
+              <div className="p-3 rounded-md border border-green-300 bg-green-50 text-green-800 text-sm">
+                未检测到本地文件路径，可以直接导出！
+              </div>
+            ) : (
+              <div className="w-full flex flex-col">
+                {localPaths.map((pathInfo, index) => (
+                  <React.Fragment key={`${pathInfo.materialId}-${index}`}>
+                    <div className="flex flex-col gap-2 py-4">
+                      {/* 素材信息 */}
+                      <div className="flex gap-2 items-center">
+                        <span className="px-2 py-0.5 text-xs rounded border border-[var(--accent)] text-[var(--accent-foreground)]">
+                          素材 {index + 1}
+                        </span>
+                        {pathInfo.materialName && (
+                          <span className="text-sm text-[var(--muted-foreground)]">
+                            {pathInfo.materialName}
+                          </span>
+                        )}
+                      </div>
 
-                    {/* 原始路径 */}
-                    <ListItemText
-                      primary="原始路径"
-                      secondary={
-                        <Typography
-                          variant="body2"
-                          sx={{
+                      {/* 原始路径 */}
+                      <div>
+                        <div className="text-sm font-medium">原始路径</div>
+                        <div
+                          className="text-sm break-all"
+                          style={{
                             fontFamily: 'monospace',
                             fontSize: '0.85rem',
-                            color: 'error.main',
-                            wordBreak: 'break-all',
+                            color: 'var(--destructive)',
                           }}
                         >
                           {pathInfo.originalPath}
-                        </Typography>
-                      }
-                    />
+                        </div>
+                      </div>
 
-                    {/* URL 输入框 */}
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="替换为 HTTP URL (可选)"
-                      placeholder="https://example.com/path/to/file.mp4"
-                      value={replacements[pathInfo.originalPath] || ''}
-                      onChange={(e) =>
-                        handlePathChange(pathInfo.originalPath, e.target.value)
-                      }
-                      helperText="留空则保留原路径"
-                      InputProps={{
-                        startAdornment: <LinkIcon sx={{ mr: 1, color: 'action.active' }} />,
-                      }}
-                    />
-
-                    {/* 文件拖出区域（仅在 Electron 环境且文件存在时显示） */}
-                    {isElectron() && fileExists[pathInfo.originalPath] && (
-                      <Paper
-                        variant="outlined"
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, pathInfo.originalPath)}
-                        // onDragEnd={(e) => handleDragEnd(e, pathInfo.originalPath)}
-                        sx={{
-                          p: 2,
-                          textAlign: 'center',
-                          borderStyle: 'dashed',
-                          borderWidth: 2,
-                          borderColor: draggingStates[pathInfo.originalPath]
-                            ? 'success.main'
-                            : 'divider',
-                          backgroundColor: draggingStates[pathInfo.originalPath]
-                            ? 'success.lighter'
-                            : 'background.default',
-                          cursor: 'grab',
-                          transition: 'all 0.2s',
-                          '&:hover': {
-                            borderColor: 'primary.light',
-                            backgroundColor: 'action.hover',
-                          },
-                          '&:active': {
-                            cursor: 'grabbing',
-                          },
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                          <DragIndicatorIcon color="action" />
-                          <CloudUploadIcon color="primary" sx={{ fontSize: '1.2rem' }} />
-                          <Typography variant="body2" color="text.secondary">
-                            拖拽此处将文件上传到其他应用
-                          </Typography>
-                          <CheckCircleIcon
-                            sx={{ color: 'success.main', fontSize: '1rem' }}
-                            titleAccess="文件存在于本地"
+                      {/* URL 输入框 */}
+                      <div className="flex flex-col gap-1">
+                        <label className="text-sm font-medium">
+                          替换为 HTTP URL (可选)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <LinkIcon size={16} className="text-[var(--muted-foreground)] flex-shrink-0" />
+                          <input
+                            type="text"
+                            placeholder="https://example.com/path/to/file.mp4"
+                            value={replacements[pathInfo.originalPath] || ''}
+                            onChange={(e) =>
+                              handlePathChange(pathInfo.originalPath, e.target.value)
+                            }
+                            className="flex-1 px-3 py-1.5 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]"
                           />
-                        </Box>
-                        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5 }}>
-                          支持拖拽到浏览器上传框、云存储等
-                        </Typography>
-                      </Paper>
+                        </div>
+                        <span className="text-xs text-[var(--muted-foreground)]">
+                          留空则保留原路径
+                        </span>
+                      </div>
+
+                      {/* 文件拖出区域（仅在 Electron 环境且文件存在时显示） */}
+                      {isElectron() && fileExists[pathInfo.originalPath] && (
+                        <div
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, pathInfo.originalPath)}
+                          onDragEnd={(e) => handleDragEnd(e, pathInfo.originalPath)}
+                          className={`p-4 text-center border-2 border-dashed rounded cursor-grab active:cursor-grabbing transition-all ${
+                            draggingStates[pathInfo.originalPath]
+                              ? 'border-green-500 bg-green-50'
+                              : 'border-[var(--border)] bg-[var(--background)] hover:border-[var(--accent)] hover:bg-[var(--muted)]'
+                          }`}
+                        >
+                          <div className="flex items-center justify-center gap-2">
+                            <GripVertical size={18} className="text-[var(--muted-foreground)]" />
+                            <CloudUpload size={18} className="text-[var(--accent)]" />
+                            <span className="text-sm text-[var(--muted-foreground)]">
+                              拖拽此处将文件上传到其他应用
+                            </span>
+                            <CheckCircle
+                              size={16}
+                              className="text-green-600"
+                              aria-label="文件存在于本地"
+                            />
+                          </div>
+                          <div className="block mt-1 text-xs text-[var(--muted-foreground)]">
+                            支持拖拽到浏览器上传框、云存储等
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    {index < localPaths.length - 1 && (
+                      <div className="border-b border-[var(--border)]" />
                     )}
-                  </ListItem>
-                  {index < localPaths.length - 1 && <Divider />}
-                </React.Fragment>
-              ))}
-            </List>
-          )}
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
 
-          {/* 替换统计 */}
-          {localPaths.length > 0 && (
-            <Alert severity={replacedCount === localPaths.length ? 'success' : 'warning'}>
-              已替换: <strong>{replacedCount}</strong> / {localPaths.length} 个路径
-              {replacedCount < localPaths.length && (
-                <Typography variant="body2" sx={{ mt: 0.5 }}>
-                  未替换的路径将保留原值
-                </Typography>
-              )}
-            </Alert>
-          )}
-        </Box>
-      </DialogContent>
+            {/* 替换统计 */}
+            {localPaths.length > 0 && (
+              <div
+                className={`p-3 rounded-md text-sm border ${
+                  replacedCount === localPaths.length
+                    ? 'border-green-300 bg-green-50 text-green-800'
+                    : 'border-yellow-300 bg-yellow-50 text-yellow-800'
+                }`}
+              >
+                已替换: <strong>{replacedCount}</strong> / {localPaths.length} 个路径
+                {replacedCount < localPaths.length && (
+                  <div className="mt-1">未替换的路径将保留原值</div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
-      <DialogActions>
-        <Button onClick={onClose}>取消</Button>
-        <Button
-          variant="contained"
-          onClick={handleConfirm}
-          startIcon={<LinkIcon />}
-        >
-          确定导出
-          {replacedCount > 0 && ` (${replacedCount} 个已替换)`}
-        </Button>
-      </DialogActions>
-    </Dialog>
+        {/* 操作按钮 */}
+        <div className="flex justify-end gap-2 p-4 border-t border-[var(--border)]">
+          <Button variant="ghost" onPress={onClose}>
+            取消
+          </Button>
+          <Button
+            onPress={handleConfirm}
+            startContent={<LinkIcon size={16} />}
+          >
+            确定导出
+            {replacedCount > 0 && ` (${replacedCount} 个已替换)`}
+          </Button>
+        </div>
+      </div>
+    </div>
   );
 }

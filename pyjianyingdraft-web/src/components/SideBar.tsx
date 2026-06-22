@@ -1,12 +1,6 @@
 'use client';
 
 import React from 'react';
-import {
-  Drawer,
-  Tabs,
-  Tab,
-  Box,
-} from '@mui/material';
 import DraftList from './DraftList';
 import { RuleGroupPanel } from './RuleGroupPanel';
 import type { RuleGroup } from '@/types/rule';
@@ -50,65 +44,52 @@ export const SideBar: React.FC<SideBarProps> = ({
   }, []);
 
   return (
-    <Drawer
-      variant="persistent"
-      open={open}
-      sx={{
+    <aside
+      className="flex flex-col flex-shrink-0 overflow-hidden border-r border-[var(--border)] bg-[var(--surface)]"
+      style={{
         width: open ? DRAWER_WIDTH : 0,
-        flexShrink: 0,
         transition: mounted ? 'width 0.2s' : 'none',
-        '& .MuiDrawer-paper': {
-          width: DRAWER_WIDTH,
-          boxSizing: 'border-box',
-          borderRight: 1,
-          borderColor: 'divider',
-          display: 'flex',
-          flexDirection: 'column',
-          transition: mounted ? 'transform 0.2s' : 'none',
-          transform: mounted && !open ? `translateX(-${DRAWER_WIDTH}px)` : 'translateX(0)',
-        },
       }}
     >
-      {/* 左侧栏Tabs */}
-      <Tabs
-        value={leftTabValue}
-        onChange={(_, newValue) => setLeftTabValue(newValue)}
-        variant="fullWidth"
-        sx={{ borderBottom: 1, borderColor: 'divider' }}
-      >
-        <Tab label="草稿列表" />
-        <Tab label="规则组" />
-      </Tabs>
+      {/* 左侧栏 Tabs */}
+      <div className="flex border-b border-[var(--border)]">
+        {['草稿列表', '规则组'].map((label, idx) => (
+          <button
+            key={label}
+            type="button"
+            onClick={() => setLeftTabValue(idx)}
+            className={
+              'flex-1 px-3 py-2 text-sm font-medium transition-colors ' +
+              (leftTabValue === idx
+                ? 'border-b-2 border-[var(--accent)] text-[var(--accent)]'
+                : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]')
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
 
-      {/* Tab内容 */}
-      <Box sx={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+      {/* Tab 内容 */}
+      <div className="relative flex-1 overflow-hidden">
         {/* 草稿列表 */}
-        <Box sx={{
-          display: leftTabValue === 0 ? 'block' : 'none',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          overflow: 'auto'
-        }}>
+        <div
+          className="absolute inset-0 overflow-auto"
+          style={{ display: leftTabValue === 0 ? 'block' : 'none' }}
+        >
           <DraftList
             onDraftSelect={onDraftSelect}
             onRulesUpdated={onRulesUpdated}
             onDraftRootChanged={onDraftRootChanged}
             selectedDraftPath={selectedDraftPath}
           />
-        </Box>
+        </div>
 
         {/* 规则组 */}
-        <Box sx={{
-          display: leftTabValue === 1 ? 'flex' : 'none',
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-        }}>
+        <div
+          className="absolute inset-0"
+          style={{ display: leftTabValue === 1 ? 'flex' : 'none' }}
+        >
           <RuleGroupPanel
             ruleGroups={ruleGroups}
             loading={ruleGroupsLoading}
@@ -116,8 +97,8 @@ export const SideBar: React.FC<SideBarProps> = ({
             onRefresh={onRuleGroupsRefresh}
             onRuleGroupSelect={onRuleGroupSelect}
           />
-        </Box>
-      </Box>
-    </Drawer>
+        </div>
+      </div>
+    </aside>
   );
 };

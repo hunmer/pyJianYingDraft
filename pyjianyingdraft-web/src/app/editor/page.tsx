@@ -1,27 +1,8 @@
 'use client';
 
 import React, { useState, useCallback, useEffect } from 'react';
-import {
-  Container,
-  Box,
-  Typography,
-  TextField,
-  Button,
-  CircularProgress,
-  Alert,
-  Paper,
-  Grid,
-  Card,
-  CardContent,
-  Divider,
-} from '@mui/material';
-import {
-  PlayArrow,
-  Videocam,
-  AudioFile,
-  TextFields,
-  Info,
-} from '@mui/icons-material';
+import { Button, Spinner } from '@heroui/react';
+import { Play, Video, FileAudio, Type, Info } from 'lucide-react';
 import TimelineEditor from '@/components/Timeline';
 import { draftApi, tracksApi, materialsApi, type AllMaterialsResponse } from '@/lib/api';
 import type { DraftInfo, TrackInfo, MaterialInfo } from '@/types/draft';
@@ -120,128 +101,117 @@ export default function EditorPage() {
   };
 
   return (
-    <Container maxWidth={false} disableGutters sx={{ px: 2 }}>
-      <Box sx={{ py: 4 }}>
+    <div className="px-4">
+      <div className="py-8">
         {/* 输入区域 */}
-        <Paper elevation={2} sx={{ p: 3, mb: 3 }}>
-          <Grid container spacing={2} alignItems="center">
-            <Grid size={{ xs: 12, md: 9 }}>
-              <TextField
-                fullWidth
-                label="草稿文件路径"
+        <div className="p-6 mb-6 bg-[var(--card)] border border-[var(--border)] rounded-md">
+          <div className="grid grid-cols-1 md:grid-cols-10 gap-4 items-center">
+            <div className="md:col-span-7">
+              <input
+                type="text"
                 placeholder="例: D:\JianyingPro Drafts\my_project\draft_content.json"
                 value={draftPath}
                 onChange={(e) => setDraftPath(e.target.value)}
                 onKeyPress={handleKeyPress}
                 disabled={loading}
-                variant="outlined"
+                className="w-full px-3 py-3 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-60"
               />
-            </Grid>
-            <Grid size={{ xs: 12, md: 3 }}>
+            </div>
+            <div className="md:col-span-3">
               <Button
                 fullWidth
-                variant="contained"
-                size="large"
-                onClick={handleLoadDraft}
-                disabled={loading || !draftPath.trim()}
-                startIcon={loading ? <CircularProgress size={20} /> : <PlayArrow />}
-                sx={{ height: '56px' }}
+                size="lg"
+                onPress={handleLoadDraft}
+                isDisabled={loading || !draftPath.trim()}
+                startContent={loading ? <Spinner size="sm" /> : <Play size={18} />}
+                className="h-14"
               >
                 {loading ? '加载中...' : '加载草稿'}
               </Button>
-            </Grid>
-          </Grid>
+            </div>
+          </div>
 
           {/* 错误提示 */}
           {error && (
-            <Alert severity="error" sx={{ mt: 2 }} onClose={() => setError(null)}>
-              {error}
-            </Alert>
+            <div className="mt-4 p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm flex justify-between items-start gap-2">
+              <span>{error}</span>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-600 hover:text-red-800 font-bold leading-none"
+                aria-label="close"
+              >
+                ×
+              </button>
+            </div>
           )}
-        </Paper>
+        </div>
 
         {/* 草稿信息卡片 */}
         {draftInfo && (
-          <Box sx={{ mb: 3 }}>
-            <Grid container spacing={2}>
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <Info color="primary" />
-                      <Typography variant="h6">分辨率</Typography>
-                    </Box>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {draftInfo.width} × {draftInfo.height}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {draftInfo.fps} FPS
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+          <div className="mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Info size={18} className="text-[var(--accent)]" />
+                  <div className="text-base font-semibold">分辨率</div>
+                </div>
+                <div className="text-xl font-bold">
+                  {draftInfo.width} × {draftInfo.height}
+                </div>
+                <div className="text-sm text-[var(--muted-foreground)]">
+                  {draftInfo.fps} FPS
+                </div>
+              </div>
 
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <PlayArrow color="primary" />
-                      <Typography variant="h6">时长</Typography>
-                    </Box>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {draftInfo.duration_seconds.toFixed(2)}s
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {(draftInfo.duration / 1000000).toFixed(0)} 微秒
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Play size={18} className="text-[var(--accent)]" />
+                  <div className="text-base font-semibold">时长</div>
+                </div>
+                <div className="text-xl font-bold">
+                  {draftInfo.duration_seconds.toFixed(2)}s
+                </div>
+                <div className="text-sm text-[var(--muted-foreground)]">
+                  {(draftInfo.duration / 1000000).toFixed(0)} 微秒
+                </div>
+              </div>
 
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <Videocam color="primary" />
-                      <Typography variant="h6">轨道</Typography>
-                    </Box>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {draftInfo.track_count}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {tracks.filter(t => t.type === 'video').length} 视频 / {' '}
-                      {tracks.filter(t => t.type === 'audio').length} 音频 / {' '}
-                      {tracks.filter(t => t.type === 'text').length} 文本
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Video size={18} className="text-[var(--accent)]" />
+                  <div className="text-base font-semibold">轨道</div>
+                </div>
+                <div className="text-xl font-bold">
+                  {draftInfo.track_count}
+                </div>
+                <div className="text-sm text-[var(--muted-foreground)]">
+                  {tracks.filter(t => t.type === 'video').length} 视频 / {' '}
+                  {tracks.filter(t => t.type === 'audio').length} 音频 / {' '}
+                  {tracks.filter(t => t.type === 'text').length} 文本
+                </div>
+              </div>
 
-              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-                <Card>
-                  <CardContent>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                      <AudioFile color="primary" />
-                      <Typography variant="h6">素材</Typography>
-                    </Box>
-                    <Typography variant="h4" sx={{ fontWeight: 700 }}>
-                      {Array.isArray(materials) ? materials.length : 0}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {Array.isArray(materials) ? materials.filter(m => m.type === 'video').length : 0} 视频 / {' '}
-                      {Array.isArray(materials) ? materials.filter(m => m.type === 'audio').length : 0} 音频 / {' '}
-                      {Array.isArray(materials) ? materials.filter(m => m.type === 'text').length : 0} 文本
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            </Grid>
-          </Box>
+              <div className="bg-[var(--card)] border border-[var(--border)] rounded-md p-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileAudio size={18} className="text-[var(--accent)]" />
+                  <div className="text-base font-semibold">素材</div>
+                </div>
+                <div className="text-xl font-bold">
+                  {Array.isArray(materials) ? materials.length : 0}
+                </div>
+                <div className="text-sm text-[var(--muted-foreground)]">
+                  {Array.isArray(materials) ? materials.filter(m => m.type === 'video').length : 0} 视频 / {' '}
+                  {Array.isArray(materials) ? materials.filter(m => m.type === 'audio').length : 0} 音频 / {' '}
+                  {Array.isArray(materials) ? materials.filter(m => m.type === 'text').length : 0} 文本
+                </div>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* 时间轴编辑器 */}
         {draftInfo && tracks.length > 0 && (
-          <Box>
+          <div>
             <TimelineEditor
               tracks={tracks}
               materials={materials}
@@ -257,50 +227,32 @@ export default function EditorPage() {
                 console.log('测试数据选择功能在 Editor 页面不可用');
               }}
             />
-          </Box>
+          </div>
         )}
 
         {/* 空状态提示 */}
         {!draftInfo && !loading && (
-          <Paper
-            elevation={0}
-            sx={{
-              p: 8,
-              textAlign: 'center',
-              backgroundColor: 'grey.50',
-              border: '2px dashed',
-              borderColor: 'grey.300',
-            }}
+          <div
+            className="p-16 text-center border-2 border-dashed border-gray-300 rounded-md bg-gray-50"
           >
-            <TextFields sx={{ fontSize: 80, color: 'grey.400', mb: 2 }} />
-            <Typography variant="h5" gutterBottom color="text.secondary">
+            <Type size={80} className="mx-auto text-gray-400 mb-4" />
+            <div className="text-lg font-semibold mb-2 text-[var(--muted-foreground)]">
               开始使用
-            </Typography>
-            <Typography variant="body1" color="text.secondary">
+            </div>
+            <div className="text-sm text-[var(--muted-foreground)]">
               在上方输入框中粘贴草稿文件路径,点击&ldquo;加载草稿&rdquo;按钮
-            </Typography>
-            <Box sx={{ mt: 3 }}>
-              <Typography variant="body2" color="text.secondary" gutterBottom>
+            </div>
+            <div className="mt-6">
+              <div className="text-sm text-[var(--muted-foreground)] mb-2">
                 示例路径:
-              </Typography>
-              <Box
-                component="code"
-                sx={{
-                  display: 'inline-block',
-                  px: 2,
-                  py: 1,
-                  backgroundColor: 'grey.200',
-                  borderRadius: 1,
-                  fontFamily: 'monospace',
-                  fontSize: '0.9rem',
-                }}
-              >
+              </div>
+              <code className="inline-block px-4 py-1 bg-gray-200 rounded font-mono text-sm">
                 D:\JianyingPro Drafts\my_project\draft_content.json
-              </Box>
-            </Box>
-          </Paper>
+              </code>
+            </div>
+          </div>
         )}
-      </Box>
-    </Container>
+      </div>
+    </div>
   );
 }

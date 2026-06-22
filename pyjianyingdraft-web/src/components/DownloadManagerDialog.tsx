@@ -1,24 +1,8 @@
 'use client';
 
 import React, { lazy, Suspense, useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  Button,
-  IconButton,
-  Box,
-  CircularProgress,
-  Chip,
-  Typography,
-} from '@mui/material';
-import {
-  Close as CloseIcon,
-  Settings as SettingsIcon,
-  Refresh as RefreshIcon,
-} from '@mui/icons-material';
+import { Button, Spinner } from '@heroui/react';
+import { X, Settings, RefreshCw } from 'lucide-react';
 import { useAria2WebSocket } from '@/hooks/useAria2WebSocket';
 import PathSelector from '@/components/PathSelector';
 
@@ -86,103 +70,112 @@ export function DownloadManagerDialog({ open, onClose, initialTaskId }: Download
 
   return (
     <>
-      <Dialog
-        open={open}
-        onClose={onClose}
-        maxWidth="lg"
-        fullWidth
-        PaperProps={{
-          sx: {
-            height: '80vh',
-            maxHeight: '800px',
-          },
-        }}
-      >
-        {/* 对话框标题栏 */}
-        <DialogTitle
-          sx={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            borderBottom: 1,
-            borderColor: 'divider',
-            py: 1.5,
-            fontWeight: 600,
-          }}
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={onClose}
         >
-          下载管理
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            {/* 连接状态 */}
-            <Chip
-              label={connected ? '已连接' : '未连接'}
-              color={connected ? 'success' : 'error'}
-              size="small"
-            />
-            <IconButton size="small" onClick={handleRefresh} disabled={loading}>
-              <RefreshIcon />
-            </IconButton>
-            <IconButton size="small" onClick={handleOpenSettings}>
-              <SettingsIcon />
-            </IconButton>
-            <IconButton edge="end" onClick={onClose}>
-              <CloseIcon />
-            </IconButton>
-          </Box>
-        </DialogTitle>
-
-        {/* 对话框内容 */}
-        <DialogContent sx={{ p: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {open && (
-            <Suspense
-              fallback={
-                <Box
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    height: '100%',
-                  }}
+          <div
+            className="bg-[var(--popover)] text-[var(--popover-foreground)] rounded-lg shadow-xl w-full max-w-4xl h-[80vh] max-h-[800px] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* 对话框标题栏 */}
+            <div className="flex items-center justify-between p-3 border-b border-[var(--border)] font-semibold">
+              <span className="text-base">下载管理</span>
+              <div className="flex items-center gap-1">
+                {/* 连接状态 */}
+                <span
+                  className={`px-2 py-0.5 text-xs rounded ${
+                    connected
+                      ? 'bg-green-100 text-green-800'
+                      : 'bg-red-100 text-red-800'
+                  }`}
                 >
-                  <CircularProgress />
-                </Box>
-              }
-            >
-              <Box sx={{ flex: 1, overflow: 'hidden', display: 'flex' }}>
-                <Aria2DownloadManager initialGroupId={initialTaskId} />
-              </Box>
-            </Suspense>
-          )}
-        </DialogContent>
-      </Dialog>
+                  {connected ? '已连接' : '未连接'}
+                </span>
+                <Button
+                  isIconOnly
+                  variant="ghost"
+                  size="sm"
+                  onPress={handleRefresh}
+                  isDisabled={loading}
+                >
+                  <RefreshCw size={18} />
+                </Button>
+                <Button isIconOnly variant="ghost" size="sm" onPress={handleOpenSettings}>
+                  <Settings size={18} />
+                </Button>
+                <Button isIconOnly variant="ghost" size="sm" onPress={onClose}>
+                  <X size={18} />
+                </Button>
+              </div>
+            </div>
+
+            {/* 对话框内容 */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+              <Suspense
+                fallback={
+                  <div className="flex items-center justify-center h-full">
+                    <Spinner />
+                  </div>
+                }
+              >
+                <div className="flex-1 flex overflow-hidden">
+                  <Aria2DownloadManager initialGroupId={initialTaskId} />
+                </div>
+              </Suspense>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 设置对话框 */}
-      <Dialog open={settingsOpen} onClose={handleCloseSettings} maxWidth="sm" fullWidth>
-        <DialogTitle>Aria2 设置</DialogTitle>
-        <DialogContent>
-          <PathSelector
-            value={aria2PathInput}
-            onChange={setAria2PathInput}
-            label="Aria2 路径"
-            placeholder="例如: D:\aria2"
-            dialogTitle="选择 Aria2 目录"
-            buttonText="选择 Aria2 目录"
-            sx={{ mt: 2 }}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            请输入 aria2c.exe 所在的目录路径
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseSettings}>取消</Button>
-          <Button
-            onClick={handleSaveSettings}
-            variant="contained"
-            disabled={!aria2PathInput.trim()}
+      {settingsOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={handleCloseSettings}
+        >
+          <div
+            className="bg-[var(--popover)] text-[var(--popover-foreground)] rounded-lg shadow-xl max-w-md w-full flex flex-col"
+            onClick={(e) => e.stopPropagation()}
           >
-            保存并重启 Aria2
-          </Button>
-        </DialogActions>
-      </Dialog>
+            <div className="flex items-center justify-between p-4 border-b border-[var(--border)]">
+              <h2 className="text-lg font-semibold">Aria2 设置</h2>
+              <button
+                type="button"
+                onClick={handleCloseSettings}
+                className="text-[var(--muted-foreground)] hover:text-[var(--foreground)] text-xl"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="p-4 overflow-auto flex-1">
+              <PathSelector
+                value={aria2PathInput}
+                onChange={setAria2PathInput}
+                label="Aria2 路径"
+                placeholder="例如: D:\aria2"
+                dialogTitle="选择 Aria2 目录"
+                buttonText="选择 Aria2 目录"
+              />
+              <p className="block mt-2 text-xs text-[var(--muted-foreground)]">
+                请输入 aria2c.exe 所在的目录路径
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 p-4 border-t border-[var(--border)]">
+              <Button variant="ghost" onPress={handleCloseSettings}>
+                取消
+              </Button>
+              <Button
+                onPress={handleSaveSettings}
+                isDisabled={!aria2PathInput.trim()}
+              >
+                保存并重启 Aria2
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

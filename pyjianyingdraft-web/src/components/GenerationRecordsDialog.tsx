@@ -1,31 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  Box,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  Typography,
-  IconButton,
-  Divider,
-  Chip,
-  Paper,
-  Button,
-  CircularProgress,
-  Alert,
-} from '@mui/material';
-import {
-  Close as CloseIcon,
-  Refresh as RefreshIcon,
-  Replay as ReplayIcon,
-  Delete as DeleteIcon,
-  Download as DownloadIcon,
-} from '@mui/icons-material';
+import { Button, Spinner } from '@heroui/react';
+import { X, RefreshCw, RotateCcw, Trash2, Download } from 'lucide-react';
 import { generationRecordsApi, tasksApi, type GenerationRecord } from '@/lib/api';
 import { useAria2WebSocket } from '@/hooks/useAria2WebSocket';
 
@@ -44,6 +21,7 @@ export function GenerationRecordsDialog({ open, onClose, onReimport, onOpenDownl
   const [selectedRecord, setSelectedRecord] = useState<GenerationRecord | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [, setDownloads] = useState<any[]>([]);
 
   // 加载生成记录列表
   const loadRecords = async () => {
@@ -110,20 +88,20 @@ export function GenerationRecordsDialog({ open, onClose, onReimport, onOpenDownl
     }
   };
 
-  // 获取状态颜色
-  const getStatusColor = (status: string) => {
+  // 获取状态颜色样式
+  const getStatusClassName = (status: string) => {
     switch (status) {
       case 'completed':
-        return 'success';
+        return 'bg-green-100 text-green-800';
       case 'failed':
-        return 'error';
+        return 'bg-red-100 text-red-800';
       case 'downloading':
       case 'processing':
-        return 'info';
+        return 'bg-blue-100 text-blue-800';
       case 'pending':
-        return 'warning';
+        return 'bg-yellow-100 text-yellow-800';
       default:
-        return 'default';
+        return 'bg-[var(--muted)] text-[var(--muted-foreground)]';
     }
   };
 
@@ -140,216 +118,179 @@ export function GenerationRecordsDialog({ open, onClose, onReimport, onOpenDownl
     return statusMap[status] || status;
   };
 
+  if (!open) return null;
+
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      maxWidth="xl"
-      fullWidth
-      PaperProps={{
-        sx: {
-          height: '80vh',
-          maxHeight: '900px',
-        },
-      }}
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={onClose}
     >
-      {/* 对话框标题栏 */}
-      <DialogTitle
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          borderBottom: 1,
-          borderColor: 'divider',
-          py: 1.5,
-        }}
+      <div
+        className="bg-[var(--popover)] text-[var(--popover-foreground)] rounded-lg shadow-xl w-full max-w-6xl h-[80vh] max-h-[900px] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
       >
-        生成记录
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <IconButton size="small" onClick={loadRecords} disabled={loading}>
-            <RefreshIcon />
-          </IconButton>
-          <IconButton edge="end" onClick={onClose}>
-            <CloseIcon />
-          </IconButton>
-        </Box>
-      </DialogTitle>
+        {/* 对话框标题栏 */}
+        <div className="flex items-center justify-between p-3 border-b border-[var(--border)]">
+          <h2 className="text-base font-semibold">生成记录</h2>
+          <div className="flex items-center gap-1">
+            <Button isIconOnly variant="ghost" size="sm" onPress={loadRecords} isDisabled={loading}>
+              <RefreshCw size={18} />
+            </Button>
+            <Button isIconOnly variant="ghost" size="sm" onPress={onClose}>
+              <X size={18} />
+            </Button>
+          </div>
+        </div>
 
-      {/* 对话框内容 */}
-      <DialogContent sx={{ p: 0, overflow: 'hidden', display: 'flex' }}>
-        {/* 左侧：记录列表 */}
-        <Paper
-          sx={{
-            width: 350,
-            display: 'flex',
-            flexDirection: 'column',
-            borderRight: 1,
-            borderColor: 'divider',
-            borderRadius: 0,
-          }}
-        >
-          <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="subtitle2" color="text.secondary">
-              共 {records.length} 条记录
-            </Typography>
-          </Box>
+        {/* 对话框内容 */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* 左侧：记录列表 */}
+          <div className="w-[350px] flex flex-col border-r border-[var(--border)] bg-[var(--card)]">
+            <div className="p-4 border-b border-[var(--border)]">
+              <span className="text-sm font-medium text-[var(--muted-foreground)]">
+                共 {records.length} 条记录
+              </span>
+            </div>
 
-          {loading && (
-            <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
-              <CircularProgress />
-            </Box>
-          )}
+            {loading && (
+              <div className="flex justify-center p-8">
+                <Spinner />
+              </div>
+            )}
 
-          {error && (
-            <Alert severity="error" sx={{ m: 2 }}>
-              {error}
-            </Alert>
-          )}
+            {error && (
+              <div className="m-4 p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm">
+                {error}
+              </div>
+            )}
 
-          {!loading && !error && (
-            <List sx={{ flex: 1, overflow: 'auto', p: 0 }}>
-              {records.length === 0 ? (
-                <Box sx={{ p: 2, textAlign: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    暂无生成记录
-                  </Typography>
-                </Box>
-              ) : (
-                records.map((record) => (
-                  <ListItem
-                    key={record.record_id}
-                    disablePadding
-                    secondaryAction={
-                      <IconButton
-                        edge="end"
-                        aria-label="delete"
-                        size="small"
-                        onClick={(e) => handleDeleteRecord(record, e)}
-                        sx={{
-                          color: 'error.main',
-                          '&:hover': {
-                            backgroundColor: 'error.light',
-                            color: 'error.contrastText',
-                          }
-                        }}
+            {!loading && !error && (
+              <div className="flex-1 overflow-auto">
+                {records.length === 0 ? (
+                  <div className="p-4 text-center">
+                    <span className="text-sm text-[var(--muted-foreground)]">暂无生成记录</span>
+                  </div>
+                ) : (
+                  records.map((record) => {
+                    const isSelected = selectedRecord?.record_id === record.record_id;
+                    return (
+                      <div
+                        key={record.record_id}
+                        className={`flex items-center justify-between pr-2 cursor-pointer hover:bg-[var(--muted)] ${
+                          isSelected ? 'bg-[var(--muted)]' : ''
+                        }`}
+                        onClick={() => handleSelectRecord(record)}
                       >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    }
-                  >
-                    <ListItemButton
-                      selected={selectedRecord?.record_id === record.record_id}
-                      onClick={() => handleSelectRecord(record)}
-                      sx={{ pr: 6 }} // 为删除按钮留出空间
-                    >
-                      <ListItemText
-                        primary={record.rule_group_title || '未命名规则组'}
-                        secondary={
-                          <Box component="span" sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
-                            <Typography variant="caption" component="span" display="block">
-                              {new Date(record.created_at).toLocaleString()}
-                            </Typography>
-                            <Box component="span">
-                              <Chip
-                                label={getStatusText(record.status)}
-                                color={getStatusColor(record.status) as any}
-                                size="small"
-                              />
-                            </Box>
-                          </Box>
-                        }
-                        secondaryTypographyProps={{ component: 'div' }}
-                      />
-                    </ListItemButton>
-                  </ListItem>
-                ))
-              )}
-            </List>
-          )}
-        </Paper>
+                        <div className="flex-1 py-2 px-3 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {record.rule_group_title || '未命名规则组'}
+                          </div>
+                          <div className="text-xs text-[var(--muted-foreground)] mt-0.5">
+                            {new Date(record.created_at).toLocaleString()}
+                          </div>
+                          <div className="mt-1">
+                            <span
+                              className={`inline-block px-2 py-0.5 text-xs rounded ${getStatusClassName(
+                                record.status
+                              )}`}
+                            >
+                              {getStatusText(record.status)}
+                            </span>
+                          </div>
+                        </div>
+                        <Button
+                          isIconOnly
+                          variant="ghost"
+                          size="sm"
+                          onPress={(e: any) => handleDeleteRecord(record, e as unknown as React.MouseEvent)}
+                          aria-label="delete"
+                          className="text-red-600 hover:bg-red-100"
+                        >
+                          <Trash2 size={16} />
+                        </Button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
 
-        {/* 右侧：记录详情和下载列表 */}
-        <Box sx={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {!selectedRecord ? (
-            <Box
-              sx={{
-                flex: 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Typography variant="body2" color="text.secondary">
-                请选择一条生成记录查看详情
-              </Typography>
-            </Box>
-          ) : (
-            <>
-              {/* 记录信息 */}
-              <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2 }}>
-                  <Box>
-                    <Typography variant="h6" gutterBottom>
-                      {selectedRecord.rule_group_title || '未命名规则组'}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      记录ID: {selectedRecord.record_id}
-                    </Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      创建时间: {new Date(selectedRecord.created_at).toLocaleString()}
-                    </Typography>
-                    {selectedRecord.draft_name && (
-                      <Typography variant="body2" color="text.secondary">
-                        草稿名称: {selectedRecord.draft_name}
-                      </Typography>
-                    )}
-                  </Box>
-                  <Button
-                    variant="outlined"
-                    startIcon={<ReplayIcon />}
-                    onClick={handleReimport}
-                    size="small"
-                  >
-                    重新导入
-                  </Button>
-                </Box>
-
-                <Chip
-                  label={getStatusText(selectedRecord.status)}
-                  color={getStatusColor(selectedRecord.status) as any}
-                  size="small"
-                />
-              </Box>
-
-              {/* 下载管理按钮 */}
-              <Box sx={{ flex: 1, overflow: 'auto', p: 2 }}>
-                <Typography variant="subtitle2" gutterBottom>
-                  下载管理
-                </Typography>
-                <Divider sx={{ mb: 2 }} />
-
-                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, alignItems: 'center', py: 4 }}>
-                  <Typography variant="body2" color="text.secondary" textAlign="center">
-                    {selectedRecord.task_id
-                      ? '点击下方按钮打开下载管理器查看和管理此任务的下载文件'
-                      : '此记录暂无关联的下载任务'}
-                  </Typography>
-                  {selectedRecord.task_id && (
+          {/* 右侧：记录详情和下载列表 */}
+          <div className="flex-1 flex flex-col overflow-hidden">
+            {!selectedRecord ? (
+              <div className="flex-1 flex items-center justify-center">
+                <span className="text-sm text-[var(--muted-foreground)]">
+                  请选择一条生成记录查看详情
+                </span>
+              </div>
+            ) : (
+              <>
+                {/* 记录信息 */}
+                <div className="p-4 border-b border-[var(--border)]">
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <div className="text-base font-semibold mb-1">
+                        {selectedRecord.rule_group_title || '未命名规则组'}
+                      </div>
+                      <div className="text-sm text-[var(--muted-foreground)]">
+                        记录ID: {selectedRecord.record_id}
+                      </div>
+                      <div className="text-sm text-[var(--muted-foreground)]">
+                        创建时间: {new Date(selectedRecord.created_at).toLocaleString()}
+                      </div>
+                      {selectedRecord.draft_name && (
+                        <div className="text-sm text-[var(--muted-foreground)]">
+                          草稿名称: {selectedRecord.draft_name}
+                        </div>
+                      )}
+                    </div>
                     <Button
-                      variant="contained"
-                      startIcon={<DownloadIcon />}
-                      onClick={handleOpenDownloads}
-                      size="large"
+                      variant="outline"
+                      size="sm"
+                      onPress={handleReimport}
+                      startContent={<RotateCcw size={16} />}
                     >
-                      打开下载管理器
+                      重新导入
                     </Button>
-                  )}
-                </Box>
-              </Box>
-            </>
-          )}
-        </Box>
-      </DialogContent>
-    </Dialog>
+                  </div>
+
+                  <span
+                    className={`inline-block px-2 py-0.5 text-xs rounded ${getStatusClassName(
+                      selectedRecord.status
+                    )}`}
+                  >
+                    {getStatusText(selectedRecord.status)}
+                  </span>
+                </div>
+
+                {/* 下载管理按钮 */}
+                <div className="flex-1 overflow-auto p-4">
+                  <div className="text-sm font-medium mb-2">下载管理</div>
+                  <div className="border-b border-[var(--border)] mb-4" />
+
+                  <div className="flex flex-col gap-4 items-center py-8">
+                    <span className="text-sm text-[var(--muted-foreground)] text-center">
+                      {selectedRecord.task_id
+                        ? '点击下方按钮打开下载管理器查看和管理此任务的下载文件'
+                        : '此记录暂无关联的下载任务'}
+                    </span>
+                    {selectedRecord.task_id && (
+                      <Button
+                        size="lg"
+                        onPress={handleOpenDownloads}
+                        startContent={<Download size={18} />}
+                      >
+                        打开下载管理器
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

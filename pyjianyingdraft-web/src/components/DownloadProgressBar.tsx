@@ -6,22 +6,14 @@
 
 import React from 'react';
 import {
-  Box,
-  LinearProgress,
-  Typography,
-  Paper,
-  Stack,
-  Chip,
-  Alert
-} from '@mui/material';
-import {
-  CloudDownload as DownloadIcon,
-  Speed as SpeedIcon,
-  AccessTime as TimeIcon,
+  DownloadCloud as DownloadIcon,
+  Gauge as SpeedIcon,
+  Clock as TimeIcon,
   CheckCircle as CheckIcon,
-  Error as ErrorIcon,
-  Cancel as CancelIcon
-} from '@mui/icons-material';
+  XCircle as ErrorIcon,
+  Ban as CancelIcon,
+} from 'lucide-react';
+import { ProgressBar } from '@heroui/react';
 import { useTaskProgress, TaskStatus } from '../hooks/useTaskProgress';
 
 export interface DownloadProgressBarProps {
@@ -38,21 +30,21 @@ export interface DownloadProgressBarProps {
 }
 
 /**
- * 获取状态颜色
+ * 获取状态 class
  */
-function getStatusColor(status: TaskStatus | null): 'default' | 'primary' | 'success' | 'error' | 'warning' {
+function getStatusClass(status: TaskStatus | null): string {
   switch (status) {
     case TaskStatus.DOWNLOADING:
     case TaskStatus.PROCESSING:
-      return 'primary';
+      return 'bg-blue-100 text-blue-800';
     case TaskStatus.COMPLETED:
-      return 'success';
+      return 'bg-green-100 text-green-800';
     case TaskStatus.FAILED:
-      return 'error';
+      return 'bg-red-100 text-red-800';
     case TaskStatus.CANCELLED:
-      return 'warning';
+      return 'bg-yellow-100 text-yellow-800';
     default:
-      return 'default';
+      return 'bg-[var(--muted)] text-[var(--muted-foreground)]';
   }
 }
 
@@ -62,17 +54,17 @@ function getStatusColor(status: TaskStatus | null): 'default' | 'primary' | 'suc
 function getStatusIcon(status: TaskStatus | null) {
   switch (status) {
     case TaskStatus.DOWNLOADING:
-      return <DownloadIcon />;
+      return <DownloadIcon size={20} />;
     case TaskStatus.PROCESSING:
-      return <DownloadIcon />;
+      return <DownloadIcon size={20} />;
     case TaskStatus.COMPLETED:
-      return <CheckIcon />;
+      return <CheckIcon size={20} />;
     case TaskStatus.FAILED:
-      return <ErrorIcon />;
+      return <ErrorIcon size={20} />;
     case TaskStatus.CANCELLED:
-      return <CancelIcon />;
+      return <CancelIcon size={20} />;
     default:
-      return <DownloadIcon />;
+      return <DownloadIcon size={20} />;
   }
 }
 
@@ -151,118 +143,96 @@ export function DownloadProgressBar({
   // 连接状态警告 - 仅在任务进行中才提示断开
   if (!isConnected && isInProgress) {
     return (
-      <Alert severity="warning" sx={{ mb: 2 }}>
+      <div className="mb-4 p-3 rounded-md border border-yellow-300 bg-yellow-50 text-yellow-800 text-sm">
         SSE连接中断，正在重新连接...
-      </Alert>
+      </div>
     );
   }
 
   // 失败状态
   if (isFailed) {
     return (
-      <Alert severity="error" icon={<ErrorIcon />} sx={{ mb: 2 }}>
-        <Typography variant="body2" fontWeight="bold">
-          任务失败
-        </Typography>
-        {errorMessage && (
-          <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>
-            {errorMessage}
-          </Typography>
-        )}
-      </Alert>
+      <div className="mb-4 p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm flex items-start gap-2">
+        <ErrorIcon size={20} className="flex-shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold">任务失败</div>
+          {errorMessage && (
+            <div className="block text-xs mt-0.5">{errorMessage}</div>
+          )}
+        </div>
+      </div>
     );
   }
 
   // 完成状态
   if (isCompleted) {
     return (
-      <Alert severity="success" icon={<CheckIcon />} sx={{ mb: 2 }}>
-        <Typography variant="body2" fontWeight="bold">
-          任务已完成！
-        </Typography>
-        {draftPath && (
-          <Typography variant="caption" sx={{ display: 'block', mt: 0.5, fontFamily: 'monospace' }}>
-            {draftPath}
-          </Typography>
-        )}
-      </Alert>
+      <div className="mb-4 p-3 rounded-md border border-green-300 bg-green-50 text-green-800 text-sm flex items-start gap-2">
+        <CheckIcon size={20} className="flex-shrink-0 mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm font-bold">任务已完成！</div>
+          {draftPath && (
+            <div className="block text-xs mt-0.5 font-mono">{draftPath}</div>
+          )}
+        </div>
+      </div>
     );
   }
 
   return (
-    <Paper elevation={2} sx={{ p: 2, mb: 2, minHeight: height }}>
-      <Stack spacing={2}>
-        {/* 状态标题 */}
-        <Stack direction="row" justifyContent="space-between" alignItems="center">
-          <Stack direction="row" spacing={1} alignItems="center">
-            {getStatusIcon(status)}
-            <Typography variant="h6" component="div">
-              {getStatusText(status)}
-            </Typography>
-          </Stack>
-          <Chip
-            label={`${progressPercent.toFixed(1)}%`}
-            color={getStatusColor(status)}
-            size="small"
-          />
-        </Stack>
+    <div
+      className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-md p-4 mb-4 flex flex-col gap-4"
+      style={{ minHeight: height }}
+    >
+      {/* 状态标题 */}
+      <div className="flex flex-row justify-between items-center">
+        <div className="flex flex-row gap-2 items-center">
+          {getStatusIcon(status)}
+          <div className="text-base font-semibold">{getStatusText(status)}</div>
+        </div>
+        <span className={`px-2 py-0.5 text-xs rounded ${getStatusClass(status)}`}>
+          {progressPercent.toFixed(1)}%
+        </span>
+      </div>
 
-        {/* 进度条 */}
-        <LinearProgress
-          variant="determinate"
-          value={progressPercent}
-          sx={{
-            height: 8,
-            borderRadius: 1,
-            backgroundColor: 'rgba(0, 0, 0, 0.08)',
-            '& .MuiLinearProgress-bar': {
-              borderRadius: 1
-            }
-          }}
-        />
+      {/* 进度条 */}
+      <ProgressBar aria-label="任务进度" value={progressPercent} />
 
-        {/* 详细信息 */}
-        {showDetails && progress && (
-          <Stack direction="row" spacing={3} sx={{ pt: 1 }}>
-            {/* 文件数 */}
-            <Stack direction="row" spacing={0.5} alignItems="center">
-              <DownloadIcon fontSize="small" color="action" />
-              <Typography variant="caption" color="text.secondary">
-                {progress.completed_files} / {progress.total_files} 个文件
-              </Typography>
-            </Stack>
+      {/* 详细信息 */}
+      {showDetails && progress && (
+        <div className="flex flex-row gap-6 pt-1">
+          {/* 文件数 */}
+          <div className="flex flex-row gap-1 items-center">
+            <DownloadIcon size={16} className="text-[var(--muted-foreground)]" />
+            <span className="text-xs text-[var(--muted-foreground)]">
+              {progress.completed_files} / {progress.total_files} 个文件
+            </span>
+          </div>
 
-            {/* 下载速度 */}
-            {status === TaskStatus.DOWNLOADING && (
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <SpeedIcon fontSize="small" color="action" />
-                <Typography variant="caption" color="text.secondary">
-                  {speedText}
-                </Typography>
-              </Stack>
-            )}
+          {/* 下载速度 */}
+          {status === TaskStatus.DOWNLOADING && (
+            <div className="flex flex-row gap-1 items-center">
+              <SpeedIcon size={16} className="text-[var(--muted-foreground)]" />
+              <span className="text-xs text-[var(--muted-foreground)]">{speedText}</span>
+            </div>
+          )}
 
-            {/* 预计剩余时间 */}
-            {status === TaskStatus.DOWNLOADING && progress.eta_seconds !== null && (
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <TimeIcon fontSize="small" color="action" />
-                <Typography variant="caption" color="text.secondary">
-                  剩余 {etaText}
-                </Typography>
-              </Stack>
-            )}
-          </Stack>
-        )}
+          {/* 预计剩余时间 */}
+          {status === TaskStatus.DOWNLOADING && progress.eta_seconds !== null && (
+            <div className="flex flex-row gap-1 items-center">
+              <TimeIcon size={16} className="text-[var(--muted-foreground)]" />
+              <span className="text-xs text-[var(--muted-foreground)]">剩余 {etaText}</span>
+            </div>
+          )}
+        </div>
+      )}
 
-        {/* 失败文件提示 */}
-        {progress && progress.failed_files > 0 && (
-          <Alert severity="warning" sx={{ mt: 1 }}>
-            <Typography variant="caption">
-              {progress.failed_files} 个文件下载失败
-            </Typography>
-          </Alert>
-        )}
-      </Stack>
-    </Paper>
+      {/* 失败文件提示 */}
+      {progress && progress.failed_files > 0 && (
+        <div className="mt-1 p-3 rounded-md border border-yellow-300 bg-yellow-50 text-yellow-800 text-xs">
+          {progress.failed_files} 个文件下载失败
+        </div>
+      )}
+    </div>
   );
 }
