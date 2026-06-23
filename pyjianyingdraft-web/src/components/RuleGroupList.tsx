@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button, Modal, Tooltip } from '@heroui/react';
+import { Button, Chip, Modal, Tooltip } from '@heroui/react';
 import {
   Copy as ContentCopyIcon,
   Pencil as EditIcon,
@@ -153,19 +153,6 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
     }
   };
 
-  // 复制到剪贴板
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text).then(
-      () => {
-        setSnackbar({ open: true, message: `已复制: ${label}` });
-      },
-      (err) => {
-        console.error('复制失败:', err);
-        setSnackbar({ open: true, message: '复制失败' });
-      }
-    );
-  };
-
   // 根据 material_id 查找素材详情
   const findMaterial = (materialId: string): MaterialInfo | undefined => {
     return materials.find(({id}) => id === materialId);
@@ -192,51 +179,29 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
     return lines.join('\n');
   };
 
-  // 渲染素材 Chip
-  const renderMaterialChip = (materialId: string) => {
-    const material = findMaterial(materialId);
+  // 素材类型 → Chip 颜色映射
+  const MATERIAL_COLOR_MAP: Record<string, 'accent' | 'default' | 'success' | 'warning' | 'danger'> = {
+    video: 'accent', photo: 'accent', gif: 'accent',
+    audio: 'warning', music: 'warning', sound: 'warning', extract_music: 'warning',
+    image: 'success',
+  };
+  const getMaterialColor = (type: string) => MATERIAL_COLOR_MAP[type] ?? 'default';
 
-    if (!material) {
-      return (
-        <Tooltip delay={0}>
-          <span className="m-0.5 inline-flex items-center px-2 py-0.5 text-xs rounded border border-red-400 text-red-700">
-            未找到
-          </span>
-          <Tooltip.Content>{`素材未找到: ${materialId}`}</Tooltip.Content>
-        </Tooltip>
-      );
-    }
+  // 素材属性字段展示顺序
+  const MATERIAL_FIELDS: Array<{ key: keyof MaterialInfo; label: string }> = [
+    { key: 'type', label: '类型' },
+    { key: 'id', label: 'ID' },
+    { key: 'name', label: '名称' },
+    { key: 'path', label: '路径' },
+    { key: 'duration_seconds', label: '时长(秒)' },
+    { key: 'width', label: '宽度' },
+    { key: 'height', label: '高度' },
+  ];
 
-    const tooltipContent = getMaterialTooltipContent(material);
-    const label = material.name || material.id.slice(0, 8);
-
-    return (
-      <div>
-        <div className="mt-2">
-          <div className="border-b border-[var(--border)] pb-1 mb-2">
-            <span className="text-xs font-medium text-[var(--muted-foreground)]">{material.id}</span>
-          </div>
-          <div className="p-4 bg-[var(--card)] rounded-md">
-            <div className="flex flex-wrap gap-1">
-              {Object.keys(material).map((key) => (
-                <Tooltip
-                  key={`tooltip-${key}`}
-                  delay={0}
-                >
-                  <span
-                    onClick={() => copyToClipboard(key, key)}
-                    className="px-2 py-0.5 text-xs rounded border border-[var(--border)] cursor-pointer hover:bg-[var(--muted)]"
-                  >
-                    {key}
-                  </span>
-                  <Tooltip.Content>{`${key}: ${JSON.stringify(material[key as keyof MaterialInfo])}`}</Tooltip.Content>
-                </Tooltip>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+  // 格式化字段值
+  const formatFieldValue = (key: keyof MaterialInfo, value: unknown) => {
+    if (key === 'duration_seconds' && typeof value === 'number') return value.toFixed(2);
+    return String(value);
   };
 
   if (!ruleGroup) {
@@ -356,11 +321,42 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
               <Modal.Heading>素材详情{viewingRule ? ` - ${viewingRule.title || '未命名'}` : ''}</Modal.Heading>
             </Modal.Header>
             <Modal.Body>
-              {viewingRule?.material_ids.map((materialId) => (
-                <React.Fragment key={materialId}>
-                  {renderMaterialChip(materialId)}
-                </React.Fragment>
-              ))}
+              <div className="flex flex-col gap-4">
+                {viewingRule?.material_ids.map((materialId) => {
+                  const material = findMaterial(materialId);
+                  if (!material) {
+                    return (
+                      <Chip key={materialId} color="danger" variant="soft">
+                        <Chip.Label>未找到: {materialId.slice(0, 8)}</Chip.Label>
+                      </Chip>
+                    );
+                  }
+                  return (
+                    <div
+                      key={materialId}
+                      className="flex flex-col gap-2 pb-3 border-b border-[var(--border)] last:border-b-0"
+                    >
+                      <Tooltip delay={0}>
+                        <Chip color={getMaterialColor(material.type)}>
+                          <Chip.Label>{material.name || material.id.slice(0, 8)}</Chip.Label>
+                        </Chip>
+                        <Tooltip.Content>{getMaterialTooltipContent(material)}</Tooltip.Content>
+                      </Tooltip>
+                      <div className="flex flex-wrap gap-1.5">
+                        {MATERIAL_FIELDS.map(({ key, label }) => {
+                          const value = material[key];
+                          if (value === undefined || value === null || value === '') return null;
+                          return (
+                            <Chip key={key} variant="soft" size="sm">
+                              <Chip.Label>{label}: {formatFieldValue(key, value)}</Chip.Label>
+                            </Chip>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
             </Modal.Body>
             <Modal.Footer>
               <Button slot="close" variant="secondary">

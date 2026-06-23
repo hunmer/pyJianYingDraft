@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { Button } from '@heroui/react';
-import { Download, Save, Play, ChevronDown } from 'lucide-react';
+import { Download, Play, ChevronDown } from 'lucide-react';
 
 interface BottomActionsProps {
   canDownload: boolean;
@@ -10,19 +10,17 @@ interface BottomActionsProps {
   onToggleDownloadMenu: () => void;
   onDownloadBase: () => void;
   onDownloadFull: () => void;
-  onSaveDataset: () => void;
   onTest: () => void;
   testing: boolean;
 }
 
-/** 底部操作栏：下载基础数据 + 下载菜单、保存数据集、运行测试 */
+/** 底部操作栏：下载基础数据 + 下载菜单、运行测试 */
 export default function BottomActions({
   canDownload,
   downloadMenuOpen,
   onToggleDownloadMenu,
   onDownloadBase,
   onDownloadFull,
-  onSaveDataset,
   onTest,
   testing,
 }: BottomActionsProps) {
@@ -71,13 +69,6 @@ export default function BottomActions({
         )}
       </div>
       <div className="flex gap-2">
-        <Button
-          onPress={onSaveDataset}
-          variant="outline"
-        >
-          <Save size={16} />
-          保存数据集
-        </Button>
         <Button
           onPress={onTest}
           variant="primary"

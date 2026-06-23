@@ -825,7 +825,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
             onToggleDownloadMenu={() => setDownloadMenuOpen((v) => !v)}
             onDownloadBase={handleDownloadBaseRequestData}
             onDownloadFull={handleDownloadFullRequestData}
-            onSaveDataset={handleOpenSaveDialog}
             onTest={handleTest}
             testing={testing}
           />
