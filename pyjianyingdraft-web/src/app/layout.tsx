@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { Toast } from '@heroui/react';
 import DevInspector from "@/components/DevInspector";
+import ToastProvider from "@/components/ToastProvider";
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -19,7 +19,7 @@ export default function RootLayout({
       <body className="bg-background text-foreground">
         {children}
         <DevInspector />
-        <Toast.Provider />
+        <ToastProvider />
       </body>
     </html>
   );

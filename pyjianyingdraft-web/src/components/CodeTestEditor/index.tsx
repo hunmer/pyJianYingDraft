@@ -6,9 +6,9 @@ import { useDebounce } from '@/hooks/useDebounce';
 import { CodeTestEditorProps, Language } from './types';
 import { getDefaultCodeTemplate, isDefaultCode, JS_DEFAULT_CODE_TEMPLATE } from './templates';
 import { useRuntimeLoader } from './useRuntimeLoader';
+import { toast } from '@heroui/react';
 import { compileTypeScript, runJavaScript, runPython } from './codeRunner';
 import Toolbar from './components/Toolbar';
-import MessageBanner from './components/MessageBanner';
 import CodeEditorPanel from './components/CodeEditorPanel';
 import DataPanel from './components/DataPanel';
 import BottomActions from './components/BottomActions';
@@ -35,8 +35,6 @@ export default function CodeTestEditor({
     const stored = localStorage.getItem(snapshotKey);
     return stored || '{}';
   });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [executing, setExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<any>(null);
   const [rightTabValue, setRightTabValue] = useState(0); // 右侧tab状态：0=输入数据，1=输出数据
@@ -78,8 +76,6 @@ export default function CodeTestEditor({
   // 运行时加载（TypeScript编译器 / Pyodide）
   const { tsLoaded, pyodideLoaded, pyodide } = useRuntimeLoader({
     language,
-    setSuccess,
-    setError,
   });
 
   // 当testDataId变化时，恢复对应的代码和JSON数据（从上次编辑快照恢复）
@@ -94,8 +90,6 @@ export default function CodeTestEditor({
 
     setCode(newCode);
     setJsonData(newJsonData);
-    setError('');
-    setSuccess('');
     setExecutionResult(null);
     console.log('[CodeTestEditor] 从上次编辑快照恢复数据:', {
       testDataId,
@@ -146,8 +140,7 @@ export default function CodeTestEditor({
       if (newCode && newCode !== code) {
         console.log('[CodeTestEditor] 正在加载新的语言模板...');
         setCode(newCode);
-        setSuccess(`已切换到 ${language.toUpperCase()} 模式并加载示例代码`);
-        setTimeout(() => setSuccess(''), 3000);
+        toast.success(`已切换到 ${language.toUpperCase()} 模式并加载示例代码`);
       }
     } else {
       console.log('[CodeTestEditor] 检测到用户自定义代码，保留当前代码');
@@ -162,8 +155,6 @@ export default function CodeTestEditor({
     const defaultCode = getDefaultCodeTemplate(language);
     setCode(defaultCode);
     setJsonData('{}');
-    setError('');
-    setSuccess('');
     setExecutionResult(null);
 
     // 清除上次编辑快照
@@ -177,8 +168,6 @@ export default function CodeTestEditor({
 
   // 执行代码
   const handleExecute = async () => {
-    setError('');
-    setSuccess('');
     setExecutionResult(null);
 
     try {
@@ -226,7 +215,7 @@ export default function CodeTestEditor({
         try {
           const result = await runPython(pyodide, code, mergedParams);
           setExecutionResult(result);
-          setSuccess('Python代码执行成功');
+          toast.success('Python代码执行成功');
           setRightTabValue(1);
         } catch (pyError: any) {
           // runPython 已构造好格式化的错误信息，直接抛出
@@ -234,7 +223,6 @@ export default function CodeTestEditor({
         }
 
         // 早期返回，不执行后续的 JS/TS 逻辑
-        setTimeout(() => setSuccess(''), 3000);
         return;
       }
 
@@ -255,7 +243,7 @@ export default function CodeTestEditor({
         // 如果提供了执行回调，使用编译后的代码
         const result = await onExecute(finalCode, mergedParams);
         setExecutionResult(result);
-        setSuccess('代码执行成功');
+        toast.success('代码执行成功');
         setRightTabValue(1); // 自动切换到输出数据tab
       } else {
         // 默认执行逻辑：动态创建函数并执行
@@ -263,18 +251,16 @@ export default function CodeTestEditor({
           const result = await runJavaScript(finalCode, mergedParams);
 
           setExecutionResult(result);
-          setSuccess(language === 'typescript' ? 'TypeScript代码执行成功' : 'JavaScript代码执行成功');
+          toast.success(language === 'typescript' ? 'TypeScript代码执行成功' : 'JavaScript代码执行成功');
           setRightTabValue(1); // 自动切换到输出数据tab
         } catch (execError: any) {
           throw new Error(`代码执行失败: ${execError.message}`);
         }
       }
 
-      setTimeout(() => setSuccess(''), 3000);
     } catch (err: any) {
-      setError(`执行错误: ${err.message}`);
+      toast.danger(`执行错误: ${err.message}`);
       console.error(err)
-      setTimeout(() => setError(''), 5000);
     } finally {
       setExecuting(false);
     }
@@ -286,11 +272,9 @@ export default function CodeTestEditor({
       try {
         // 使用CodeMirror的格式化功能（如果有）
         // 目前CodeMirror没有内置的格式化功能，这里可以手动实现或跳过
-        setSuccess('代码已刷新');
-        setTimeout(() => setSuccess(''), 2000);
+        toast.success('代码已刷新');
       } catch (err: any) {
-        setError(`刷新失败: ${err.message}`);
-        setTimeout(() => setError(''), 3000);
+        toast.danger(`刷新失败: ${err.message}`);
       }
     }
   };
@@ -300,8 +284,7 @@ export default function CodeTestEditor({
     const exampleCode = getDefaultCodeTemplate(language);
     const langName = language === 'javascript' ? 'JavaScript' : language === 'typescript' ? 'TypeScript' : 'Python';
     setCode(exampleCode);
-    setSuccess(`已加载${langName}示例代码`);
-    setTimeout(() => setSuccess(''), 2000);
+    toast.success(`已加载${langName}示例代码`);
   };
 
   // 格式化JSON
@@ -310,11 +293,9 @@ export default function CodeTestEditor({
       const parsedJson = JSON.parse(jsonData);
       const formattedJson = JSON.stringify(parsedJson, null, 2);
       setJsonData(formattedJson);
-      setSuccess('JSON格式化成功');
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success('JSON格式化成功');
     } catch (err: any) {
-      setError(`JSON格式错误: ${err.message}`);
-      setTimeout(() => setError(''), 3000);
+      toast.danger(`JSON格式错误: ${err.message}`);
     }
   };
 
@@ -322,11 +303,9 @@ export default function CodeTestEditor({
   const handleCreateCodeSnapshot = (name: string, description?: string) => {
     try {
       createCodeSnapshot(name, code, description);
-      setSuccess(`代码快照"${name}"已创建`);
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success(`代码快照"${name}"已创建`);
     } catch (err: any) {
-      setError(`创建快照失败: ${err.message}`);
-      setTimeout(() => setError(''), 3000);
+      toast.danger(`创建快照失败: ${err.message}`);
     }
   };
 
@@ -337,11 +316,9 @@ export default function CodeTestEditor({
       setCode(restoredCode);
 
       const snapshot = codeSnapshots.find(s => s.id === snapshotId);
-      setSuccess(`已恢复代码到快照: ${snapshot?.name}`);
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success(`已恢复代码到快照: ${snapshot?.name}`);
     } catch (err: any) {
-      setError(`恢复快照失败: ${err.message}`);
-      setTimeout(() => setError(''), 3000);
+      toast.danger(`恢复快照失败: ${err.message}`);
     }
   };
 
@@ -349,11 +326,9 @@ export default function CodeTestEditor({
   const handleCreateJsonSnapshot = (name: string, description?: string) => {
     try {
       createJsonSnapshot(name, jsonData, description);
-      setSuccess(`JSON快照"${name}"已创建`);
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success(`JSON快照"${name}"已创建`);
     } catch (err: any) {
-      setError(`创建快照失败: ${err.message}`);
-      setTimeout(() => setError(''), 3000);
+      toast.danger(`创建快照失败: ${err.message}`);
     }
   };
 
@@ -364,11 +339,9 @@ export default function CodeTestEditor({
       setJsonData(restoredJson);
 
       const snapshot = jsonSnapshots.find(s => s.id === snapshotId);
-      setSuccess(`已恢复JSON到快照: ${snapshot?.name}`);
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success(`已恢复JSON到快照: ${snapshot?.name}`);
     } catch (err: any) {
-      setError(`恢复快照失败: ${err.message}`);
-      setTimeout(() => setError(''), 3000);
+      toast.danger(`恢复快照失败: ${err.message}`);
     }
   };
 
@@ -385,8 +358,7 @@ export default function CodeTestEditor({
 
     if (!onSendTest) {
       console.error('[CodeTestEditor] onSendTest 回调函数未定义');
-      setError('发送测试功能未实现');
-      setTimeout(() => setError(''), 3000);
+      toast.danger('发送测试功能未实现');
       return;
     }
 
@@ -434,12 +406,10 @@ export default function CodeTestEditor({
       onSendTest(finalDataToSend);
       console.log('[CodeTestEditor] onSendTest 回调函数调用完成');
 
-      setSuccess('✅ 测试数据已发送并应用到JSON数据Tab！请查看左侧编辑器中的数据。');
-      setTimeout(() => setSuccess(''), 5000);
+      toast.success('测试数据已发送并应用到JSON数据Tab！请查看左侧编辑器中的数据。');
     } catch (err: any) {
       console.error('[CodeTestEditor] 发送过程中发生错误:', err);
-      setError(`发送失败: ${err.message}`);
-      setTimeout(() => setError(''), 3000);
+      toast.danger(`发送失败: ${err.message}`);
     }
   };
 
@@ -454,14 +424,6 @@ export default function CodeTestEditor({
         tsLoaded={tsLoaded}
         pyodideLoaded={pyodideLoaded}
         onReset={handleReset}
-      />
-
-      {/* 消息提示 */}
-      <MessageBanner
-        error={error}
-        success={success}
-        onClearError={() => setError('')}
-        onClearSuccess={() => setSuccess('')}
       />
 
       {/* 左右分栏编辑器 */}

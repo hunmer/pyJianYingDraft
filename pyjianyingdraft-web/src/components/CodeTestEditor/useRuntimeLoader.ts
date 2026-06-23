@@ -1,19 +1,18 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { toast } from '@heroui/react';
 import { Language } from './types';
 
 interface UseRuntimeLoaderOptions {
   language: Language;
-  setSuccess: (msg: string) => void;
-  setError: (msg: string) => void;
 }
 
 /**
  * 运行时加载器：动态加载 TypeScript 编译器与 Pyodide 运行时
  * 提取自原组件的 3 个加载相关 useEffect
  */
-export function useRuntimeLoader({ language, setSuccess, setError }: UseRuntimeLoaderOptions) {
+export function useRuntimeLoader({ language }: UseRuntimeLoaderOptions) {
   const [tsLoaded, setTsLoaded] = useState(false); // TypeScript编译器是否已加载
   const [pyodideLoaded, setPyodideLoaded] = useState(false); // Pyodide是否已加载
   const [pyodide, setPyodide] = useState<any>(null); // Pyodide实例
@@ -35,20 +34,20 @@ export function useRuntimeLoader({ language, setSuccess, setError }: UseRuntimeL
                 setTsLoaded(true);
                 console.log('[CodeTestEditor] TypeScript编译器已加载完成');
               } else {
-                setError('TypeScript编译器初始化失败');
+                toast.danger('TypeScript编译器初始化失败');
               }
             }, 100);
           };
 
           script.onerror = (error) => {
             console.error('[CodeTestEditor] TypeScript编译器加载失败:', error);
-            setError('TypeScript编译器加载失败，请检查网络连接');
+            toast.danger('TypeScript编译器加载失败，请检查网络连接');
           };
 
           document.head.appendChild(script);
         } catch (err: any) {
           console.error('[CodeTestEditor] TypeScript编译器加载异常:', err);
-          setError(`TypeScript编译器加载失败: ${err.message}`);
+          toast.danger(`TypeScript编译器加载失败: ${err.message}`);
         }
       } else if (language === 'typescript' && (window as any).ts !== undefined) {
         setTsLoaded(true);
@@ -65,7 +64,7 @@ export function useRuntimeLoader({ language, setSuccess, setError }: UseRuntimeL
       if (language === 'python' && !pyodideLoaded && !(window as any).loadPyodide) {
         try {
           console.log('[CodeTestEditor] 开始加载Pyodide...');
-          setSuccess('正在加载Python运行环境，请稍候...');
+          toast.info('正在加载Python运行环境，请稍候...');
 
           const script = document.createElement('script');
           script.src = 'https://cdn.jsdelivr.net/pyodide/v0.26.1/full/pyodide.js';
@@ -78,24 +77,23 @@ export function useRuntimeLoader({ language, setSuccess, setError }: UseRuntimeL
               const pyodideInstance = await loadPyodide();
               setPyodide(pyodideInstance);
               setPyodideLoaded(true);
-              setSuccess('Python运行环境已就绪');
+              toast.success('Python运行环境已就绪');
               console.log('[CodeTestEditor] Pyodide已加载完成');
-              setTimeout(() => setSuccess(''), 3000);
             } catch (initErr: any) {
               console.error('[CodeTestEditor] Pyodide初始化失败:', initErr);
-              setError(`Python运行环境初始化失败: ${initErr.message}`);
+              toast.danger(`Python运行环境初始化失败: ${initErr.message}`);
             }
           };
 
           script.onerror = (error) => {
             console.error('[CodeTestEditor] Pyodide加载失败:', error);
-            setError('Python运行环境加载失败，请检查网络连接');
+            toast.danger('Python运行环境加载失败，请检查网络连接');
           };
 
           document.head.appendChild(script);
         } catch (err: any) {
           console.error('[CodeTestEditor] Pyodide加载异常:', err);
-          setError(`Python运行环境加载失败: ${err.message}`);
+          toast.danger(`Python运行环境加载失败: ${err.message}`);
         }
       } else if (language === 'python' && pyodide) {
         setPyodideLoaded(true);

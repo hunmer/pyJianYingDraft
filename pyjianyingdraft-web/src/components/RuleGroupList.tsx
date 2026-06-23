@@ -298,7 +298,7 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
 
       {/* 素材详情对话框 */}
       <Modal.Backdrop isOpen={materialDialogOpen} onOpenChange={setMaterialDialogOpen}>
-        <Modal.Container size="lg">
+        <Modal.Container size="cover">
           <Modal.Dialog>
             <Modal.CloseTrigger />
             <Modal.Header>
@@ -326,8 +326,9 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
                       <CodeMirrorEditor
                         value={JSON.stringify(material, null, 2)}
                         language="json"
+                        theme="dark"
                         readOnly
-                        height={200}
+                        height={240}
                       />
                     </div>
                   );
