@@ -1381,11 +1381,11 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           >
             <Tabs.ListContainer>
               <Tabs.List aria-label="信息面板">
-                <Tabs.Tab id="0">
+                <Tabs.Tab id="0" className="text-[var(--foreground)]">
                   素材信息
                   <Tabs.Indicator />
                 </Tabs.Tab>
-                <Tabs.Tab id="1">
+                <Tabs.Tab id="1" className="text-[var(--foreground)]">
                   规则组
                   <Tabs.Indicator />
                 </Tabs.Tab>

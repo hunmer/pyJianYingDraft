@@ -106,7 +106,7 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
         <Tabs.ListContainer>
           <Tabs.List aria-label="测试数据编辑">
             {tabs.map((label, idx) => (
-              <Tabs.Tab key={idx} id={String(idx)}>
+              <Tabs.Tab key={idx} id={String(idx)} className="text-[var(--foreground)]">
                 {label}
                 <Tabs.Indicator />
               </Tabs.Tab>

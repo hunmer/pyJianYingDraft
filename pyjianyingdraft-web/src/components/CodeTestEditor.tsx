@@ -972,7 +972,7 @@ export default function CodeTestEditor({
               <Tabs.ListContainer>
                 <Tabs.List aria-label="数据面板">
                   {rightTabs.map((label, idx) => (
-                    <Tabs.Tab key={idx} id={String(idx)}>
+                    <Tabs.Tab key={idx} id={String(idx)} className="text-[var(--foreground)]">
                       {label}
                       <Tabs.Indicator />
                     </Tabs.Tab>
