@@ -325,7 +325,7 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
    * 处理设置
    */
   const handleSettings = () => {
-    setShowSettings(!showSettings);
+    setShowSettings(true);
   };
 
   /** 下拉菜单动作路由 */
@@ -408,36 +408,53 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
           </Checkbox.Content>
         </Checkbox>
 
-        {/* 设置面板 */}
+        {/* 设置对话框 */}
         {showSettings && (
-          <div className="mt-4">
-            <PathSelector
-              value={basePath}
-              onChange={(newPath) => {
-                setBasePath(newPath);
-                // Electron环境下选择目录后立即加载
-                if (isElectron && newPath) {
-                  loadDrafts(newPath);
-                }
-              }}
-              label="草稿根目录"
-              placeholder="例: D:\JianyingPro Drafts"
-              dialogTitle="选择草稿根目录"
-              buttonText="选择草稿根目录"
-              disabled={loading}
-              size="small"
-            />
-            {!isElectron && (
-              <Button
-                fullWidth
-                size="sm"
-                onPress={() => loadDrafts()}
-                isDisabled={loading || !basePath.trim()}
-                className="mt-2"
-              >
-                保存并加载草稿
-              </Button>
-            )}
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+            onClick={() => setShowSettings(false)}
+          >
+            <div
+              className="bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-xl w-full max-w-md mx-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
+                设置
+              </div>
+              <div className="px-4 py-4 flex flex-col gap-3">
+                <PathSelector
+                  value={basePath}
+                  onChange={(newPath) => {
+                    setBasePath(newPath);
+                    // Electron环境下选择目录后立即加载
+                    if (isElectron && newPath) {
+                      loadDrafts(newPath);
+                    }
+                  }}
+                  label="草稿根目录"
+                  placeholder="例: D:\JianyingPro Drafts"
+                  dialogTitle="选择草稿根目录"
+                  buttonText="选择草稿根目录"
+                  disabled={loading}
+                  size="small"
+                />
+                {!isElectron && (
+                  <Button
+                    fullWidth
+                    size="sm"
+                    onPress={() => loadDrafts()}
+                    isDisabled={loading || !basePath.trim()}
+                  >
+                    保存并加载草稿
+                  </Button>
+                )}
+              </div>
+              <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--border)]">
+                <Button variant="ghost" size="sm" onPress={() => setShowSettings(false)}>
+                  关闭
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>

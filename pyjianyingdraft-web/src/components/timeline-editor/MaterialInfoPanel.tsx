@@ -201,11 +201,11 @@ export function MaterialInfoPanel({
         <>
           <div className="border-b border-[var(--border)]" />
           <Button
-            variant="outlined"
-            startContent={<Plus size={16} />}
+            variant="primary"
             onPress={onAddToRuleGroup}
             fullWidth
           >
+            <Plus size={16} />
             {selectedRuleGroup && selectedRuleGroup.rules.some(rule => rule.material_ids.includes(material.id))
               ? '修改规则组配置'
               : '添加到规则组'

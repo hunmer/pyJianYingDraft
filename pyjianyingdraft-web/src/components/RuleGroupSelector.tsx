@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Tooltip, Spinner } from '@heroui/react';
+import { Button, Spinner, Dropdown, Select, ListBox, Label, Separator } from '@heroui/react';
 import {
   Plus as AddIcon,
   Trash2 as DeleteIcon,
@@ -48,8 +48,6 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
   disabled = false,
   loading = false,
 }) => {
-  const [menuAnchorEl, setMenuAnchorEl] = useState<null | HTMLElement>(null);
-  const menuOpen = Boolean(menuAnchorEl);
   const [openCreateDialog, setOpenCreateDialog] = useState(false);
   const [newGroupTitle, setNewGroupTitle] = useState('');
   const [createError, setCreateError] = useState('');
@@ -76,14 +74,6 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
     }
     onChange(localRuleGroups[0]);
   }, [localRuleGroups, selectionId, onChange]);
-
-  const handleMenuClick = (event: React.MouseEvent<HTMLElement>) => {
-    setMenuAnchorEl(event.currentTarget);
-  };
-
-  const handleMenuClose = () => {
-    setMenuAnchorEl(null);
-  };
 
   const emitGroups = (nextGroups: RuleGroup[]) => {
     const normalized = cloneRuleGroups(nextGroups);
@@ -126,12 +116,10 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
   };
 
   const handleNewRuleGroup = () => {
-    handleMenuClose();
     setOpenCreateDialog(true);
   };
 
   const handleCloneRuleGroup = () => {
-    handleMenuClose();
     if (!value) {
       alert('请先选择一个规则组');
       return;
@@ -150,7 +138,6 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
   };
 
   const handleImportRuleGroup = () => {
-    handleMenuClose();
     fileInputRef.current?.click();
   };
 
@@ -198,7 +185,6 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
   };
 
   const handleDownloadRuleGroup = () => {
-    handleMenuClose();
     if (!value) {
       alert('请先选择一个规则组');
       return;
@@ -221,7 +207,6 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
   };
 
   const handleDeleteCurrentRuleGroup = () => {
-    handleMenuClose();
     if (!value) {
       alert('请先选择一个规则组');
       return;
@@ -238,10 +223,30 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
     await onSaveToDraft(localRuleGroups);
   };
 
-  const handleSelectChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
-    const selectedId = event.target.value;
-    const selectedGroup = localRuleGroups.find(group => group.id === selectedId) ?? null;
-    onChange(selectedGroup);
+  /** 操作菜单动作路由 */
+  const handleMenuAction = (key: React.Key) => {
+    switch (key) {
+      case 'save':
+        void handleSaveToDraft();
+        break;
+      case 'new':
+        handleNewRuleGroup();
+        break;
+      case 'import':
+        handleImportRuleGroup();
+        break;
+      case 'download':
+        handleDownloadRuleGroup();
+        break;
+      case 'clone':
+        handleCloneRuleGroup();
+        break;
+      case 'delete':
+        handleDeleteCurrentRuleGroup();
+        break;
+      default:
+        break;
+    }
   };
 
   const renderSelectLabel = (index: number, group: RuleGroup) =>
@@ -251,99 +256,67 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
 
   return (
     <div className="flex items-center gap-2 w-full">
-      <select
-        className="flex-1 px-2 py-1 text-sm border border-[var(--border)] rounded-md bg-[var(--background)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-50"
-        value={value?.id ?? ''}
-        onChange={handleSelectChange}
-        disabled={disabled || loading}
+      <Select
+        className="flex-1"
+        variant="secondary"
+        placeholder="选择规则组"
+        value={value?.id ?? null}
+        onChange={(key) => {
+          const id = key as string;
+          const selectedGroup = localRuleGroups.find(group => group.id === id) ?? null;
+          onChange(selectedGroup);
+        }}
+        isDisabled={disabled || loading || localRuleGroups.length === 0}
       >
-        {localRuleGroups.map((group, index) => (
-          <option key={group.id} value={group.id}>
-            {renderSelectLabel(index, group)}
-          </option>
-        ))}
-      </select>
+        <ListBox>
+          {localRuleGroups.map((group, index) => (
+            <ListBox.Item key={group.id} id={group.id} textValue={renderSelectLabel(index, group)}>
+              {renderSelectLabel(index, group)}
+            </ListBox.Item>
+          ))}
+        </ListBox>
+      </Select>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-label="更多选项"
-        aria-controls={menuOpen ? 'rule-group-menu' : undefined}
-        aria-haspopup="true"
-        aria-expanded={menuOpen ? 'true' : undefined}
-        onPress={handleMenuClick}
-        isDisabled={disabled || loading}
-        className="min-w-10 px-0"
-      >
-        <ArrowDropDownIcon size={18} />
-      </Button>
-
-      {menuOpen && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={handleMenuClose}
-          onContextMenu={(e) => { e.preventDefault(); handleMenuClose(); }}
+      <Dropdown>
+        <Button
+          variant="ghost"
+          size="sm"
+          isIconOnly
+          aria-label="更多选项"
+          isDisabled={disabled || loading}
         >
-          <div
-            className="absolute z-50 min-w-[200px] bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-lg py-1"
-            style={{ top: (menuAnchorEl?.getBoundingClientRect().bottom ?? 0) + 4, left: menuAnchorEl?.getBoundingClientRect().left ?? 0 }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Tooltip delay={0} isDisabled={false}>
-              <button
-                className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                onClick={handleSaveToDraft}
-                disabled={isSaveDisabled}
-              >
-                {loading ? <Spinner size="sm" /> : <SaveIcon size={14} />}
-                保存到草稿
-              </button>
-              <Tooltip.Content>{isSaveDisabled ? '当前不可保存' : '保存到草稿目录'}</Tooltip.Content>
-            </Tooltip>
-            <button
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleNewRuleGroup}
-              disabled={disabled}
-            >
+          <ArrowDropDownIcon size={18} />
+        </Button>
+        <Dropdown.Popover>
+          <Dropdown.Menu onAction={handleMenuAction}>
+            <Dropdown.Item id="save" textValue="保存到草稿" isDisabled={isSaveDisabled}>
+              {loading ? <Spinner size="sm" /> : <SaveIcon size={14} />}
+              <Label>保存到草稿</Label>
+            </Dropdown.Item>
+            <Dropdown.Item id="new" textValue="新建规则组" isDisabled={disabled}>
               <AddIcon size={14} />
-              新建规则组
-            </button>
-            <button
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleImportRuleGroup}
-              disabled={disabled}
-            >
+              <Label>新建规则组</Label>
+            </Dropdown.Item>
+            <Dropdown.Item id="import" textValue="导入规则组" isDisabled={disabled}>
               <CloudUploadIcon size={14} />
-              导入规则组
-            </button>
-            <button
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleDownloadRuleGroup}
-              disabled={!value}
-            >
+              <Label>导入规则组</Label>
+            </Dropdown.Item>
+            <Dropdown.Item id="download" textValue="下载规则组" isDisabled={!value}>
               <CloudDownloadIcon size={14} />
-              下载规则组
-            </button>
-            <button
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleCloneRuleGroup}
-              disabled={!value || disabled}
-            >
+              <Label>下载规则组</Label>
+            </Dropdown.Item>
+            <Dropdown.Item id="clone" textValue="克隆规则组" isDisabled={!value || disabled}>
               <FileCopyIcon size={14} />
-              克隆规则组
-            </button>
-            <div className="my-1 border-t border-[var(--border)]" />
-            <button
-              className="w-full text-left px-3 py-1.5 text-sm hover:bg-[var(--muted)] flex items-center gap-2 text-red-600 disabled:opacity-50 disabled:cursor-not-allowed"
-              onClick={handleDeleteCurrentRuleGroup}
-              disabled={!value || disabled}
-            >
+              <Label>克隆规则组</Label>
+            </Dropdown.Item>
+            <Separator />
+            <Dropdown.Item id="delete" textValue="删除规则组" variant="danger" isDisabled={!value || disabled}>
               <DeleteIcon size={14} />
-              删除规则组
-            </button>
-          </div>
-        </div>
-      )}
+              <Label>删除规则组</Label>
+            </Dropdown.Item>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
+      </Dropdown>
 
       <input
         ref={fileInputRef}

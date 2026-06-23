@@ -462,8 +462,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
 
               {/* 提交按钮 */}
               <Button
-                variant="outlined"
-                startContent={<Upload size={16} />}
+                variant="primary"
                 onPress={() => {
                   const testDataId = selectedRuleGroup?.id ?? `test_data_${Date.now()}`;
                   handleTestDataSelect(
@@ -481,6 +480,7 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
                 }}
                 fullWidth
               >
+                <Upload size={16} />
                 提交任务
               </Button>
 

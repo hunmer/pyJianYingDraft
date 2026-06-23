@@ -25,7 +25,7 @@ export const DraftEditor: React.FC<DraftEditorProps> = ({
   }
 
   return (
-    <div className="w-full overflow-hidden" style={{ height: 'calc(100vh - 120px)' }}>
+    <div className="w-full h-full overflow-hidden">
       {/* 时间轴编辑器 - 占满页面 */}
       {(tab.tracks || []).length > 0 && (
         <TimelineEditor
