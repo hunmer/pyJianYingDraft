@@ -352,30 +352,6 @@ export default function Home() {
             <Tooltip.Content placement="bottom">菜单</Tooltip.Content>
           </Tooltip>
 
-          <Tooltip delay={0}>
-            <Button
-              isIconOnly
-              variant="ghost"
-              size="sm"
-              onPress={() => setDownloadDialogOpen(true)}
-            >
-              <Download size={20} />
-            </Button>
-            <Tooltip.Content placement="bottom">下载管理</Tooltip.Content>
-          </Tooltip>
-
-          <Tooltip delay={0}>
-            <Button
-              isIconOnly
-              variant="ghost"
-              size="sm"
-              onPress={() => setGenerationRecordsDialogOpen(true)}
-            >
-              <History size={20} />
-            </Button>
-            <Tooltip.Content placement="bottom">生成记录</Tooltip.Content>
-          </Tooltip>
-
           {/* Tab管理器 */}
           <TabManager
             tabs={tabs}
@@ -384,6 +360,32 @@ export default function Home() {
             onCloseTab={closeTab}
             onTabContextMenu={handleTabContextMenu}
           />
+
+          <div className="ml-auto flex items-center gap-2">
+            <Tooltip delay={0}>
+              <Button
+                isIconOnly
+                variant="ghost"
+                size="sm"
+                onPress={() => setDownloadDialogOpen(true)}
+              >
+                <Download size={20} />
+              </Button>
+              <Tooltip.Content placement="bottom">下载管理</Tooltip.Content>
+            </Tooltip>
+
+            <Tooltip delay={0}>
+              <Button
+                isIconOnly
+                variant="ghost"
+                size="sm"
+                onPress={() => setGenerationRecordsDialogOpen(true)}
+              >
+                <History size={20} />
+              </Button>
+              <Tooltip.Content placement="bottom">生成记录</Tooltip.Content>
+            </Tooltip>
+          </div>
         </div>
 
         {/* 内容区域 */}

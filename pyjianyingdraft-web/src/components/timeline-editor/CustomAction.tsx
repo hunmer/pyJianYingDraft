@@ -37,7 +37,28 @@ export const CustomAction: React.FC<{
     onContextMenu?.(event, action, row);
   };
 
-  const handleMouseEnter = (event: React.MouseEvent) => {
+  const actionRef = React.useRef<HTMLDivElement>(null);
+
+  // 计算tooltip位置：默认片段上方居中，上方放不下则翻到下方，并做水平边界保护
+  const updateTooltipPosition = () => {
+    const el = actionRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const tooltipWidth = 320;
+    const tooltipHeight = 220;
+    let x = rect.left + rect.width / 2 - tooltipWidth / 2;
+    let y = rect.top - tooltipHeight - 8;
+    if (y < 8) {
+      y = rect.bottom + 8; // 上方放不下，放下方
+    }
+    if (x + tooltipWidth > window.innerWidth - 8) {
+      x = window.innerWidth - tooltipWidth - 8;
+    }
+    if (x < 8) x = 8;
+    setTooltipPosition({ x, y });
+  };
+
+  const handleMouseEnter = () => {
     // 生成唯一的tooltip ID
     const id = `${action.id}-${action.start}`;
     tooltipId.current = id;
@@ -45,11 +66,7 @@ export const CustomAction: React.FC<{
     // 注册新的tooltip（这会自动关闭其他tooltip）
     tooltipManager.current.registerTooltip(id);
 
-    // 设置Tooltip位置为鼠标右上角（向右偏移15px，y轴不偏移）
-    setTooltipPosition({
-      x: event.clientX + 15,
-      y: event.clientY
-    });
+    updateTooltipPosition();
     setTooltipOpen(true);
   };
 
@@ -151,33 +168,10 @@ export const CustomAction: React.FC<{
   );
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        left: tooltipPosition.x,
-        top: tooltipPosition.y,
-        zIndex: 50,
-        pointerEvents: 'none',
-        opacity: tooltipOpen ? 1 : 0,
-        transition: 'opacity 0.15s',
-      }}
-    >
-      {tooltipOpen && (
-        <div
-          onMouseEnter={handleTooltipMouseEnter}
-          onMouseLeave={handleTooltipMouseLeave}
-          style={{
-            backgroundColor: 'rgba(0, 0, 0, 0.9)',
-            maxWidth: 320,
-            padding: 6,
-            borderRadius: 4,
-            pointerEvents: 'auto',
-          }}
-        >
-          {tooltipContent}
-        </div>
-      )}
+    <>
+      {/* 片段本体：留在时间轴容器内正常渲染，显示轨道颜色 */}
       <div
+        ref={actionRef}
         onClick={onClick}
         onContextMenu={handleContextMenu}
         onMouseEnter={handleMouseEnter}
@@ -215,6 +209,32 @@ export const CustomAction: React.FC<{
           {name}
         </div>
       </div>
-    </div>
+
+      {/* Tooltip 浮层：独立 fixed 定位，仅悬浮时显示 */}
+      {tooltipOpen && (
+        <div
+          onMouseEnter={handleTooltipMouseEnter}
+          onMouseLeave={handleTooltipMouseLeave}
+          style={{
+            position: 'fixed',
+            left: tooltipPosition.x,
+            top: tooltipPosition.y,
+            zIndex: 50,
+            pointerEvents: 'auto',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.9)',
+              maxWidth: 320,
+              padding: 6,
+              borderRadius: 4,
+            }}
+          >
+            {tooltipContent}
+          </div>
+        </div>
+      )}
+    </>
   );
 };
