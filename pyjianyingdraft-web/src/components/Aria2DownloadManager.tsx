@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Button, Tooltip, ProgressBar } from '@heroui/react';
+import { Button, Tooltip, ProgressBar, toast } from '@heroui/react';
 import {
   Pause as PauseIcon,
   Play as PlayArrowIcon,
@@ -236,18 +236,18 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
   // 打开下载文件夹
   const handleOpenDownloadFolder = async () => {
     if (!downloadDir) {
-      alert('下载目录未配置');
+      toast.danger('下载目录未配置');
       return;
     }
     try {
       if (window.electron?.fs?.openFolder) {
         await window.electron.fs.openFolder(downloadDir);
       } else {
-        alert('此功能仅在Electron环境下可用');
+        toast.danger('此功能仅在Electron环境下可用');
       }
     } catch (error) {
       console.error('打开文件夹失败:', error);
-      alert('打开文件夹失败');
+      toast.danger('打开文件夹失败');
     }
   };
 
@@ -257,11 +257,11 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
       if (window.electron?.fs?.showInFolder) {
         await window.electron.fs.showInFolder(filePath);
       } else {
-        alert('此功能仅在Electron环境下可用');
+        toast.danger('此功能仅在Electron环境下可用');
       }
     } catch (error) {
       console.error('打开文件位置失败:', error);
-      alert('打开文件位置失败');
+      toast.danger('打开文件位置失败');
     }
   };
 
@@ -271,11 +271,11 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
       if (window.electron?.fs?.openFile) {
         await window.electron.fs.openFile(filePath);
       } else {
-        alert('此功能仅在Electron环境下可用');
+        toast.danger('此功能仅在Electron环境下可用');
       }
     } catch (error) {
       console.error('打开文件失败:', error);
-      alert('打开文件失败');
+      toast.danger('打开文件失败');
     }
   };
 
@@ -300,11 +300,11 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
         setGroupToDelete(null);
       } else {
         const data = await response.json();
-        alert(`删除失败: ${data.detail || '未知错误'}`);
+        toast.danger(`删除失败: ${data.detail || '未知错误'}`);
       }
     } catch (error) {
       console.error('删除组失败:', error);
-      alert('删除组失败');
+      toast.danger('删除组失败');
     }
   };
 
@@ -338,14 +338,14 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
         // 刷新组列表
         getGroups();
         setClearAllDialogOpen(false);
-        alert(`成功清空 ${data.deleted_count} 个下载组`);
+        toast.success(`成功清空 ${data.deleted_count} 个下载组`);
       } else {
         const data = await response.json();
-        alert(`清空失败: ${data.detail || '未知错误'}`);
+        toast.danger(`清空失败: ${data.detail || '未知错误'}`);
       }
     } catch (error) {
       console.error('清空所有组失败:', error);
-      alert('清空所有组失败');
+      toast.danger('清空所有组失败');
     }
   };
 
@@ -359,21 +359,21 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
 
     const failedDownloads = displayDownloads.filter(d => d.status === 'error');
     if (failedDownloads.length === 0) {
-      alert('当前没有失败的下载任务');
+      toast.danger('当前没有失败的下载任务');
       return;
     }
 
     try {
       // 调用重试失败下载的API
       await retryFailedDownloads(selectedGroupId);
-      alert(`正在重新下载 ${failedDownloads.length} 个失败任务`);
+      toast.success(`正在重新下载 ${failedDownloads.length} 个失败任务`);
       // 延迟刷新下载列表，给Aria2一些时间处理
       setTimeout(() => {
         getGroupDownloads(selectedGroupId);
       }, 1000);
     } catch (error) {
       console.error('重试失败任务出错:', error);
-      alert('重试失败任务出错');
+      toast.danger('重试失败任务出错');
     }
   };
 
@@ -422,7 +422,7 @@ export function Aria2DownloadManager({ initialGroupId }: Aria2DownloadManagerPro
     }
 
     if (links.length === 0) {
-      alert('没有可导出的下载链接');
+      toast.danger('没有可导出的下载链接');
       return;
     }
 

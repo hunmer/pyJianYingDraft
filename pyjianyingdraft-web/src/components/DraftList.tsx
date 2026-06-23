@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button, Tooltip, Spinner, Checkbox, Dropdown, Label, ListBox, Avatar, Description, CloseButton } from '@heroui/react';
+import { Button, Tooltip, Spinner, Checkbox, Dropdown, Label, ListBox, Avatar, Description, CloseButton, toast } from '@heroui/react';
 import {
   RefreshCw,
   Settings,
@@ -212,7 +212,7 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
         })
         .catch((err: Error) => {
           console.error('复制失败:', err);
-          alert(`复制失败: ${err.message}`);
+          toast.danger(`复制失败: ${err.message}`);
         });
     } else {
       // 浏览器环境回退方案
@@ -236,10 +236,10 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
       (window as any).electron.fs.showInFolder(contextMenu.draft.path)
         .catch((err: Error) => {
           console.error('打开文件夹失败:', err);
-          alert(`打开文件夹失败: ${err.message}`);
+          toast.danger(`打开文件夹失败: ${err.message}`);
         });
     } else {
-      alert('此功能仅在 Electron 环境下可用');
+      toast.danger('此功能仅在 Electron 环境下可用');
     }
     handleCloseContextMenu();
   };
@@ -250,7 +250,7 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
    */
   const handleOpenDraftRootFolder = () => {
     if (!basePath) {
-      alert('未设置草稿根目录');
+      toast.danger('未设置草稿根目录');
       return;
     }
 
@@ -258,10 +258,10 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
       (window as any).electron.fs.openFolder(basePath)
         .catch((err: Error) => {
           console.error('打开文件夹失败:', err);
-          alert(`打开文件夹失败: ${err.message}`);
+          toast.danger(`打开文件夹失败: ${err.message}`);
         });
     } else {
-      alert('此功能仅在 Electron 环境下可用');
+      toast.danger('此功能仅在 Electron 环境下可用');
     }
   };
 
@@ -270,12 +270,12 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
    */
   const handleImportZip = async () => {
     if (!isElectron) {
-      alert('此功能仅在 Electron 环境下可用');
+      toast.danger('此功能仅在 Electron 环境下可用');
       return;
     }
 
     if (!basePath) {
-      alert('请先设置草稿根目录');
+      toast.danger('请先设置草稿根目录');
       setShowSettings(true);
       return;
     }
@@ -303,12 +303,12 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
       // 刷新草稿列表
       await loadDrafts();
 
-      alert('导入成功!');
+      toast.success('导入成功!');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : '导入失败';
       setError(errorMessage);
       console.error('导入压缩包失败:', err);
-      alert(`导入失败: ${errorMessage}`);
+      toast.danger(`导入失败: ${errorMessage}`);
     } finally {
       setLoading(false);
     }

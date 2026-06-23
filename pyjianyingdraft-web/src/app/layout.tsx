@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Toast } from '@heroui/react';
 import DevInspector from "@/components/DevInspector";
 import './globals.css';
 
@@ -18,6 +19,7 @@ export default function RootLayout({
       <body className="bg-background text-foreground">
         {children}
         <DevInspector />
+        <Toast.Provider />
       </body>
     </html>
   );

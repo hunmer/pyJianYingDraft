@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Button, Spinner } from '@heroui/react';
+import { Button, Spinner, toast } from '@heroui/react';
 import { X, RefreshCw, RotateCcw, Trash2, Download } from 'lucide-react';
 import { generationRecordsApi, tasksApi, type GenerationRecord } from '@/lib/api';
 import { useAria2WebSocket } from '@/hooks/useAria2WebSocket';
@@ -77,7 +77,7 @@ export function GenerationRecordsDialog({ open, onClose, onReimport, onOpenDownl
       // 重新加载列表
       await loadRecords();
     } catch (err) {
-      alert(err instanceof Error ? err.message : '删除失败');
+      toast.danger(err instanceof Error ? err.message : '删除失败');
     }
   };
 

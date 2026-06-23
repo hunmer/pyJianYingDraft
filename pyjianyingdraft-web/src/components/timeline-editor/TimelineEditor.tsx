@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/react-timeline-editor';
 import type { Rule } from '@/types/rule';
-import { Button, Tabs } from '@heroui/react';
+import { Button, Tabs, toast } from '@heroui/react';
 import { Eye, Download, Upload } from 'lucide-react';
 import { RuleGroupSelector } from '../RuleGroupSelector';
 import { RuleGroupList } from '../RuleGroupList';
@@ -221,13 +221,13 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
       if (typeof window !== 'undefined' && (window as any).electron?.fs?.openFile) {
         (window as any).electron.fs.openFile(material.path).catch((err: Error) => {
           console.error('打开文件失败:', err);
-          alert(`打开文件失败: ${err.message}`);
+          toast.danger(`打开文件失败: ${err.message}`);
         });
       } else {
-        alert('此功能仅在 Electron 环境下可用');
+        toast.danger('此功能仅在 Electron 环境下可用');
       }
     } else {
-      alert('未找到素材文件路径');
+      toast.danger('未找到素材文件路径');
     }
     handleCloseContextMenu();
   };

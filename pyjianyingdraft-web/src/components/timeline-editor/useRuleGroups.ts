@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RuleGroup } from '@/types/rule';
 import { draftApi } from '@/lib/api';
+import { toast } from '@heroui/react';
 import { cloneRuleGroups } from './utils';
 
 interface UseRuleGroupsOptions {
@@ -60,7 +61,7 @@ export function useRuleGroups({ draftPath, initialRuleGroups, onRuleGroupsChange
         console.error('保存草稿规则组失败:', error);
         applyRuleGroups(snapshot);
         const message = error instanceof Error ? error.message : String(error);
-        alert(`保存规则组失败: ${message}`);
+        toast.danger(`保存规则组失败: ${message}`);
         throw error instanceof Error ? error : new Error(message);
       } finally {
         setSavingRuleGroups(false);

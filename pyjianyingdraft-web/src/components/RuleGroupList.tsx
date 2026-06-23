@@ -11,6 +11,7 @@ import {
 import type { RuleGroup, Rule } from '@/types/rule';
 import type { MaterialInfo } from '@/types/draft';
 import { AddToRuleGroupDialog } from './AddToRuleGroupDialog';
+import CodeMirrorEditor from './CodeMirrorEditor';
 
 
 /**
@@ -187,23 +188,6 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
   };
   const getMaterialColor = (type: string) => MATERIAL_COLOR_MAP[type] ?? 'default';
 
-  // 素材属性字段展示顺序
-  const MATERIAL_FIELDS: Array<{ key: keyof MaterialInfo; label: string }> = [
-    { key: 'type', label: '类型' },
-    { key: 'id', label: 'ID' },
-    { key: 'name', label: '名称' },
-    { key: 'path', label: '路径' },
-    { key: 'duration_seconds', label: '时长(秒)' },
-    { key: 'width', label: '宽度' },
-    { key: 'height', label: '高度' },
-  ];
-
-  // 格式化字段值
-  const formatFieldValue = (key: keyof MaterialInfo, value: unknown) => {
-    if (key === 'duration_seconds' && typeof value === 'number') return value.toFixed(2);
-    return String(value);
-  };
-
   if (!ruleGroup) {
     return (
       <div className="text-center py-8 bg-[var(--muted)] rounded-md">
@@ -326,33 +310,25 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
                   const material = findMaterial(materialId);
                   if (!material) {
                     return (
-                      <Chip key={materialId} color="danger" variant="soft">
-                        <Chip.Label>未找到: {materialId.slice(0, 8)}</Chip.Label>
-                      </Chip>
+                      <div key={materialId} className="text-sm text-red-600">
+                        素材未找到: {materialId}
+                      </div>
                     );
                   }
                   return (
-                    <div
-                      key={materialId}
-                      className="flex flex-col gap-2 pb-3 border-b border-[var(--border)] last:border-b-0"
-                    >
+                    <div key={materialId} className="flex flex-col gap-1">
                       <Tooltip delay={0}>
                         <Chip color={getMaterialColor(material.type)}>
                           <Chip.Label>{material.name || material.id.slice(0, 8)}</Chip.Label>
                         </Chip>
                         <Tooltip.Content>{getMaterialTooltipContent(material)}</Tooltip.Content>
                       </Tooltip>
-                      <div className="flex flex-wrap gap-1.5">
-                        {MATERIAL_FIELDS.map(({ key, label }) => {
-                          const value = material[key];
-                          if (value === undefined || value === null || value === '') return null;
-                          return (
-                            <Chip key={key} variant="soft" size="sm">
-                              <Chip.Label>{label}: {formatFieldValue(key, value)}</Chip.Label>
-                            </Chip>
-                          );
-                        })}
-                      </div>
+                      <CodeMirrorEditor
+                        value={JSON.stringify(material, null, 2)}
+                        language="json"
+                        readOnly
+                        height={200}
+                      />
                     </div>
                   );
                 })}

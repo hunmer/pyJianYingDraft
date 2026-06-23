@@ -10,13 +10,13 @@ import { useSnapshots } from '@/hooks/useSnapshots';
 import PathReplacementDialog from '@/components/PathReplacementDialog';
 import MonacoEditor from '@/components/MonacoEditor';
 import api from '@/lib/api';
+import { toast } from '@heroui/react';
 
 import EditorHeader from './parts/EditorHeader';
 import DatasetSelector from './parts/DatasetSelector';
 import MessagePanel from './parts/MessagePanel';
 import EditorToolbar from './parts/EditorToolbar';
 import BottomActions from './parts/BottomActions';
-import SaveDatasetDialog from './parts/SaveDatasetDialog';
 import DownloadConfirmDialog from './parts/DownloadConfirmDialog';
 import { downloadJSON, buildRequestPayload, buildTrackFromRule } from './utils';
 
@@ -65,7 +65,6 @@ export interface TestDataEditorRef {
 const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
   testDataId,
   onTest,
-  ruleGroupId,
   ruleGroup,
   materials = [],
   rawSegments: _rawSegments,
@@ -83,8 +82,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     const stored = localStorage.getItem(`test-data-json-${testDataId}`);
     return stored || initialJson;
   });
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [testing, setTesting] = useState(false);
   const [fullRequestPayload, setFullRequestPayload] = useState<RuleGroupTestRequest | null>(null);
   const [editorKey, setEditorKey] = useState(0); // 用于强制重新渲染编辑器
@@ -195,9 +192,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
   // 数据集管理状态
   const [datasets, setDatasets] = useState<TestDataset[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState<string>('');
-  const [saveDialogOpen, setSaveDialogOpen] = useState(false);
-  const [datasetName, setDatasetName] = useState('');
-  const [datasetDescription, setDatasetDescription] = useState('');
 
   // 从localStorage加载数据集 - 使用testDataId作为存储键
   const loadDatasets = useCallback(() => {
@@ -231,7 +225,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
       setDatasets(updatedDatasets);
     } catch (err) {
       console.error('保存数据集失败:', err);
-      setError('保存数据集失败');
+      toast.danger('保存数据集失败');
     }
   };
 
@@ -241,18 +235,16 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
       const testData: TestData = JSON.parse(testDataJson);
       const formattedJson = JSON.stringify(testData, null, 2);
       setTestDataJson(formattedJson);
-      setSuccess('JSON格式化成功');
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success('JSON格式化成功');
     } catch (err: any) {
-      setError(`JSON格式错误: ${err.message}`);
-      setTimeout(() => setError(''), 3000);
+      toast.danger(`JSON格式错误: ${err.message}`);
     }
   };
 
   // 一键添加轨道
   const handleAddTracks = () => {
     if (!ruleGroup || !ruleGroup.rules.length) {
-      setError('没有可用的预设规则');
+      toast.danger('没有可用的预设规则');
       return;
     }
 
@@ -270,10 +262,9 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
 
       const formattedJson = JSON.stringify(updatedTestData, null, 2);
       setTestDataJson(formattedJson);
-      setSuccess(`已添加 ${newTracks.length} 个轨道`);
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success(`已添加 ${newTracks.length} 个轨道`);
     } catch (err: any) {
-      setError(`添加轨道失败: ${err.message}`);
+      toast.danger(`添加轨道失败: ${err.message}`);
     }
   };
 
@@ -418,9 +409,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
 
   // 处理测试
   const handleTest = async () => {
-    setError('');
-    setSuccess('');
-
     try {
       const testData: TestData = JSON.parse(testDataJson);
 
@@ -467,20 +455,20 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
           console.log('[TestDataEditor] 异步任务已提交, task_id:', taskId);
           setCurrentTaskId(taskId);
           setShowProgressInline(true);
-          setSuccess(`✅ 异步任务已提交\n任务ID: ${taskId}`);
+          toast.success('异步任务已提交', { description: `任务ID: ${taskId}` });
         }
         // 检查是否是完整的请求载荷
         if ('testData' in result) {
           setFullRequestPayload(result as RuleGroupTestRequest);
-          setSuccess('测试请求已发送');
+          toast.success('测试请求已发送');
         } else {
-          setSuccess('测试请求已发送');
+          toast.success('测试请求已发送');
         }
       } else {
-        setSuccess('测试请求已发送');
+        toast.success('测试请求已发送');
       }
     } catch (err: any) {
-      setError(err.message || '无效的JSON格式');
+      toast.danger(err.message || '无效的JSON格式');
     } finally {
       setTesting(false);
     }
@@ -491,8 +479,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     const resetJson = JSON.stringify(initialTestData ?? EXAMPLE_TEST_DATA, null, 2);
     setTestDataJson(resetJson);
     setSelectedDatasetId('');
-    setError('');
-    setSuccess('');
     setTesting(false);
     // 清除localStorage中的数据
     localStorage.removeItem(`test-data-json-${testDataId}`);
@@ -504,8 +490,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
       // 恢复到初始数据
       setTestDataJson(initialJson);
       setSelectedDatasetId('');
-      setError('');
-      setSuccess('');
       return;
     }
 
@@ -513,65 +497,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     if (dataset) {
       setTestDataJson(JSON.stringify(dataset.data, null, 2));
       setSelectedDatasetId(datasetId);
-      setSuccess(`已加载数据集: ${dataset.name}`);
-      setTimeout(() => setSuccess(''), 2000);
-    }
-  };
-
-  // 打开保存对话框
-  const handleOpenSaveDialog = () => {
-    setSaveDialogOpen(true);
-    setDatasetName('');
-    setDatasetDescription('');
-  };
-
-  // 保存当前数据集
-  const handleSaveDataset = () => {
-    setError('');
-
-    if (!datasetName.trim()) {
-      setError('请输入数据集名称');
-      return;
-    }
-
-    try {
-      const testData: TestData = JSON.parse(testDataJson);
-      const now = new Date().toISOString();
-
-      // 检查是否更新现有数据集
-      const existingIndex = datasets.findIndex(d => d.name === datasetName.trim());
-
-      let updatedDatasets: TestDataset[];
-      if (existingIndex >= 0) {
-        // 更新现有数据集
-        updatedDatasets = [...datasets];
-        updatedDatasets[existingIndex] = {
-          ...updatedDatasets[existingIndex],
-          data: testData,
-          description: datasetDescription,
-          updatedAt: now,
-        };
-        setSuccess(`数据集"${datasetName}"已更新`);
-      } else {
-        // 创建新数据集
-        const newDataset: TestDataset = {
-          id: `dataset-${Date.now()}`,
-          name: datasetName.trim(),
-          ruleGroupId: ruleGroupId || testDataId, // 使用ruleGroupId或testDataId作为关联
-          data: testData,
-          description: datasetDescription,
-          createdAt: now,
-          updatedAt: now,
-        };
-        updatedDatasets = [...datasets, newDataset];
-        setSuccess(`数据集"${datasetName}"已保存`);
-      }
-
-      saveDatasets(updatedDatasets);
-      setSaveDialogOpen(false);
-      setTimeout(() => setSuccess(''), 2000);
-    } catch (err: any) {
-      setError(err.message || '保存失败: JSON格式无效');
+      toast.success(`已加载数据集: ${dataset.name}`);
     }
   };
 
@@ -584,15 +510,14 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
       if (selectedDatasetId === datasetId) {
         setSelectedDatasetId('');
       }
-      setSuccess('数据集已删除');
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success('数据集已删除');
     }
   };
 
   // 打开下载确认对话框
   const openDownloadDialog = (type: 'base' | 'full') => {
     if (!fullRequestPayload) {
-      setError('没有可下载的请求数据');
+      toast.danger('没有可下载的请求数据');
       return;
     }
 
@@ -614,8 +539,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
 
     const typeText = pendingDownloadData.type === 'base' ? '基础' : '完整';
     const compressText = compress ? '(压缩并转义)' : '';
-    setSuccess(`${typeText}请求数据已下载${compressText}`);
-    setTimeout(() => setSuccess(''), 2000);
+    toast.success(`${typeText}请求数据已下载${compressText}`);
 
     setDownloadDialogOpen(false);
     setPendingDownloadData(null);
@@ -624,7 +548,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
   // 下载基础请求数据(items为空) - 打开路径替换对话框
   const handleDownloadBaseRequestData = () => {
     if (!fullRequestPayload) {
-      setError('没有可下载的请求数据');
+      toast.danger('没有可下载的请求数据');
       return;
     }
     // 打开路径替换对话框
@@ -637,7 +561,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     setPathReplacementDialogOpen(false);
 
     if (!fullRequestPayload) {
-      setError('没有可下载的请求数据');
+      toast.danger('没有可下载的请求数据');
       return;
     }
 
@@ -690,11 +614,9 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
     try {
       const testData: TestData = JSON.parse(testDataJson);
       createSnapshot(name, testData, description);
-      setSuccess(`快照"${name}"已创建`);
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success(`快照"${name}"已创建`);
     } catch (err: any) {
-      setError(`创建快照失败: ${err.message}`);
-      setTimeout(() => setError(''), 3000);
+      toast.danger(`创建快照失败: ${err.message}`);
     }
   };
 
@@ -707,11 +629,9 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
       setEditorKey(prev => prev + 1); // 强制重新渲染编辑器
 
       const snapshot = snapshots.find(s => s.id === snapshotId);
-      setSuccess(`已恢复到快照: ${snapshot?.name}`);
-      setTimeout(() => setSuccess(''), 2000);
+      toast.success(`已恢复到快照: ${snapshot?.name}`);
     } catch (err: any) {
-      setError(`恢复快照失败: ${err.message}`);
-      setTimeout(() => setError(''), 3000);
+      toast.danger(`恢复快照失败: ${err.message}`);
     }
   };
 
@@ -768,22 +688,18 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
 
           {/* 消息提示 */}
           <MessagePanel
-            error={error}
-            success={success}
             hasDatasets={datasets.length > 0}
             showProgress={showProgressInline}
             currentTaskId={currentTaskId}
-            onClearError={() => setError('')}
-            onClearSuccess={() => setSuccess('')}
             onTaskComplete={(draftPath) => {
               console.log('草稿生成完成:', draftPath);
-              setSuccess(`✅ 任务完成！草稿路径: ${draftPath}`);
+              toast.success('任务完成', { description: `草稿路径: ${draftPath}` });
               setShowProgressInline(false);
               setCurrentTaskId(null);
             }}
             onTaskError={(taskError) => {
               console.error('任务失败:', taskError);
-              setError(`❌ 任务失败: ${taskError}`);
+              toast.danger('任务失败', { description: taskError });
               setShowProgressInline(false);
             }}
           />
@@ -830,19 +746,6 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
           />
         </div>
       </div>
-
-      {/* 保存数据集对话框 */}
-      <SaveDatasetDialog
-        open={saveDialogOpen}
-        error={error}
-        datasetName={datasetName}
-        datasetDescription={datasetDescription}
-        onNameChange={setDatasetName}
-        onDescriptionChange={setDatasetDescription}
-        onClose={() => setSaveDialogOpen(false)}
-        onSave={handleSaveDataset}
-        onClearError={() => setError('')}
-      />
 
       {/* 下载确认对话框 */}
       <DownloadConfirmDialog

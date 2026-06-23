@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Spinner, Dropdown, Select, ListBox, Label, Separator } from '@heroui/react';
+import { Button, Spinner, Dropdown, Select, ListBox, Label, Separator, toast } from '@heroui/react';
 import {
   Plus as AddIcon,
   Trash2 as DeleteIcon,
@@ -121,7 +121,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
 
   const handleCloneRuleGroup = () => {
     if (!value) {
-      alert('请先选择一个规则组');
+      toast.danger('请先选择一个规则组');
       return;
     }
     const now = new Date().toISOString();
@@ -147,14 +147,14 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
       return;
     }
     if (!file.name.endsWith('.json')) {
-      alert('请选择 JSON 格式的文件');
+      toast.danger('请选择 JSON 格式的文件');
       return;
     }
     try {
       const text = await file.text();
       const imported = JSON.parse(text);
       if (!imported.title || !Array.isArray(imported.rules)) {
-        alert('文件格式无效：缺少必要字段');
+        toast.danger('文件格式无效：缺少必要字段');
         return;
       }
       let finalTitle = String(imported.title);
@@ -173,10 +173,10 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
       };
       emitGroups([...localRuleGroups, newGroup]);
       onChange(newGroup);
-      alert(`规则组 "${finalTitle}" 导入成功`);
+      toast.success(`规则组 "${finalTitle}" 导入成功`);
     } catch (error) {
       console.error('导入规则组失败:', error);
-      alert('导入失败，请检查文件格式');
+      toast.danger('导入失败，请检查文件格式');
     } finally {
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -186,7 +186,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
 
   const handleDownloadRuleGroup = () => {
     if (!value) {
-      alert('请先选择一个规则组');
+      toast.danger('请先选择一个规则组');
       return;
     }
     const data = {
@@ -208,7 +208,7 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
 
   const handleDeleteCurrentRuleGroup = () => {
     if (!value) {
-      alert('请先选择一个规则组');
+      toast.danger('请先选择一个规则组');
       return;
     }
     if (confirm(`确定要删除规则组 "${value.title}" 吗？此操作不可恢复。`)) {

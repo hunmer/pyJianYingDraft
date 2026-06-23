@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Button } from '@heroui/react';
+import { Button, toast } from '@heroui/react';
 import { FolderOpen } from 'lucide-react';
 
 interface PathSelectorProps {
@@ -83,7 +83,7 @@ export default function PathSelector({
       onChange(selectedPath);
     } catch (err) {
       console.error('选择路径失败:', err);
-      alert(`选择路径失败: ${err instanceof Error ? err.message : '未知错误'}`);
+      toast.danger(`选择路径失败: ${err instanceof Error ? err.message : '未知错误'}`);
     }
   };
 
