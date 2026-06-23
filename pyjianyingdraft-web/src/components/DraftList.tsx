@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button, Tooltip, Spinner, Checkbox, Dropdown, Label } from '@heroui/react';
+import { Button, Tooltip, Spinner, Checkbox, Dropdown, Label, ListBox, Avatar, Description } from '@heroui/react';
 import {
   RefreshCw,
   Settings,
@@ -464,43 +464,38 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
 
       {/* 草稿列表 */}
       {!loading && filteredDrafts.length > 0 && (
-        <div className="flex-1 overflow-auto">
-          {filteredDrafts.map((draft, index) => {
-            const selected = selectedDraftPath === draft.path;
-            return (
-              <React.Fragment key={draft.path}>
-                <button
-                  type="button"
-                  onClick={() => handleDraftClick(draft)}
-                  onContextMenu={(e) => handleContextMenu(e, draft)}
-                  className={
-                    'flex items-center justify-between w-full gap-2 py-3 px-4 text-left transition-colors ' +
-                    (selected
-                      ? 'bg-[var(--accent)]/15 hover:bg-[var(--accent)]/20'
-                      : 'hover:bg-[var(--muted)]')
-                  }
-                >
-                  <div className="flex-1 min-w-0 mr-2">
-                    <div className={'text-sm ' + (selected ? 'font-semibold' : 'font-normal')}>
-                      {draft.name}
-                    </div>
-                    <div className="text-xs text-[var(--muted-foreground)]">
-                      {formatTime(draft.modified_time)}
-                    </div>
-                  </div>
-                  {draft.has_rules && (
-                    <span className="px-1.5 py-0.5 text-xs font-semibold rounded bg-[var(--accent)] text-[var(--accent-foreground)]">
-                      规则
-                    </span>
-                  )}
-                </button>
-                {index < filteredDrafts.length - 1 && (
-                  <div className="border-b border-[var(--border)]" />
-                )}
-              </React.Fragment>
-            );
-          })}
-        </div>
+        <ListBox
+          aria-label="草稿列表"
+          selectionMode="single"
+          selectedKeys={new Set(selectedDraftPath ? [selectedDraftPath] : [])}
+          onAction={(key) => {
+            const draft = drafts.find(d => d.path === key);
+            if (draft) handleDraftClick(draft);
+          }}
+          className="flex-1 overflow-auto"
+        >
+          {filteredDrafts.map(draft => (
+            <ListBox.Item
+              key={draft.path}
+              id={draft.path}
+              textValue={draft.name}
+              onContextMenu={(e) => handleContextMenu(e, draft)}
+            >
+              <Avatar size="sm" className="bg-[var(--muted)]">
+                <Avatar.Fallback>{draft.name.charAt(0).toUpperCase()}</Avatar.Fallback>
+              </Avatar>
+              <div className="flex flex-col flex-1 min-w-0">
+                <Label>{draft.name}</Label>
+                <Description>{formatTime(draft.modified_time)}</Description>
+              </div>
+              {draft.has_rules && (
+                <span className="px-1.5 py-0.5 text-xs font-semibold rounded bg-[var(--accent)] text-[var(--accent-foreground)]">
+                  规则
+                </span>
+              )}
+            </ListBox.Item>
+          ))}
+        </ListBox>
       )}
 
       {/* 空状态 */}
