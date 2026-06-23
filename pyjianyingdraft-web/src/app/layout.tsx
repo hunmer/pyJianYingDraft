@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import DevInspector from "@/components/DevInspector";
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -16,6 +17,7 @@ export default function RootLayout({
     <html lang="zh-CN" className="light" data-theme="light" suppressHydrationWarning>
       <body className="bg-background text-foreground">
         {children}
+        <DevInspector />
       </body>
     </html>
   );
