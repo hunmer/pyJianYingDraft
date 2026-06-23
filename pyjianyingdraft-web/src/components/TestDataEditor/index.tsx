@@ -797,7 +797,7 @@ const TestDataEditor = forwardRef<TestDataEditorRef, TestDataEditorProps>(({
           />
 
           {/* CodeMirror 编辑器 */}
-          <div className="flex-1 p-4 pt-2 overflow-hidden">
+          <div className="flex-1  overflow-hidden">
             <div className="border border-[var(--border)] rounded-md overflow-hidden h-full">
               <MonacoEditor
                 key={editorKey}

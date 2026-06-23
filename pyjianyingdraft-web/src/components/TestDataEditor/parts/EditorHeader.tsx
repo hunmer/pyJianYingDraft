@@ -34,9 +34,6 @@ export default function EditorHeader({
             <RotateCcw size={16} />
             重置为示例数据
           </Button>
-          <div className="text-xs text-[var(--muted-foreground)]">
-            实例ID: {testDataId}
-          </div>
         </div>
         <div className="flex items-center gap-2">
           <SnapshotManager

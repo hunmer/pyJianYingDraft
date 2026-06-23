@@ -1,11 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button, Tooltip } from '@heroui/react';
+import { Button, Modal, Tooltip } from '@heroui/react';
 import {
-  ChevronDown as ExpandMoreIcon,
-  ChevronUp as ExpandLessIcon,
-  Eye as VisibilityIcon,
   Copy as ContentCopyIcon,
   Pencil as EditIcon,
   Trash2 as DeleteIcon,
@@ -49,24 +46,15 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
   highlightedTypes = new Set(),
   onRuleClick,
 }) => {
-  // 展开状态：记录每个规则的展开状态
-  const [expandedRules, setExpandedRules] = useState<Set<number>>(new Set());
   // 复制提示状态
   const [snackbar, setSnackbar] = useState<{ open: boolean; message: string }>({
     open: false,
     message: '',
   });
 
-  // 切换规则的展开状态
-  const toggleExpand = (index: number) => {
-    const newExpanded = new Set(expandedRules);
-    if (newExpanded.has(index)) {
-      newExpanded.delete(index);
-    } else {
-      newExpanded.add(index);
-    }
-    setExpandedRules(newExpanded);
-  };
+  // 素材详情对话框状态
+  const [materialDialogOpen, setMaterialDialogOpen] = useState(false);
+  const [viewingRule, setViewingRule] = useState<Rule | null>(null);
 
   // 编辑对话框状态
   const [editDialogOpen, setEditDialogOpen] = useState(false);
@@ -287,7 +275,6 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
       {ruleGroup.rules.length > 0 ? (
         <div className="bg-[var(--muted)] rounded-md">
           {ruleGroup.rules.map((rule, index) => {
-            const isExpanded = expandedRules.has(index);
             const hasMaterials = rule.material_ids.length > 0;
             const isHighlighted = highlightedTypes.has(rule.type);
 
@@ -295,8 +282,14 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
               <React.Fragment key={index}>
                 <div
                   onContextMenu={(e) => handleContextMenu(e, index)}
-                  onClick={() => onRuleClick?.(rule, index)}
-                  className={`p-2 ${index < ruleGroup.rules.length - 1 || isExpanded ? 'border-b border-[var(--border)]' : ''} flex flex-col ${onRuleClick ? 'cursor-pointer' : 'cursor-context-menu'} hover:bg-[var(--accent)]/10`}
+                  onClick={() => {
+                    onRuleClick?.(rule, index);
+                    if (hasMaterials) {
+                      setViewingRule(rule);
+                      setMaterialDialogOpen(true);
+                    }
+                  }}
+                  className={`p-2 ${index < ruleGroup.rules.length - 1 ? 'border-b border-[var(--border)]' : ''} flex flex-col ${hasMaterials || onRuleClick ? 'cursor-pointer' : 'cursor-context-menu'} hover:bg-[var(--accent)]/10`}
                 >
                   <div className="flex items-center w-full">
                     <div className="flex-1">
@@ -323,25 +316,12 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
                           已添加
                         </span>
                       )}
-                      {hasMaterials && (
-                        <Tooltip delay={0}>
-                          <Button
-                            isIconOnly
-                            variant="ghost"
-                            size="sm"
-                            onPress={() => toggleExpand(index)}
-                            className="ml-1"
-                          >
-                            {isExpanded ? <ExpandLessIcon size={18} /> : <VisibilityIcon size={18} />}
-                          </Button>
-                          <Tooltip.Content>{isExpanded ? '收起素材' : '查看素材'}</Tooltip.Content>
-                        </Tooltip>
-                      )}
                       <Tooltip delay={0}>
                         <Button
                           isIconOnly
                           variant="ghost"
                           size="sm"
+                          onClick={(e) => e.stopPropagation()}
                           onPress={() => {
                             setEditingRule(rule);
                             setEditDialogOpen(true);
@@ -354,18 +334,6 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
                       </Tooltip>
                     </div>
                   </div>
-
-                  {isExpanded && (
-                    <div className="mt-2 pl-0">
-                      <div className="flex flex-wrap gap-1">
-                        {rule.material_ids.map((materialId) => (
-                          <React.Fragment key={materialId}>
-                            {renderMaterialChip(materialId)}
-                          </React.Fragment>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </React.Fragment>
             );
@@ -378,6 +346,30 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
           </span>
         </div>
       )}
+
+      {/* 素材详情对话框 */}
+      <Modal.Backdrop isOpen={materialDialogOpen} onOpenChange={setMaterialDialogOpen}>
+        <Modal.Container size="lg">
+          <Modal.Dialog>
+            <Modal.CloseTrigger />
+            <Modal.Header>
+              <Modal.Heading>素材详情{viewingRule ? ` - ${viewingRule.title || '未命名'}` : ''}</Modal.Heading>
+            </Modal.Header>
+            <Modal.Body>
+              {viewingRule?.material_ids.map((materialId) => (
+                <React.Fragment key={materialId}>
+                  {renderMaterialChip(materialId)}
+                </React.Fragment>
+              ))}
+            </Modal.Body>
+            <Modal.Footer>
+              <Button slot="close" variant="secondary">
+                关闭
+              </Button>
+            </Modal.Footer>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
 
       {/* 编辑对话框 */}
       <AddToRuleGroupDialog

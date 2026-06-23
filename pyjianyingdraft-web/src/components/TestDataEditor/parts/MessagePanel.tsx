@@ -30,7 +30,7 @@ export default function MessagePanel({
   onTaskError,
 }: MessagePanelProps) {
   return (
-    <div className={`p-4 ${hasDatasets ? '' : 'pb-0'} flex flex-col gap-2`}>
+    <div className={`${hasDatasets ? '' : 'pb-0'} flex flex-col gap-2`}>
       {error && (
         <div className="p-3 rounded-md border border-red-300 bg-red-50 text-red-800 text-sm flex justify-between items-start gap-2">
           <div className="whitespace-pre-wrap">{error}</div>
