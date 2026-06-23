@@ -304,36 +304,36 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
             <Modal.Header>
               <Modal.Heading>素材详情{viewingRule ? ` - ${viewingRule.title || '未命名'}` : ''}</Modal.Heading>
             </Modal.Header>
-            <Modal.Body>
-              <div className="flex flex-col gap-4">
-                {viewingRule?.material_ids.map((materialId) => {
-                  const material = findMaterial(materialId);
-                  if (!material) {
-                    return (
-                      <div key={materialId} className="text-sm text-red-600">
-                        素材未找到: {materialId}
-                      </div>
-                    );
-                  }
+            <Modal.Body className="flex flex-col gap-4 flex-1 min-h-0 overflow-y-auto">
+              {viewingRule?.material_ids.map((materialId) => {
+                const material = findMaterial(materialId);
+                if (!material) {
                   return (
-                    <div key={materialId} className="flex flex-col gap-1">
-                      <Tooltip delay={0}>
-                        <Chip color={getMaterialColor(material.type)}>
-                          <Chip.Label>{material.name || material.id.slice(0, 8)}</Chip.Label>
-                        </Chip>
-                        <Tooltip.Content>{getMaterialTooltipContent(material)}</Tooltip.Content>
-                      </Tooltip>
+                    <div key={materialId} className="text-sm text-red-600">
+                      素材未找到: {materialId}
+                    </div>
+                  );
+                }
+                return (
+                  <div key={materialId} className="flex flex-col gap-1 min-h-[220px] flex-1">
+                    <Tooltip delay={0}>
+                      <Chip color={getMaterialColor(material.type)}>
+                        <Chip.Label>{material.name || material.id.slice(0, 8)}</Chip.Label>
+                      </Chip>
+                      <Tooltip.Content>{getMaterialTooltipContent(material)}</Tooltip.Content>
+                    </Tooltip>
+                    <div className="flex-1 min-h-0 overflow-hidden">
                       <CodeMirrorEditor
                         value={JSON.stringify(material, null, 2)}
                         language="json"
                         theme="dark"
                         readOnly
-                        height={240}
+                        height="100%"
                       />
                     </div>
-                  );
-                })}
-              </div>
+                  </div>
+                );
+              })}
             </Modal.Body>
             <Modal.Footer>
               <Button slot="close" variant="secondary">

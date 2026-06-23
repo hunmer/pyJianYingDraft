@@ -72,6 +72,8 @@ class GenerationRecordService:
 
         # 保存到文件
         file_path = self._get_record_file_path(record.record_id)
+        # 幂等确保目录存在,避免目录缺失导致写入失败
+        self.storage_dir.mkdir(parents=True, exist_ok=True)
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(record.model_dump(mode='json'), f, ensure_ascii=False, indent=2, default=str)
 

@@ -13,7 +13,7 @@ import {
   XCircle as ErrorIcon,
   Ban as CancelIcon,
 } from 'lucide-react';
-import { ProgressBar } from '@heroui/react';
+import { Label, ProgressBar } from '@heroui/react';
 import { useTaskProgress, TaskStatus } from '../hooks/useTaskProgress';
 
 export interface DownloadProgressBarProps {
@@ -184,19 +184,19 @@ export function DownloadProgressBar({
       className="bg-[var(--card)] text-[var(--card-foreground)] border border-[var(--border)] rounded-md p-4 mb-4 flex flex-col gap-4"
       style={{ minHeight: height }}
     >
-      {/* 状态标题 */}
-      <div className="flex flex-row justify-between items-center">
-        <div className="flex flex-row gap-2 items-center">
+      {/* 进度条（含状态标题与百分比） */}
+      <ProgressBar aria-label="任务进度" value={progressPercent}>
+        <Label className="flex flex-row gap-2 items-center text-base font-semibold">
           {getStatusIcon(status)}
-          <div className="text-base font-semibold">{getStatusText(status)}</div>
-        </div>
-        <span className={`px-2 py-0.5 text-xs rounded ${getStatusClass(status)}`}>
+          {getStatusText(status)}
+        </Label>
+        <ProgressBar.Output className={`px-2 py-0.5 text-xs rounded ${getStatusClass(status)}`}>
           {progressPercent.toFixed(1)}%
-        </span>
-      </div>
-
-      {/* 进度条 */}
-      <ProgressBar aria-label="任务进度" value={progressPercent} />
+        </ProgressBar.Output>
+        <ProgressBar.Track>
+          <ProgressBar.Fill />
+        </ProgressBar.Track>
+      </ProgressBar>
 
       {/* 详细信息 */}
       {showDetails && progress && (
