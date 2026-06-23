@@ -387,7 +387,7 @@ export default function Home() {
         </div>
 
         {/* 内容区域 */}
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto">
           {/* 测试数据视图 */}
           {activeTab?.type === 'test_data' && (
             <TestDataEditorWithTabs
