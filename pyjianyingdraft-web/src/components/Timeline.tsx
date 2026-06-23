@@ -5,7 +5,7 @@ import { Timeline, TimelineEffect, TimelineRow, TimelineAction } from '@xzdarcy/
 import type { TrackInfo, SegmentInfo, MaterialInfo } from '@/types/draft';
 import type { RuleGroup, TestData, SegmentStylesPayload, RawSegmentPayload, RawMaterialPayload, RuleGroupTestRequest } from '@/types/rule';
 import { draftApi, ruleTestApi, tasksApi, generationRecordsApi, type AllMaterialsResponse } from '@/lib/api';
-import { Button, Tooltip } from '@heroui/react';
+import { Button, Tooltip, Tabs } from '@heroui/react';
 import { Play, Plus, Eye, Download, Upload } from 'lucide-react';
 import { RuleGroupSelector } from './RuleGroupSelector';
 import { RuleGroupList } from './RuleGroupList';
@@ -1375,22 +1375,23 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           className="timeline-right-panel flex flex-col h-full border-l border-[var(--border)] bg-[var(--card)]"
           style={{ width: '300px' }}
         >
-          <div className="flex border-b border-[var(--border)]" style={{ minHeight: '42px' }}>
-            <button
-              onClick={() => setActiveTab(0)}
-              className={`px-4 text-sm font-medium border-b-2 ${activeTab === 0 ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted-foreground)]'}`}
-              style={{ minHeight: '42px' }}
-            >
-              素材信息
-            </button>
-            <button
-              onClick={() => setActiveTab(1)}
-              className={`px-4 text-sm font-medium border-b-2 ${activeTab === 1 ? 'border-[var(--accent)] text-[var(--accent)]' : 'border-transparent text-[var(--muted-foreground)]'}`}
-              style={{ minHeight: '42px' }}
-            >
-              规则组
-            </button>
-          </div>
+          <Tabs
+            selectedKey={String(activeTab)}
+            onSelectionChange={(key) => setActiveTab(Number(key))}
+          >
+            <Tabs.ListContainer>
+              <Tabs.List aria-label="信息面板">
+                <Tabs.Tab id="0">
+                  素材信息
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+                <Tabs.Tab id="1">
+                  规则组
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs.ListContainer>
+          </Tabs>
 
           <TabPanel value={activeTab} index={0}>
             {selectedActionId ? (

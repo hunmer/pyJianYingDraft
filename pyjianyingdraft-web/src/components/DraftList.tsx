@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button, Tooltip, Spinner } from '@heroui/react';
+import { Button, Tooltip, Spinner, Checkbox, Dropdown, Label } from '@heroui/react';
 import {
   RefreshCw,
   Settings,
@@ -72,9 +72,6 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
     mouseY: number;
     draft: DraftListItem | null;
   } | null>(null);
-
-  // 下拉菜单状态（记录按钮位置）
-  const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number } | null>(null);
 
   // 检查是否在 Electron 环境
   const isElectron = typeof window !== 'undefined' && (window as any).electron;
@@ -266,31 +263,12 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
     } else {
       alert('此功能仅在 Electron 环境下可用');
     }
-    setDropdownPos(null);
-  };
-
-  /**
-   * 打开下拉菜单
-   */
-  const handleOpenDropdown = (event: React.MouseEvent<HTMLElement>) => {
-    const rect = event.currentTarget.getBoundingClientRect();
-    // 定位到按钮左下角
-    setDropdownPos({ top: rect.bottom, left: rect.left });
-  };
-
-  /**
-   * 关闭下拉菜单
-   */
-  const handleCloseDropdown = () => {
-    setDropdownPos(null);
   };
 
   /**
    * 导入压缩包草稿
    */
   const handleImportZip = async () => {
-    setDropdownPos(null);
-
     if (!isElectron) {
       alert('此功能仅在 Electron 环境下可用');
       return;
@@ -340,7 +318,6 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
    * 处理刷新
    */
   const handleRefresh = () => {
-    setDropdownPos(null);
     loadDrafts();
   };
 
@@ -348,8 +325,22 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
    * 处理设置
    */
   const handleSettings = () => {
-    setDropdownPos(null);
     setShowSettings(!showSettings);
+  };
+
+  /** 下拉菜单动作路由 */
+  const handleMenuAction = (key: React.Key) => {
+    switch (key) {
+      case 'openRoot':
+        handleOpenDraftRootFolder();
+        break;
+      case 'importZip':
+        handleImportZip();
+        break;
+      case 'settings':
+        handleSettings();
+        break;
+    }
   };
 
   /**
@@ -375,25 +366,47 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
               </Button>
               <Tooltip.Content placement="bottom">刷新</Tooltip.Content>
             </Tooltip>
-            <Tooltip delay={0}>
-              <Button isIconOnly variant="ghost" size="sm" onPress={handleOpenDropdown}>
+            <Dropdown>
+              <Button isIconOnly variant="ghost" size="sm" aria-label="更多操作">
                 <MoreVertical size={18} />
               </Button>
-              <Tooltip.Content placement="bottom">更多操作</Tooltip.Content>
-            </Tooltip>
+              <Dropdown.Popover>
+                <Dropdown.Menu onAction={handleMenuAction}>
+                  {isElectron && basePath && (
+                    <Dropdown.Item id="openRoot" textValue="打开草稿文件夹">
+                      <FolderOpen size={14} />
+                      <Label>打开草稿文件夹</Label>
+                    </Dropdown.Item>
+                  )}
+                  {isElectron && (
+                    <Dropdown.Item id="importZip" textValue="导入压缩包草稿">
+                      <Upload size={14} />
+                      <Label>导入压缩包草稿</Label>
+                    </Dropdown.Item>
+                  )}
+                  <Dropdown.Item id="settings" textValue="设置草稿目录">
+                    <Settings size={14} />
+                    <Label>设置草稿目录</Label>
+                  </Dropdown.Item>
+                </Dropdown.Menu>
+              </Dropdown.Popover>
+            </Dropdown>
           </div>
         </div>
 
         {/* 过滤开关 */}
-        <label className="flex items-center gap-2 text-sm text-[var(--muted-foreground)] cursor-pointer">
-          <input
-            type="checkbox"
-            checked={showOnlyWithRules}
-            onChange={(e) => setShowOnlyWithRules(e.target.checked)}
-            className="w-4 h-4"
-          />
-          只显示有规则的草稿
-        </label>
+        <Checkbox
+          isSelected={showOnlyWithRules}
+          onChange={(checked) => setShowOnlyWithRules(checked)}
+          className="text-sm text-[var(--muted-foreground)]"
+        >
+          <Checkbox.Content>
+            <Checkbox.Control>
+              <Checkbox.Indicator />
+            </Checkbox.Control>
+            只显示有规则的草稿
+          </Checkbox.Content>
+        </Checkbox>
 
         {/* 设置面板 */}
         {showSettings && (
@@ -516,27 +529,6 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
         </FloatingMenu>
       )}
 
-      {/* 下拉菜单 */}
-      {dropdownPos && (
-        <FloatingMenu position={dropdownPos} onClose={handleCloseDropdown}>
-          {isElectron && basePath && (
-            <button type="button" role="menuitem" className={menuItemClass} onClick={handleOpenDraftRootFolder}>
-              <FolderOpen size={14} />
-              打开草稿文件夹
-            </button>
-          )}
-          {isElectron && (
-            <button type="button" role="menuitem" className={menuItemClass} onClick={handleImportZip}>
-              <Upload size={14} />
-              导入压缩包草稿
-            </button>
-          )}
-          <button type="button" role="menuitem" className={menuItemClass} onClick={handleSettings}>
-            <Settings size={14} />
-            设置草稿目录
-          </button>
-        </FloatingMenu>
-      )}
     </div>
   );
 }

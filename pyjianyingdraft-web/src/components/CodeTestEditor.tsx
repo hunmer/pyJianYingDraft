@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useCallback, useRef, useEffect } from 'react';
-import { Button, Tooltip } from '@heroui/react';
+import { Button, Tooltip, RadioGroup, Radio, Tabs } from '@heroui/react';
 import { Play, RefreshCw, Code, Send, X } from 'lucide-react';
 import CodeMirrorEditor from '@/components/CodeMirrorEditor';
 import { useSnapshots } from '@/hooks/useSnapshots';
@@ -852,27 +852,32 @@ export default function CodeTestEditor({
         <div className="flex justify-between items-center">
           <div className="text-base font-semibold">代码测试</div>
           <div className="flex gap-4 items-center">
-            <div className="flex items-center gap-3">
-              {(['javascript', 'typescript', 'python'] as const).map((lang) => (
-                <label key={lang} className="flex items-center gap-1 text-sm cursor-pointer">
-                  <input
-                    type="radio"
-                    name="language"
-                    value={lang}
-                    checked={language === lang}
-                    onChange={(e) => setLanguage(e.target.value as 'javascript' | 'typescript' | 'python')}
-                    className="accent-[var(--accent)]"
-                  />
-                  <span>{lang === 'javascript' ? 'JavaScript' : lang === 'typescript' ? 'TypeScript' : 'Python'}</span>
-                  {lang === 'typescript' && language === 'typescript' && !tsLoaded && (
-                    <span className="text-xs text-amber-600">(加载中...)</span>
-                  )}
-                  {lang === 'python' && language === 'python' && !pyodideLoaded && (
-                    <span className="text-xs text-amber-600">(加载中...)</span>
-                  )}
-                </label>
-              ))}
-            </div>
+            <RadioGroup
+              name="language"
+              orientation="horizontal"
+              value={language}
+              onChange={(value) => setLanguage(value as 'javascript' | 'typescript' | 'python')}
+            >
+              {(['javascript', 'typescript', 'python'] as const).map((lang) => {
+                const label = lang === 'javascript' ? 'JavaScript' : lang === 'typescript' ? 'TypeScript' : 'Python';
+                const isLoading =
+                  (lang === 'typescript' && !tsLoaded) ||
+                  (lang === 'python' && !pyodideLoaded);
+                return (
+                  <Radio key={lang} value={lang} className="text-sm">
+                    <Radio.Content>
+                      <Radio.Control>
+                        <Radio.Indicator />
+                      </Radio.Control>
+                      {label}
+                      {lang === language && isLoading && (
+                        <span className="text-xs text-amber-600">(加载中...)</span>
+                      )}
+                    </Radio.Content>
+                  </Radio>
+                );
+              })}
+            </RadioGroup>
             <Button size="sm" variant="outline" onPress={handleReset}>
               重置全部
             </Button>
@@ -959,25 +964,22 @@ export default function CodeTestEditor({
         {/* 右侧：数据面板 */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <div className="p-4 border border-[var(--border)] rounded-md h-full flex flex-col">
-            {/* Tab切换器 */}
-            <div className="flex border-b border-[var(--border)] mb-4">
-              {rightTabs.map((label, idx) => (
-                <button
-                  key={label}
-                  onClick={() => setRightTabValue(idx)}
-                  className={'px-4 py-2 text-sm font-medium ' + (rightTabValue === idx
-                    ? 'border-b-2 border-[var(--accent)] text-[var(--accent)]'
-                    : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]')}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-
-            {/* Tab内容 */}
-            <div className="flex-1 overflow-hidden">
-              {/* 输入数据Tab */}
-              {rightTabValue === 0 && (
+            <Tabs
+              selectedKey={String(rightTabValue)}
+              onSelectionChange={(key) => setRightTabValue(Number(key))}
+              className="flex-1 flex flex-col overflow-hidden"
+            >
+              <Tabs.ListContainer>
+                <Tabs.List aria-label="数据面板">
+                  {rightTabs.map((label, idx) => (
+                    <Tabs.Tab key={idx} id={String(idx)}>
+                      {label}
+                      <Tabs.Indicator />
+                    </Tabs.Tab>
+                  ))}
+                </Tabs.List>
+              </Tabs.ListContainer>
+              <Tabs.Panel id="0" className="flex-1 overflow-hidden pt-4">
                 <div className="h-full flex flex-col">
                   <div className="flex justify-between items-center mb-2">
                     <div className="text-sm font-semibold">
@@ -1020,10 +1022,8 @@ export default function CodeTestEditor({
                     />
                   </div>
                 </div>
-              )}
-
-              {/* 输出数据Tab */}
-              {rightTabValue === 1 && (
+              </Tabs.Panel>
+              <Tabs.Panel id="1" className="flex-1 overflow-hidden pt-4">
                 <div className="h-full flex flex-col">
                   <div className="text-sm font-semibold mb-2">
                     执行结果
@@ -1053,8 +1053,8 @@ export default function CodeTestEditor({
                     )}
                   </div>
                 </div>
-              )}
-            </div>
+              </Tabs.Panel>
+            </Tabs>
           </div>
         </div>
       </div>

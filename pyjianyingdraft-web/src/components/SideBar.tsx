@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Tabs } from '@heroui/react';
 import DraftList from './DraftList';
 import { RuleGroupPanel } from './RuleGroupPanel';
 import type { RuleGroup } from '@/types/rule';
@@ -52,23 +53,21 @@ export const SideBar: React.FC<SideBarProps> = ({
       }}
     >
       {/* 左侧栏 Tabs */}
-      <div className="flex border-b border-[var(--border)]">
-        {['草稿列表', '规则组'].map((label, idx) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => setLeftTabValue(idx)}
-            className={
-              'flex-1 px-3 py-2 text-sm font-medium transition-colors ' +
-              (leftTabValue === idx
-                ? 'border-b-2 border-[var(--accent)] text-[var(--accent)]'
-                : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]')
-            }
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        selectedKey={String(leftTabValue)}
+        onSelectionChange={(key) => setLeftTabValue(Number(key))}
+      >
+        <Tabs.ListContainer>
+          <Tabs.List aria-label="左侧栏">
+            {['草稿列表', '规则组'].map((label, idx) => (
+              <Tabs.Tab key={idx} id={String(idx)}>
+                {label}
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
+      </Tabs>
 
       {/* Tab 内容 */}
       <div className="relative flex-1 overflow-hidden">

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useImperativeHandle, forwardRef } from 'react';
+import { Tabs } from '@heroui/react';
 import TestDataEditor, { TestDataEditorRef } from './TestDataEditor';
 import CodeTestEditor from './CodeTestEditor';
 import type { TestData, RuleGroup, MaterialInfo } from '@/types/rule';
@@ -98,23 +99,21 @@ const TestDataEditorWithTabs = forwardRef<TestDataEditorWithTabsRef, TestDataEdi
   return (
     <div className="flex flex-col h-full">
       {/* Tab切换器 */}
-      <div className="flex border-b border-[var(--border)]">
-        {tabs.map((label, idx) => (
-          <button
-            key={label}
-            type="button"
-            onClick={() => setCurrentTab(idx)}
-            className={
-              'flex items-center gap-1 px-4 py-2 text-sm font-medium transition-colors ' +
-              (currentTab === idx
-                ? 'border-b-2 border-[var(--accent)] text-[var(--accent)]'
-                : 'text-[var(--muted-foreground)] hover:text-[var(--foreground)]')
-            }
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs
+        selectedKey={String(currentTab)}
+        onSelectionChange={(key) => setCurrentTab(Number(key))}
+      >
+        <Tabs.ListContainer>
+          <Tabs.List aria-label="测试数据编辑">
+            {tabs.map((label, idx) => (
+              <Tabs.Tab key={idx} id={String(idx)}>
+                {label}
+                <Tabs.Indicator />
+              </Tabs.Tab>
+            ))}
+          </Tabs.List>
+        </Tabs.ListContainer>
+      </Tabs>
 
       {/* Tab内容 */}
       <div className="flex-1 overflow-hidden">

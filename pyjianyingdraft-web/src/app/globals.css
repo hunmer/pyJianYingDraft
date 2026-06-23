@@ -33,6 +33,10 @@
   --foreground: oklch(21.03% 0.0015 253.83);
   --muted: oklch(96.00% 0.0015 253.83);
   --muted-foreground: oklch(55.17% 0.0030 253.83);
+  --popover: var(--surface);
+  --popover-foreground: var(--surface-foreground);
+  --card: var(--surface);
+  --card-foreground: var(--surface-foreground);
   --overlay: oklch(100.00% 0.0004 253.83);
   --overlay-foreground: oklch(21.03% 0.0015 253.83);
   --scrollbar: oklch(87.10% 0.0015 253.83);
@@ -79,6 +83,10 @@
   --foreground: oklch(99.11% 0.0015 253.83);
   --muted: oklch(25.70% 0.0023 253.83);
   --muted-foreground: oklch(70.50% 0.0030 253.83);
+  --popover: var(--surface);
+  --popover-foreground: var(--surface-foreground);
+  --card: var(--surface);
+  --card-foreground: var(--surface-foreground);
   --overlay: oklch(21.03% 0.0030 253.83);
   --overlay-foreground: oklch(99.11% 0.0015 253.83);
   --scrollbar: oklch(70.50% 0.0015 253.83);
