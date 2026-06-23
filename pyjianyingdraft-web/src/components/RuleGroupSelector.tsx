@@ -268,13 +268,20 @@ export const RuleGroupSelector: React.FC<RuleGroupSelectorProps> = ({
         }}
         isDisabled={disabled || loading || localRuleGroups.length === 0}
       >
-        <ListBox>
-          {localRuleGroups.map((group, index) => (
-            <ListBox.Item key={group.id} id={group.id} textValue={renderSelectLabel(index, group)}>
-              {renderSelectLabel(index, group)}
-            </ListBox.Item>
-          ))}
-        </ListBox>
+        <Select.Trigger>
+          <Select.Value />
+          <Select.Indicator />
+        </Select.Trigger>
+        <Select.Popover>
+          <ListBox>
+            {localRuleGroups.map((group, index) => (
+              <ListBox.Item key={group.id} id={group.id} textValue={renderSelectLabel(index, group)}>
+                {renderSelectLabel(index, group)}
+                <ListBox.ItemIndicator />
+              </ListBox.Item>
+            ))}
+          </ListBox>
+        </Select.Popover>
       </Select>
 
       <Dropdown>

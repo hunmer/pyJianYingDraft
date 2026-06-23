@@ -119,10 +119,10 @@ export default function SnapshotManager({
         <Button
           size="sm"
           variant="ghost"
-          startContent={<CameraAltIcon size={16} />}
           onPress={handleOpenCreateDialog}
           isDisabled={disabled}
         >
+          <CameraAltIcon size={16} />
           创建快照
         </Button>
 
@@ -131,11 +131,11 @@ export default function SnapshotManager({
             <Button
               size="sm"
               variant="ghost"
-              startContent={<HistoryIcon size={16} />}
               endContent={<ArrowDropDownIcon size={16} />}
               onPress={(e) => setMenuAnchor(e.currentTarget as HTMLElement)}
               isDisabled={disabled}
             >
+              <HistoryIcon size={16} />
               快照 ({snapshots.length})
             </Button>
 
@@ -277,9 +277,9 @@ export default function SnapshotManager({
               </Button>
               <Button
                 size="sm"
-                startContent={<CameraAltIcon size={16} />}
                 onPress={handleCreateSnapshot}
               >
+                <CameraAltIcon size={16} />
                 创建
               </Button>
             </div>
@@ -317,9 +317,9 @@ export default function SnapshotManager({
               </Button>
               <Button
                 size="sm"
-                startContent={<EditIcon size={16} />}
                 onPress={handleRenameSnapshot}
               >
+                <EditIcon size={16} />
                 确定
               </Button>
             </div>

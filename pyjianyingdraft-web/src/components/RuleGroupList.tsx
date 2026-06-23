@@ -280,17 +280,6 @@ export const RuleGroupList: React.FC<RuleGroupListProps> = ({
               </Button>
               <Tooltip.Content>编辑规则组</Tooltip.Content>
             </Tooltip>
-            <Button
-              variant="ghost"
-              size="sm"
-              startContent={<EditIcon size={16} />}
-              onPress={() => {
-                setEditingRule(null);
-                setEditDialogOpen(true);
-              }}
-            >
-              添加
-            </Button>
           </div>
         </div>
       )}

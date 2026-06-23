@@ -249,8 +249,8 @@ export function GenerationRecordsDialog({ open, onClose, onReimport, onOpenDownl
                       variant="outline"
                       size="sm"
                       onPress={handleReimport}
-                      startContent={<RotateCcw size={16} />}
                     >
+                      <RotateCcw size={16} />
                       重新导入
                     </Button>
                   </div>
@@ -279,8 +279,8 @@ export function GenerationRecordsDialog({ open, onClose, onReimport, onOpenDownl
                       <Button
                         size="lg"
                         onPress={handleOpenDownloads}
-                        startContent={<Download size={18} />}
                       >
+                        <Download size={18} />
                         打开下载管理器
                       </Button>
                     )}

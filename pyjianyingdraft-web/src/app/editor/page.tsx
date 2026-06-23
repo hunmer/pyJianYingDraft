@@ -123,9 +123,9 @@ export default function EditorPage() {
                 size="lg"
                 onPress={handleLoadDraft}
                 isDisabled={loading || !draftPath.trim()}
-                startContent={loading ? <Spinner size="sm" /> : <Play size={18} />}
                 className="h-14"
               >
+                {loading ? <Spinner size="sm" /> : <Play size={18} />}
                 {loading ? '加载中...' : '加载草稿'}
               </Button>
             </div>

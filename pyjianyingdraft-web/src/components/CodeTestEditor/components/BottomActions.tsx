@@ -29,8 +29,8 @@ export default function BottomActions({
           isDisabled={executing}
           fullWidth
           size="lg"
-          startContent={<Play size={18} />}
         >
+          <Play size={18} />
           {executing ? '执行中...' : '执行代码'}
         </Button>
         <Button
@@ -38,9 +38,9 @@ export default function BottomActions({
           variant="outline"
           isDisabled={!canSend}
           size="lg"
-          startContent={<Send size={18} />}
           className="min-w-[120px]"
         >
+          <Send size={18} />
           发送测试
         </Button>
       </div>

@@ -267,12 +267,6 @@ export const TimelineEditor: React.FC<TimelineEditorProps> = ({
           </Button>
         </div>
         <div className="flex gap-1">
-          <Button isIconOnly variant="ghost" size="sm">
-            <Download size={18} />
-          </Button>
-          <Button isIconOnly variant="ghost" size="sm">
-            <Upload size={18} />
-          </Button>
           <Button
             isIconOnly
             variant="ghost"

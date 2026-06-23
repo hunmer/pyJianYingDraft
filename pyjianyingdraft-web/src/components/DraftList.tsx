@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Button, Tooltip, Spinner, Checkbox, Dropdown, Label, ListBox, Avatar, Description } from '@heroui/react';
+import { Button, Tooltip, Spinner, Checkbox, Dropdown, Label, ListBox, Avatar, Description, CloseButton } from '@heroui/react';
 import {
   RefreshCw,
   Settings,
@@ -418,8 +418,12 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
               className="bg-[var(--popover)] border border-[var(--border)] rounded-md shadow-xl w-full max-w-md mx-4"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
+              <div className="relative px-4 py-3 border-b border-[var(--border)] text-base font-semibold">
                 设置
+                <CloseButton
+                  onPress={() => setShowSettings(false)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2"
+                />
               </div>
               <div className="px-4 py-4 flex flex-col gap-3">
                 <PathSelector
@@ -448,11 +452,6 @@ export default function DraftList({ onDraftSelect, onRulesUpdated, onDraftRootCh
                     保存并加载草稿
                   </Button>
                 )}
-              </div>
-              <div className="flex justify-end gap-2 px-4 py-3 border-t border-[var(--border)]">
-                <Button variant="ghost" size="sm" onPress={() => setShowSettings(false)}>
-                  关闭
-                </Button>
               </div>
             </div>
           </div>

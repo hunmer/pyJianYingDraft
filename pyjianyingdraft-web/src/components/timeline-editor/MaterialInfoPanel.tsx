@@ -64,6 +64,65 @@ export function MaterialInfoPanel({
       <div className="text-sm font-semibold">
         素材详情
       </div>
+      
+      {/* 规则组状态信息 */}
+      {material && selectedRuleGroup && (
+        <>
+          <div className="border-b border-[var(--border)]" />
+          <div>
+            <div className="text-sm font-semibold">
+              规则组状态
+            </div>
+            {(() => {
+              const rulesUsingMaterial = selectedRuleGroup.rules.filter(rule =>
+                rule.material_ids.includes(material.id)
+              );
+              const isInRuleGroup = rulesUsingMaterial.length > 0;
+
+              return (
+                <div className="flex flex-col gap-1">
+                  <div>
+                    <div className="text-xs text-[var(--muted-foreground)]">当前规则组</div>
+                    <div className="text-sm">{selectedRuleGroup.title}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-[var(--muted-foreground)]">状态</div>
+                    <div
+                      className="text-sm font-semibold"
+                      style={{ color: isInRuleGroup ? '#16a34a' : '#d97706' }}
+                    >
+                      {isInRuleGroup ? '✓ 已添加' : '未添加'}
+                    </div>
+                  </div>
+                  {isInRuleGroup && rulesUsingMaterial.length > 0 && (
+                    <div>
+                      <div className="text-xs text-[var(--muted-foreground)]">使用此素材的规则</div>
+                      {rulesUsingMaterial.map((rule, index) => (
+                        <div key={index} className="text-sm ml-2">
+                          • {rule.title}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </>
+      )}
+
+      {/* 素材预览 */}
+      {material && (
+        <>
+          <div className="border-b border-[var(--border)]" />
+          <div>
+            <div className="text-sm font-semibold">
+              素材预览
+            </div>
+            <MaterialPreview material={material} />
+          </div>
+        </>
+      )}
       <div className="flex flex-col gap-1.5">
         <div>
           <div className="text-xs text-[var(--muted-foreground)]">名称</div>
@@ -137,64 +196,6 @@ export function MaterialInfoPanel({
         )}
       </div>
 
-      {/* 规则组状态信息 */}
-      {material && selectedRuleGroup && (
-        <>
-          <div className="border-b border-[var(--border)]" />
-          <div>
-            <div className="text-sm font-semibold">
-              规则组状态
-            </div>
-            {(() => {
-              const rulesUsingMaterial = selectedRuleGroup.rules.filter(rule =>
-                rule.material_ids.includes(material.id)
-              );
-              const isInRuleGroup = rulesUsingMaterial.length > 0;
-
-              return (
-                <div className="flex flex-col gap-1">
-                  <div>
-                    <div className="text-xs text-[var(--muted-foreground)]">当前规则组</div>
-                    <div className="text-sm">{selectedRuleGroup.title}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-[var(--muted-foreground)]">状态</div>
-                    <div
-                      className="text-sm font-semibold"
-                      style={{ color: isInRuleGroup ? '#16a34a' : '#d97706' }}
-                    >
-                      {isInRuleGroup ? '✓ 已添加' : '未添加'}
-                    </div>
-                  </div>
-                  {isInRuleGroup && rulesUsingMaterial.length > 0 && (
-                    <div>
-                      <div className="text-xs text-[var(--muted-foreground)]">使用此素材的规则</div>
-                      {rulesUsingMaterial.map((rule, index) => (
-                        <div key={index} className="text-sm ml-2">
-                          • {rule.title}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
-          </div>
-        </>
-      )}
-
-      {/* 素材预览 */}
-      {material && (
-        <>
-          <div className="border-b border-[var(--border)]" />
-          <div>
-            <div className="text-sm font-semibold">
-              素材预览
-            </div>
-            <MaterialPreview material={material} />
-          </div>
-        </>
-      )}
 
       {/* 添加到规则组按钮 */}
       {material && (

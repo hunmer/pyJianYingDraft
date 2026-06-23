@@ -30,7 +30,8 @@ export default function EditorHeader({
     <div className="p-4 border-b border-[var(--border)]">
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-4">
-          <Button size="sm" variant="outline" onPress={onReset} startContent={<RotateCcw size={16} />}>
+          <Button size="sm" variant="outline" onPress={onReset}>
+            <RotateCcw size={16} />
             重置为示例数据
           </Button>
           <div className="text-xs text-[var(--muted-foreground)]">

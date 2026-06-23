@@ -34,8 +34,8 @@ export default function BottomActions({
             variant="outline"
             isDisabled={!canDownload}
             onPress={onDownloadBase}
-            startContent={<Download size={16} />}
           >
+            <Download size={16} />
             下载基础数据
           </Button>
           <Button
@@ -74,17 +74,17 @@ export default function BottomActions({
         <Button
           onPress={onSaveDataset}
           variant="outline"
-          startContent={<Save size={16} />}
         >
+          <Save size={16} />
           保存数据集
         </Button>
         <Button
           onPress={onTest}
           variant="primary"
-          startContent={<Play size={16} />}
           isDisabled={testing}
           data-testid="test-run-button"
         >
+          <Play size={16} />
           {testing ? '测试中...' : '运行测试'}
         </Button>
       </div>

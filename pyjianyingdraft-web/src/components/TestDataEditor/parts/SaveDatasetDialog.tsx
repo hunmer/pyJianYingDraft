@@ -77,7 +77,8 @@ export default function SaveDatasetDialog({
         </div>
         <div className="px-4 py-3 border-t border-[var(--border)] flex justify-end gap-2">
           <Button variant="ghost" onPress={onClose}>取消</Button>
-          <Button variant="primary" onPress={onSave} startContent={<Save size={16} />}>
+          <Button variant="primary" onPress={onSave}>
+            <Save size={16} />
             保存
           </Button>
         </div>

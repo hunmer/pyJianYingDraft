@@ -337,8 +337,8 @@ export default function PathReplacementDialog({
           </Button>
           <Button
             onPress={handleConfirm}
-            startContent={<LinkIcon size={16} />}
           >
+            <LinkIcon size={16} />
             确定导出
             {replacedCount > 0 && ` (${replacedCount} 个已替换)`}
           </Button>
