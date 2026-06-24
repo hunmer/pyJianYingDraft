@@ -1,295 +1,65 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## 项目简单介绍
 
-## 项目概述
+pyJianYingDraft 是一个完整的剪映（JianYing/CapCut）草稿文件（`draft_content.json`）编程工具集，覆盖"生成 / 加载模板 / 服务化 / 可视化"全链路。仓库由三个独立但相互依赖的子项目组成：核心 Python 库（`pyJianYingDraft/`）、FastAPI 后端（`pyJianYingDraftServer/`）、Next.js 前端（`pyjianyingdraft-web/`）。
 
-**pyJianYingDraft** 是一个完整的剪映草稿文件编程工具集,包含三个主要组件:
+核心能力：编程生成剪映草稿（音视频/文本/特效/转场/关键帧/动画）、模板模式加载现有草稿并替换素材与文本、Windows 下通过 UI 自动化批量导出视频（仅剪映 ≤6.x）。
 
-1. **pyJianYingDraft (核心库)** - Python 库,用于编程方式生成和操作剪映草稿文件
-2. **pyJianYingDraftServer** - FastAPI 后端服务,提供 REST API 和 WebSocket 接口
-3. **pyjianyingdraft-web** - Next.js + Electron 前端应用,提供可视化界面
+关键技术栈：Python 3.8/3.11 + pymediainfo/imageio/uiautomation、FastAPI + SQLite + Aria2、Next.js 15 + React 19 + HeroUI + Tailwind v4 + CodeMirror + 时间轴编辑器。
 
-### 子项目导航
+## 约定的规则
 
-每个子项目都有自己的详细 CLAUDE.md 文档:
-- `pyJianYingDraftServer/CLAUDE.md` - FastAPI 后端开发指南
-- `pyjianyingdraft-web/CLAUDE.md` - Next.js 前端开发指南
+- 时间系统：内部统一用微秒 `int`，`SEC = 1000000`；`tim("1.5s")` 转微秒；`trange(start, duration)` 第二个参数是**持续时长**，不是结束时间。
+- 主视频轨道（最底层）片段必须从 `0s` 开始，否则剪映强制对齐。
+- 模板模式仅支持剪映 **≤ 5.9**（6+ 文件加密）；自动导出仅支持剪映 **≤ 6.x**（7+ 隐藏控件）。
+- 类名 PascalCase；保留 snake_case 旧别名（如 `Script_file`）但触发 `DeprecationWarning`。
+- 链式调用：大多数核心库方法返回 `self`。
+- 后端开发模式必须禁用 `--reload`（防止多个 aria2c 进程冲突），入口为 `app.main:app`。
+- 路径使用 `os.path.join()` 跨平台；Windows 路径用原始字符串。
+- 不要修改根日志配置（与 uvicorn 冲突）；用 `print()` + `sys.stdout.flush()`。
+- 更多规则见 [约定详情](claude/conventions.md)。
 
-**本文档聚焦于核心 Python 库的开发。**
+## 文件索引
 
-## 核心能力
+| 文件 | 用途 | 何时阅读 |
+| --- | --- | --- |
+| [架构总览](claude/overview.md) | 三模块关系、运行时形态、设计取舍 | 第一次接手项目 |
+| [约定详情](claude/conventions.md) | 命令、风格、兼容性、注意事项细则 | 写代码前 |
+| [模块职责](claude/module-responsibilities.md) | 三个子项目的职责与边界 | 规划跨模块改动 |
+| [入口与启动](claude/entrypoints.md) | 各模块入口文件、启动/构建流程 | 跑起来或排错 |
+| [对外接口](claude/public-interfaces.md) | 后端 REST/WebSocket、前端路由、SDK 导出 | 调用接口 |
+| [依赖与配置](claude/dependencies-and-config.md) | 关键依赖、版本差异、配置文件 | 升级或环境问题 |
+| [数据模型](claude/data-model.md) | 核心类层次、SQLite 表、规则组结构 | 设计数据流 |
+| [测试与质量](claude/testing-and-quality.md) | 测试命令、覆盖情况、质量风险 | 验证改动 |
+| [文件地图](claude/file-map.md) | 重要目录与关键文件清单 | 找文件 |
+| [常见问题](claude/faq.md) | 高频陷阱及定位路径 | 排错 |
+| [变更记录](claude/changelog.md) | 索引生成/更新记录 | 看历史 |
 
-- 生成剪映草稿文件 (`draft_content.json`)
-- 模板模式:加载现有草稿并替换素材/文本
-- 自动导出:控制剪映批量导出视频(仅 Windows,剪映 ≤6.x)
+## 模块索引
 
-## 开发环境
-
-- **Python 版本:** 推荐 3.8 或 3.11
-- **依赖:** pymediainfo, imageio, uiautomation (Windows)
-- **测试:** 主要在剪映 5.9 版本测试,部分功能支持 5.x-7.x
-
-## 架构设计
-
-### 核心类层次
-
-```
-DraftFolder (草稿文件夹管理器)
-└── ScriptFile (草稿文件核心)
-    ├── ScriptMaterial (素材集合: 音视频/文本/特效/转场等)
-    ├── Track (轨道: video/audio/text/effect/filter)
-    │   └── Segment (片段基类)
-    │       ├── VideoSegment / AudioSegment
-    │       ├── TextSegment
-    │       ├── StickerSegment
-    │       ├── EffectSegment / FilterSegment
-    │       └── ImportedSegment (模板模式)
-    └── ImportedTrack (模板模式导入的轨道)
-        ├── ImportedMediaTrack (音视频轨道)
-        └── ImportedTextTrack (文本轨道)
-```
-
-### 关键设计模式
-
-1. **链式调用:** 大多数方法返回 `self`,支持 `.add_track().add_segment().save()` 链式写法
-2. **素材自动管理:** 添加片段时自动收集并注册相关素材(Material/Effect/Transition 等)
-3. **模板与创建模式分离:**
-   - 创建模式: 从头构建草稿,完全可控
-   - 模板模式: 加载现有草稿,保留复杂特性(复合片段/文本特效等),仅允许受限编辑
-
-## 常用开发任务
-
-### 开发和测试
-
-```bash
-# 运行核心库示例
-python demo.py  # 需先修改代码中的草稿文件夹路径
-python demo_subdrafts.py  # 复合片段示例
-
-# 启动后端服务 (用于 API 测试)
-cd pyJianYingDraftServer
-python run.py
-
-# 启动前端应用 (用于可视化测试)
-cd pyjianyingdraft-web
-npm run dev
+```mermaid
+graph TD
+    Root["(根) pyJianYingDraft 工具集"] --> Core["pyJianYingDraft/ (核心库)"]
+    Root --> Server["pyJianYingDraftServer/ (FastAPI 后端)"]
+    Root --> Web["pyjianyingdraft-web/ (Next.js 前端)"]
+    Server -.依赖.-> Core
+    Web -.HTTP/WS.-> Server
+    click Core "./pyJianYingDraft/CLAUDE.md" "查看核心库文档"
+    click Server "./pyJianYingDraftServer/CLAUDE.md" "查看后端文档"
+    click Web "./pyjianyingdraft-web/CLAUDE.md" "查看前端文档"
 ```
 
-### 打包和发布
+| 模块路径 | 职责摘要 | 文档 |
+| --- | --- | --- |
+| `pyJianYingDraft/` | 核心 Python 库：草稿生成、模板模式、UI 自动化导出 | [CLAUDE.md](pyJianYingDraft/CLAUDE.md) |
+| `pyJianYingDraftServer/` | FastAPI 后端：REST/WebSocket、Aria2 异步下载、SQLite 任务持久化 | [CLAUDE.md](pyJianYingDraftServer/CLAUDE.md) |
+| `pyjianyingdraft-web/` | Next.js + React 19 前端：时间轴编辑器、规则组、下载管理 | [CLAUDE.md](pyjianyingdraft-web/CLAUDE.md) |
 
-```bash
-# 打包 Python 库 (pip)
-python setup.py sdist bdist_wheel
+## 扫描状态
 
-# 打包后端服务 (单文件可执行程序)
-cd pyJianYingDraftServer
-python build_server.py
-
-# 打包前端应用 (Electron 桌面应用)
-cd pyjianyingdraft-web
-npm run build:all  # 包含后端打包
-```
-
-### 测试和验证
-
-- **手动验证:** 运行代码后在剪映中打开生成的草稿,检查时间轴是否符合预期
-- **注意:** 核心库无自动化测试,依赖剪映软件验证
-- **后端测试:** 参见 `pyJianYingDraftServer/test_*.py` 系列文件
-- **前端测试:** 通过浏览器开发工具检查 API 调用和 WebSocket 连接
-
-### 时间系统
-- **内部单位:** 微秒 (`int`)
-- **便捷输入:** 字符串形式如 `"1.5s"`, `"1h3m12s"`
-- **转换函数:**
-  - `tim(time_str)`: 字符串 → 微秒
-  - `trange(start, duration)`: 创建 `Timerange` 对象 (注意第二个参数是**持续时长**,不是结束时间)
-  - `SEC = 1000000` (1秒 = 1,000,000 微秒)
-
-### 路径处理原则
-- 使用 `os.path.join()` 构建跨平台路径
-- 素材路径支持绝对路径和相对路径
-- Windows 路径在代码中使用原始字符串 `r"path\to\file"`
-
-## 模块职责
-
-### 核心模块
-- **`script_file.py`**: 草稿文件主类 `ScriptFile`,管理整体结构和导出逻辑
-- **`draft_folder.py`**: 文件夹级别操作,创建/加载/复制草稿
-- **`track.py`**: 轨道管理,包括 `TrackType` 枚举和 `Track` 类
-- **`segment.py`**: 片段基类,定义共通属性(time_range, material_id 等)
-
-### 片段类型
-- **`video_segment.py`**: 视频/贴纸片段,关键帧,蒙版,动画,特效,滤镜,转场,背景填充
-- **`audio_segment.py`**: 音频片段,音量关键帧,淡入淡出,音效
-- **`text_segment.py`**: 文本片段,字体样式,气泡/花字效果,描边/阴影/背景
-- **`effect_segment.py`**: 独立轨道上的特效/滤镜片段
-
-### 素材与元数据
-- **`local_materials.py`**: 本地素材封装 (`VideoMaterial`, `AudioMaterial`),含媒体信息提取
-- **`metadata/`**: 剪映内置资源的枚举定义
-  - `font_meta.py`, `filter_meta.py`, `transition_meta.py` 等
-  - 枚举成员以中文命名,对应剪映 UI 中的名称
-  - 注释中标注可调参数及其顺序
-
-### 工具模块
-- **`time_util.py`**: 时间转换 (`tim`, `trange`, `Timerange`, `srt_tstamp`)
-- **`keyframe.py`**: 关键帧系统,支持 alpha/transform/scale/volume 等属性
-- **`animation.py`**: 入场/出场/循环动画的元数据管理
-- **`template_mode.py`**: 模板模式专用类 (`ImportedTrack`, `ShrinkMode`, `ExtendMode`)
-- **`jianying_controller.py`**: UI 自动化导出 (Windows only, 依赖 uiautomation)
-- **`util.py`**: 通用工具函数 (JSON 序列化,属性赋值等)
-- **`exceptions.py`**: 自定义异常 (`MaterialNotFound`, `TrackNotFound`, `ExtensionFailed` 等)
-
-## 重要约定
-
-### 命名规范
-- **类名:** PascalCase (如 `VideoSegment`, `ScriptFile`)
-- **向后兼容:** 保留 snake_case 别名(如 `Script_file`),但会触发 `DeprecationWarning`
-- **枚举类:** 中文成员名直接对应剪映 UI,提供 `from_name()` 忽略大小写/空格/下划线查找
-
-### 参数顺序约定
-- 片段构造函数: `__init__(material, target_timerange, source_timerange=None, speed=None, ...)`
-- `target_timerange`: 片段在时间轴上的位置和长度
-- `source_timerange`: 从素材中截取的范围 (可选,默认自动计算)
-- `speed`: 播放速度 (可选,默认 1.0)
-
-### 特效和滤镜参数
-- 参数列表 (`params`) 顺序以枚举类**注释**为准,不一定与剪映 UI 顺序一致
-- 参数值范围 0-100,对应剪映 UI 中的百分比
-- `None` 表示使用默认值
-
-### 轨道层级
-- `relative_index`: 相对于同类型轨道的层级,值越大越靠近前景
-- `absolute_index`: 直接覆盖 `render_index`,供高级用户使用
-- 主视频轨道(最底层)的片段必须从 0s 开始
-
-### 模板模式限制
-- 仅支持未加密的 `draft_content.json` (剪映 ≤5.9)
-- 导入的轨道(`ImportedTrack`)不可直接添加新片段
-- 支持三种替换:
-  1. 按名称替换素材 (`replace_material_by_name`) - 影响所有引用
-  2. 按片段替换素材 (`replace_material_by_seg`) - 单个片段,支持时间范围调整
-  3. 替换文本内容 (`replace_text`) - 保留格式
-
-## 常见陷阱
-
-1. **时间单位混淆:** 记住 `trange("0s", "5s")` 第二个参数是持续时长,不是结束时间
-2. **轨道名称:** 多个同类型轨道时必须指定 `track_name`
-3. **素材路径:** 替换素材时需确保新素材路径正确且可访问
-4. **文本动画顺序:** 为文本片段同时设置循环和出入场动画时,必须先添加出入场动画
-5. **关键帧时间:** 关键帧时刻是相对于片段头部的偏移量,不是绝对时间
-6. **模板兼容性:** 剪映 6+ 版本对草稿文件加密,模板模式目前无法加载
-7. **主视频轨道对齐:** 主视频轨道(最底层)片段必须从 0s 开始,否则剪映会强制对齐
-
-## 版本兼容性
-
-| 功能 | 剪映版本 | 说明 |
-|-----|---------|------|
-| 草稿生成 (音视频/文本/特效) | 5.x ~ 7.x | ✅ 全版本支持 |
-| 模板模式 (加载/替换) | ≤ 5.9 | ⚠️ 6+ 版本文件加密 |
-| 自动导出 | ≤ 6.x | ⚠️ 7+ 版本隐藏控件 |
-
-## 平台兼容性
-
-- **Windows:** 全功能支持
-- **Linux/MacOS:** 支持草稿生成和模板模式,**不支持自动导出**,生成的草稿需在 Windows 剪映导出
-
-## 典型工作流
-
-```python
-import pyJianYingDraft as draft
-
-# 1. 初始化草稿文件夹
-folder = draft.DraftFolder(r"path/to/JianyingPro Drafts")
-
-# 2a. 创建新草稿 (创建模式)
-script = folder.create_draft("my_video", 1920, 1080)
-
-# 2b. 或加载模板 (模板模式)
-script = folder.duplicate_as_template("template_name", "new_draft")
-
-# 3. 添加轨道
-script.add_track(draft.TrackType.video)
-script.add_track(draft.TrackType.audio)
-
-# 4. 创建并添加片段
-video_seg = draft.VideoSegment("video.mp4", draft.trange("0s", "5s"))
-audio_seg = draft.AudioSegment("audio.mp3", draft.trange("0s", "5s"), volume=0.8)
-script.add_segment(video_seg).add_segment(audio_seg)
-
-# 5. 保存
-script.save()  # 模板模式
-# script.dump("path/to/draft_content.json")  # 创建模式
-```
-
-## 扩展指南
-
-### 扩展核心库功能
-
-- **添加新特效/滤镜类型:** 在 `pyJianYingDraft/metadata/` 对应模块中扩展枚举类,标注参数
-- **支持新片段类型:** 继承 `BaseSegment`,实现 `export_json()` 方法
-- **新素材类型:** 继承 `VideoMaterial` 或 `AudioMaterial`,添加媒体信息提取逻辑
-- **元数据更新:** 剪映更新后资源 ID 可能变化,需从实际草稿文件中提取更新
-
-### 扩展后端 API
-
-参见 `pyJianYingDraftServer/CLAUDE.md` 中的"添加新的 API 端点"部分
-
-### 扩展前端界面
-
-参见 `pyjianyingdraft-web/CLAUDE.md` 中的"添加新组件"部分
-
-## 项目目录结构
-
-```
-pyJianYingDraft/
-├── pyJianYingDraft/           # 核心 Python 库
-│   ├── __init__.py
-│   ├── script_file.py         # 草稿文件主类
-│   ├── draft_folder.py        # 草稿文件夹管理
-│   ├── track.py               # 轨道管理
-│   ├── segment.py             # 片段基类
-│   ├── *_segment.py           # 各类型片段实现
-│   ├── local_materials.py     # 本地素材封装
-│   ├── metadata/              # 剪映内置资源元数据
-│   ├── time_util.py           # 时间转换工具
-│   ├── keyframe.py            # 关键帧系统
-│   ├── animation.py           # 动画元数据
-│   ├── template_mode.py       # 模板模式
-│   ├── jianying_controller.py # UI 自动化导出
-│   ├── util.py                # 通用工具函数
-│   └── exceptions.py          # 自定义异常
-│
-├── pyJianYingDraftServer/     # FastAPI 后端服务
-│   ├── app/
-│   │   ├── main.py            # FastAPI 应用入口
-│   │   ├── routers/           # API 路由
-│   │   ├── services/          # 业务逻辑层
-│   │   ├── models/            # 数据模型
-│   │   └── db.py              # 数据库管理
-│   ├── config.json            # 服务配置
-│   ├── run.py                 # 开发启动脚本
-│   ├── build_server.py        # 打包脚本
-│   └── test_*.py              # 测试脚本
-│
-├── pyjianyingdraft-web/       # Next.js + Electron 前端
-│   ├── src/
-│   │   ├── app/               # Next.js App Router 页面
-│   │   ├── components/        # React 组件
-│   │   ├── lib/               # API 和工具库
-│   │   ├── types/             # TypeScript 类型定义
-│   │   ├── hooks/             # React Hooks
-│   │   └── theme.ts           # MUI 主题配置
-│   ├── electron/
-│   │   ├── main.js            # Electron 主进程
-│   │   └── preload.js         # 预加载脚本
-│   ├── package.json
-│   └── next.config.js
-│
-├── demo.py                    # 核心库使用示例
-├── demo_subdrafts.py          # 复合片段示例
-├── setup.py                   # pip 打包配置
-├── README.md                  # 用户文档
-└── CLAUDE.md                  # 本文件 (开发者指南)
-```
+- 更新时间：2026-06-24 09:19:30
+- 已扫描：根配置 + 核心库全部 17 个 `.py` + metadata 目录 + Server `app/` 全部路由/服务/模型 + main.py + run.py + Web 入口与组件清单。
+- 跳过：`node_modules/`、`.venv/`、`venv/`、`out/`、`dist/`、`build/`、`.heroui-docs/`（HeroUI 文档示例，非业务代码）、二进制文件。
+- 注意事项：根级旧 `CLAUDE.md` 提到 web 模块含 `electron/`，实际仓库当前**无 `electron/` 目录**，且 Web App Router 实际路由为 `/`、`/editor`、`/downloads`、`/api/open-in-editor`，以本次扫描为准。
+- 下一步建议深挖：核心库各 `*_segment.py` 的具体参数与导出 JSON 结构、Server 各 router 的请求/响应 schema、Web `src/components/timeline-editor/` 内部状态管理细节。
